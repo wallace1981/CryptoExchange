@@ -1,0 +1,129 @@
+﻿<UserControl x:Class="Terminal.WPF.RecentTradesView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:local="clr-namespace:Terminal.WPF"
+             xmlns:telerik="http://schemas.telerik.com/2008/xaml/presentation"
+             mc:Ignorable="d" 
+             d:DesignHeight="250">
+    <UserControl.Resources>
+        <Style TargetType="{x:Type ListViewItem}">
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        </Style>
+        <local:PercentToGridLengthConverter x:Key="convPercentToGridLength"/>
+    </UserControl.Resources>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <DockPanel LastChildFill="False">
+            <telerik:RadToggleButton IsChecked="{Binding Path=TradesSubscribed}" VerticalAlignment="Center" FontWeight="Bold">Recent Trades</telerik:RadToggleButton>
+            <Button Command="{Binding Path=GetTradesCommand}" VerticalAlignment="Center" Margin="2 0 0 0">></Button>
+            <Label HorizontalContentAlignment="Right" VerticalAlignment="Center" FontSize="11" Width="50">
+                <TextBlock Text="{Binding Path=GetTradesElapsed, Mode=OneWay, FallbackValue=9999, StringFormat='{}{0}ms.'}"/>
+            </Label>
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <Label>Count:</Label>
+                <telerik:RadComboBox x:Name="cmbBookSize"
+                    ItemsSource="{Binding Path=RecentTradesSizeList, Mode=OneWay}"
+                    SelectedValue="{Binding Path=TradesMaxItemCount, Mode=TwoWay}"
+                    Width="65"
+                    VerticalAlignment="Center">
+                </telerik:RadComboBox>
+            </StackPanel>
+        </DockPanel>
+
+        <ListView x:Name="dgTrades" Grid.Row="1" ItemsSource="{Binding Path=RecentTrades, Mode=OneWay}"
+                      BorderThickness="0 1 0 0" BorderBrush="LightGray"
+                      ItemContainerStyle="{StaticResource ListViewItemStyleCustom}">
+                <ListView.View>
+                    <GridView ScrollViewer.VerticalScrollBarVisibility="Visible"
+                              ColumnHeaderContainerStyle="{StaticResource GridViewColumnHeaderRight}">
+                        <GridView.Columns>
+                            <GridViewColumn x:Name="clPrice" Width="85">
+                            <GridViewColumn.Header>
+                                <TextBlock FontFamily="{StaticResource RobotoCondensed}" FontSize="12">
+                                            <Run Text="Price,"/>
+                                            <Run Text="{Binding Path=CurrentSymbolInformation.QuoteAsset, Mode=OneWay, FallbackValue=---}"/>
+                                </TextBlock>
+                            </GridViewColumn.Header>
+                            <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <ContentControl
+                                            Content="{Binding Path=Price, Mode=OneWay}"
+                                            ContentStringFormat="{Binding Path=PriceFmt, Mode=OneWay}"
+                                            Foreground="{Binding Path=Side, Mode=OneWay, Converter={StaticResource ResourceKey=convOrderSide}}"
+                                            Style="{StaticResource ContentControlRightAligned}"/>
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                            
+                            <GridViewColumn x:Name="clQuantity" Width="108">
+                                <GridViewColumn.Header>
+                                    <TextBlock FontFamily="{StaticResource RobotoCondensed}" FontSize="12">
+                                                <Run Text="Amount,"/>
+                                                <Run Text="{Binding Path=CurrentSymbolInformation.BaseAsset, Mode=OneWay, FallbackValue=---}"/>
+                                    </TextBlock>
+                                </GridViewColumn.Header>
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <ContentControl
+                                            Content="{Binding Path=Quantity, Mode=OneWay}"
+                                            ContentStringFormat="{Binding Path=QuantityFmt, Mode=OneWay}"
+                                            FontFamily="{StaticResource RobotoCondensed}"
+                                            Style="{StaticResource ContentControlRightAligned}"/>
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                            
+                            <GridViewColumn x:Name="clTotal" Width="85">
+                                <GridViewColumn.Header>
+                                    <TextBlock FontFamily="{StaticResource RobotoCondensed}" FontSize="12">
+                                        <Run Text="Total,"/>
+                                        <Run Text="{Binding Path=CurrentSymbolInformation.QuoteAsset, Mode=OneWay, FallbackValue=---}"/>
+                                    </TextBlock>
+                                </GridViewColumn.Header>
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="1 0 -5 0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="{Binding Path=QuantityPercentage, Converter={StaticResource convPercentToGridLength}, ConverterParameter='-'}"/>
+                                                <ColumnDefinition Width="{Binding Path=QuantityPercentage, Converter={StaticResource convPercentToGridLength}}"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Rectangle Grid.Column="1"
+                                                Fill="{Binding Path=Side, Mode=OneWay, Converter={StaticResource ResourceKey=convOrderSide}}"
+                                                Opacity="0.2"/>
+                                            <ContentControl Grid.ColumnSpan="2"
+                                                Content="{Binding Path=Total, Mode=OneWay}"
+                                                ContentStringFormat="N2"
+                                                Style="{StaticResource ContentControlRightAligned}" Margin="0"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                            
+                            <GridViewColumn x:Name="clTime" Width="85">
+                            <GridViewColumn.Header>
+                                <TextBlock FontFamily="{StaticResource RobotoCondensed}" FontSize="12">
+                                    <Run Text="Time"/>
+                                </TextBlock>
+                            </GridViewColumn.Header>
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <ContentControl
+                                            Content="{Binding Path=Time, Mode=OneWay}"
+                                            ContentStringFormat="dd/MM HH:mm:ss"
+                                            Style="{StaticResource ContentControlRightAligned}"/>
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                        </GridView.Columns>
+                    </GridView>
+                </ListView.View>
+            </ListView>
+
+    </Grid>
+</UserControl>

@@ -1,0 +1,114 @@
+﻿<UserControl x:Class="Terminal.WPF.CreateRule"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:local="clr-namespace:Terminal.WPF"
+             xmlns:exchange="clr-namespace:Exchange.Net"
+             xmlns:telerik="http://schemas.telerik.com/2008/xaml/presentation"
+             mc:Ignorable="d" 
+             FontFamily="{StaticResource Roboto}"
+             Width="250">
+    <UserControl.Resources>
+        <Style TargetType="Label">
+            <Setter Property="Padding" Value="6 8 6 8"/>
+        </Style>
+    </UserControl.Resources>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="100"/>
+            <ColumnDefinition/>
+        </Grid.ColumnDefinitions>
+
+        <telerik:RadComboBox Grid.Column="0" Margin="4 0"
+                             ItemsSource="{Binding Path=TradeSides, Mode=OneTime}"
+                             SelectedValue="{Binding Path=NewOrder.Side, Mode=TwoWay}"
+                             HorizontalContentAlignment="Left" VerticalAlignment="Center"
+                             >
+        </telerik:RadComboBox>
+
+        <Label Grid.Column="1">
+            <TextBlock Text="{Binding Path=NewOrder.SymbolInformation.Caption, Mode=OneTime}"
+                       HorizontalAlignment="Left" VerticalAlignment="Center"/>
+        </Label>
+
+        <Label Grid.Column="0" Grid.Row="2">
+            <TextBlock>TP Price</TextBlock>
+        </Label>
+        <telerik:RadNumericUpDown Grid.Column="1" Grid.Row="2"
+                                  HorizontalContentAlignment="Left" VerticalAlignment="Center"
+                                  NullValue="{Binding Path=CurrentSymbolTickerPrice.LastPrice, Mode=OneWay}"
+                                  ValueFormat="Numeric"
+                                  NumberDecimalDigits="{Binding Path=NewOrder.SymbolInformation.PriceDecimals, Mode=OneTime}"
+                                  ShowButtons="False"
+                                  Value="{Binding Path=NewOrder.Price, Mode=TwoWay, Converter={StaticResource convDecimalToDouble}}"
+                                  UpdateValueEvent="PropertyChanged"
+                                  x:Name="txtPrice"/>
+        <TextBlock Grid.Column="1" Grid.Row="2" HorizontalAlignment="Right" VerticalAlignment="Center" Padding="0 0 6 0" Text="{Binding NewOrder.SymbolInformation.QuoteAsset, Mode=OneTime}" Foreground="LightGray"/>
+
+        <Label Grid.Column="0" Grid.Row="1" x:Name="lblAmount">
+            <TextBlock>Amount</TextBlock>
+        </Label>
+        <DockPanel Grid.Column="1" Grid.Row="1">
+            <Grid DockPanel.Dock="Top">
+                <telerik:RadNumericUpDown
+                    HorizontalContentAlignment="Left" VerticalAlignment="Center"
+                    NullValue="{Binding NewOrder.SymbolInformation.MinQuantity, Mode=OneTime}"
+                    ValueFormat="Numeric"
+                    NumberDecimalDigits="{Binding NewOrder.SymbolInformation.QuantityDecimals, Mode=OneTime}"
+                    ShowButtons="False"
+                    Value="{Binding Path=NewOrder.Quantity, Mode=TwoWay, Converter={StaticResource convDecimalToDouble}}"
+                    Minimum="{Binding NewOrder.SymbolInformation.MinQuantity, Mode=OneTime}"
+                    UpdateValueEvent="PropertyChanged"
+                    x:Name="txtAmount"/>
+                <TextBlock Grid.Column="1" Grid.Row="1" HorizontalAlignment="Right" VerticalAlignment="Center" Padding="0 0 6 0" Text="{Binding NewOrder.SymbolInformation.BaseAsset, Mode=OneTime}" Foreground="LightGray"/>
+            </Grid>
+        </DockPanel>
+
+        <Label Grid.Column="0" Grid.Row="3">
+            <TextBlock>Order Type</TextBlock>
+        </Label>
+        <telerik:RadComboBox Grid.Column="1" Grid.Row="3"
+                             HorizontalContentAlignment="Left" VerticalAlignment="Center"
+                             ItemsSource="{Binding Path=OrderTypes, Mode=OneTime}"
+                             SelectedValue="{Binding Path=NewOrder.OrderType, Mode=TwoWay}">
+        </telerik:RadComboBox>
+
+        <Label Grid.Column="0" Grid.Row="4">
+            <TextBlock>Trailing TP %</TextBlock>
+        </Label>
+        <DockPanel Grid.Column="1" Grid.Row="4">
+            <telerik:RadNumericUpDown Width="75"
+                                      HorizontalAlignment="Left"
+                                  HorizontalContentAlignment="Right" VerticalAlignment="Center"
+                                  ValueFormat="Numeric" NumberDecimalDigits="2"
+                                  ShowButtons="True"
+                                  SmallChange="0.25"
+                                  LargeChange="1"
+                                  Value="{Binding Path=NewOrder.QuantityPercentage, Mode=TwoWay, FallbackValue=1.5}"
+                                  Minimum="0.5"
+                                  Maximum="100"
+                                  UpdateValueEvent="PropertyChanged"
+                                  x:Name="txtTPP"/>
+        </DockPanel>
+
+        <telerik:RadButton Grid.Column="1" Grid.Row="8"
+                           Command="{Binding Path=SubmitRuleCommand}">
+            <TextBlock Text="Create"
+                       FontWeight="Bold"/>
+        </telerik:RadButton>
+
+    </Grid>
+</UserControl>

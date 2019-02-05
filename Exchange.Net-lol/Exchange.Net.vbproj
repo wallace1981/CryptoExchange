@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Exchange.Net</RootNamespace>
+    <TargetFramework>netstandard2.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Remove="BinanceApiClient.cs" />
+    <None Remove="BinanceViewModel.cs" />
+    <None Remove="BittrexApi.cs" />
+    <None Remove="BittrexViewModel.cs" />
+    <None Remove="BotsView.cs" />
+    <None Remove="CoinMarketCapView.cs" />
+    <None Remove="CryptopiaApiClient.cs" />
+    <None Remove="CryptopiaViewModel.cs" />
+    <None Remove="DataObjects.cs" />
+    <None Remove="DsxApiClient.cs" />
+    <None Remove="DsxViewModel.cs" />
+    <None Remove="ExchangeApiCore.cs" />
+    <None Remove="ExchangeViewModel.cs" />
+    <None Remove="GZipHelper.cs" />
+    <None Remove="HuobiApiClient.cs" />
+    <None Remove="HuobiViewModel.cs" />
+    <None Remove="SecureStringHelpers.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="BinanceApiClient.cs" />
+    <Compile Include="BinanceViewModel.cs" />
+    <Compile Include="BittrexApi.cs" />
+    <Compile Include="BittrexViewModel.cs" />
+    <Compile Include="BotsView.cs" />
+    <Compile Include="CoinMarketCapView.cs" />
+    <Compile Include="CryptopiaApiClient.cs" />
+    <Compile Include="CryptopiaViewModel.cs" />
+    <Compile Include="DataObjects.cs" />
+    <Compile Include="DsxApiClient.cs" />
+    <Compile Include="DsxViewModel.cs" />
+    <Compile Include="ExchangeApiCore.cs" />
+    <Compile Include="ExchangeViewModel.cs" />
+    <Compile Include="GZipHelper.cs" />
+    <Compile Include="HuobiApiClient.cs" />
+    <Compile Include="HuobiViewModel.cs" />
+    <Compile Include="SecureStringHelpers.cs" />
+  </ItemGroup>
+
+</Project>

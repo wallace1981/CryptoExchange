@@ -1,0 +1,138 @@
+﻿<UserControl
+    x:Class="MiningShell.PriceTickerView2"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+    xmlns:sys="clr-namespace:System;assembly=mscorlib"
+    xmlns:telerik="http://schemas.telerik.com/2008/xaml/presentation"
+    xmlns:local="clr-namespace:Terminal.WPF"
+    mc:Ignorable="d"
+    d:DesignHeight="320"
+    >
+
+    <UserControl.Resources>
+        <sys:Boolean x:Key="blTrue">True</sys:Boolean>
+        <sys:Boolean x:Key="blFalse">False</sys:Boolean>
+        <local:EqualityToVisibilityConverter EqualValue="{StaticResource blTrue}" NotEqualValue="{StaticResource blFalse}" x:Key="convEqualityBool"/>
+        <Style TargetType="{x:Type telerik:GridViewRow}" BasedOn="{StaticResource GridViewRowStyle}" x:Key="rowStyle">
+            <!--<Setter Property="SelectedBackground" Value="#FDF1CF"/>-->
+            <Setter Property="Padding" Value="1"/>
+            <Setter Property="MinHeight" Value="10"/>
+        </Style>
+        <Style TargetType="{x:Type telerik:GridViewCell}" BasedOn="{StaticResource GridViewCellStyle}" x:Key="cellStyle">
+            <Setter Property="Padding" Value="1"/>
+            <Setter Property="CurrentBorderBrush" Value="Transparent" />
+            <Setter Property="Foreground" Value="Black"/>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+
+        <DockPanel>
+            <TextBox Width="85" TextChanged="TextBox_TextChanged" Margin="1 3" x:Name="tb"/>
+            <telerik:RadToggleButton x:Name="collapse" IsChecked="True" Margin="1 3 0 3">-</telerik:RadToggleButton>
+            <ItemsControl ItemsSource="{Binding Path=MarketAssets, IsAsync=True, Mode=OneWay}"
+                          DockPanel.Dock="Right" Margin="3 3 1 3" Visibility="{Binding ElementName=collapse, Path=IsChecked, Converter={StaticResource convBoolToVisib}}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <DockPanel LastChildFill="False"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <!--<telerik:RadToggleButton GroupName="QuoteAsset" CommandParameter="{Binding}" Content="{Binding}" Checked="RadioButton_Checked" Margin="1 0 0 0"/>-->
+                        <telerik:RadToggleButton Content="{Binding}" Command="{Binding Path=ViewModel.SetCurrentMarketCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                    Checked="RadioButton_Checked" CommandParameter="{Binding}" Margin="0 0 2 0">
+                            <telerik:RadToggleButton.IsChecked>
+                                <MultiBinding Converter="{StaticResource convEqualityBool}" Mode="OneWay">
+                                    <Binding Path="ViewModel.CurrentMarket" Mode="OneWay" RelativeSource="{RelativeSource AncestorType=UserControl}"/>
+                                    <Binding Mode="OneTime"/>
+                                </MultiBinding>
+                            </telerik:RadToggleButton.IsChecked>
+                        </telerik:RadToggleButton>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </DockPanel>
+        
+        <telerik:RadGridView Grid.Row="1" ItemsSource="{Binding Path=MarketSummaries, Mode=OneWay}"
+                             AutoGenerateColumns="False"
+                             FrozenColumnsSplitterVisibility="Collapsed" RowIndicatorVisibility="Collapsed" ShowGroupPanel="False"
+                             FilteringMode="Popup" IsFilteringAllowed="True" GroupRenderMode="Flat"
+                             RowStyle="{StaticResource rowStyle}" ValidatesOnDataErrors="None"
+                             x:Name="gv">
+            <telerik:RadGridView.Columns>
+
+                <telerik:GridViewColumn Header="Пара" Width="85" SortMemberPath="Symbol" FilterMemberPath="Symbol" CellStyle="{StaticResource cellStyle}">
+                    <telerik:GridViewColumn.CellTemplate>
+                        <DataTemplate>
+                            <TextBlock FontFamily="{StaticResource RobotoCondensed}"><Run Text="{Binding Path=SymbolInformation.BaseAsset, Mode=OneWay}"/>/<Run Text="{Binding Path=SymbolInformation.QuoteAsset, Mode=OneWay}"/>
+                                <TextBlock.Style>
+                                    <Style>
+                                        <Setter Property="TextBlock.Foreground" Value="{Binding Path=SymbolInformation, Mode=OneWay, Converter={StaticResource convSymbolToBrush}}"/>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </DataTemplate>
+                    </telerik:GridViewColumn.CellTemplate>
+                </telerik:GridViewColumn>
+
+                <telerik:GridViewColumn Header="Цена" Width="85" SortMemberPath="LastPrice" CellStyle="{StaticResource cellStyle}">
+                    <telerik:GridViewColumn.CellTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding Path=LastPrice, Mode=OneWay}" HorizontalAlignment="Left" FontFamily="{StaticResource RobotoCondensed}">
+                                <TextBlock.Style>
+                                    <Style>
+                                        <Setter Property="TextBlock.Foreground" Value="{Binding Path=PriceDiff, Mode=OneWay, Converter={StaticResource convPriceDiffToBrush}}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Path=IsLastPriceUpdated, Mode=OneWay}" Value="True">
+                                                <Setter Property="TextBlock.Background" Value="{Binding Path=PriceDiff, Mode=OneWay, Converter={StaticResource convPriceDiffToBrush}, ConverterParameter={StaticResource NeutralCandleBrush}}"/>
+                                                <Setter Property="TextBlock.Foreground" Value="White"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </DataTemplate>
+                    </telerik:GridViewColumn.CellTemplate>
+                </telerik:GridViewColumn>
+
+                <telerik:GridViewColumn Header="Измен." IsVisible="{Binding ElementName=collapse, Path=IsChecked}" Width="70" SortMemberPath="PriceChangePercent" CellStyle="{StaticResource cellStyle}">
+                    <telerik:GridViewColumn.CellTemplate>
+                        <DataTemplate>
+                            <StackPanel HorizontalAlignment="Right">
+                                <TextBlock Foreground="{Binding Path=PriceChangePercent, Mode=OneWay, Converter={StaticResource convPriceDiffToBrush}}" HorizontalAlignment="Right" FontFamily="{StaticResource RobotoCondensed}">
+                                            <Run Text="{Binding Path=PriceChangePercent, Mode=OneWay, StringFormat={StaticResource StringFormatPercentage}}"/>
+                                </TextBlock>
+                            </StackPanel>
+                        </DataTemplate>
+                    </telerik:GridViewColumn.CellTemplate>
+                </telerik:GridViewColumn>
+
+                <telerik:GridViewColumn Header="Объем" IsVisible="{Binding ElementName=collapse, Path=IsChecked}" Width="90" SortMemberPath="Volume" FilterMemberPath="Volume" CellStyle="{StaticResource cellStyle}">
+                    <telerik:GridViewColumn.CellTemplate>
+                        <DataTemplate>
+                            <TextBlock DockPanel.Dock="Right" HorizontalAlignment="Right" FontFamily="{StaticResource RobotoCondensed}"><Run Text="{Binding Path=Volume, Mode=OneWay, StringFormat='N0'}"/>
+                            </TextBlock>
+                        </DataTemplate>
+                    </telerik:GridViewColumn.CellTemplate>
+                </telerik:GridViewColumn>
+
+            </telerik:RadGridView.Columns>
+
+            <telerik:RadGridView.SortDescriptors>
+                <telerik:SortDescriptor Member="Volume" SortDirection="Descending"/>
+            </telerik:RadGridView.SortDescriptors>
+        </telerik:RadGridView>
+    </Grid>
+
+</UserControl>

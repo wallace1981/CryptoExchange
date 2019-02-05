@@ -1,0 +1,243 @@
+﻿<UserControl x:Class="Terminal.WPF.OrderBookView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:local="clr-namespace:Terminal.WPF"
+             xmlns:telerik="http://schemas.telerik.com/2008/xaml/presentation"
+             mc:Ignorable="d" 
+             d:DesignHeight="250">
+    <UserControl.Resources>
+        <Style TargetType="{x:Type ListViewItem}">
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        </Style>
+        <local:PercentToGridLengthConverter x:Key="convPercentToGridLength"/>
+    </UserControl.Resources>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <DockPanel LastChildFill="False">
+            <telerik:RadToggleButton IsChecked="{Binding Path=DepthSubscribed}" VerticalAlignment="Center" FontWeight="Bold">Order Book</telerik:RadToggleButton>
+            <Button Command="{Binding Path=GetDepthCommand}" VerticalAlignment="Center" Margin="2 0 0 0">></Button>
+            <Label HorizontalContentAlignment="Right" VerticalAlignment="Center" FontSize="11" Width="50">
+                <TextBlock Text="{Binding Path=GetDepthElapsed, Mode=OneWay, FallbackValue=9999, StringFormat='{}{0}ms.'}"/>
+            </Label>
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <Label Visibility="{Binding Path=Visibility, ElementName=cmbSymbols}">Market:</Label>
+                <telerik:RadComboBox Visibility="Collapsed"
+                    Width="100" HorizontalAlignment="Left"
+                    VerticalAlignment="Center"
+                    SelectionChanged="cmbSymbols_SelectionChanged"
+                    DisplayMemberPath="symbol"
+                    x:Name="cmbSymbols">
+                </telerik:RadComboBox>
+                <Label>Merge:</Label>
+                <telerik:RadComboBox
+                    Width="45" Padding="6 3 0 3"
+                    HorizontalAlignment="Left" VerticalAlignment="Center"
+                    ItemsSource="{Binding Path=OrderBookMergeDecimalsList, Mode=OneTime}"
+                    SelectedValue="{Binding Path=OrderBookMergeDecimals, Mode=TwoWay, FallbackValue=10}"
+                    x:Name="cmbMergeDecimals">
+                </telerik:RadComboBox>
+                <Label>Count:</Label>
+                <telerik:RadComboBox x:Name="cmbBookSize"
+                    ItemsSource="{Binding Path=OrderBookSizeList, Mode=OneWay}"
+                    SelectedValue="{Binding Path=OrderBookMaxItemCount, Mode=TwoWay}"
+                    Width="60" Padding="6 3 0 3"
+                    VerticalAlignment="Center">
+                </telerik:RadComboBox>
+            </StackPanel>
+        </DockPanel>
+
+
+        <Grid Grid.Row="1">
+            <Grid.RowDefinitions>
+                <RowDefinition/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition/>
+            </Grid.RowDefinitions>
+
+            <ListView x:Name="dgAsks" Grid.Row="0"
+                ItemsSource="{Binding Path=OrderBook.Asks, Mode=OneWay}"
+                ItemContainerStyle="{StaticResource ListViewItemStyleCustom}"
+                MouseDoubleClick="OrderBook_MouseDoubleClick"
+                >
+                <ListView.View>
+                    <GridView ScrollViewer.VerticalScrollBarVisibility="Hidden" ColumnHeaderContainerStyle="{StaticResource GridViewColumnHeaderRight}">
+                        <GridView.Columns>
+                            <GridViewColumn x:Name="clOrderBookPrice" Width="85">
+                                <GridViewColumn.Header>
+                                    <TextBlock FontFamily="{StaticResource RobotoCondensed}" FontSize="12">
+                                            <Run Text="Price,"/>
+                                            <Run Text="{Binding Path=CurrentSymbolInformation.QuoteAsset, Mode=OneWay, FallbackValue=---}"/>
+                                    </TextBlock>
+                                </GridViewColumn.Header>
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <ContentControl
+                                            Content="{Binding Path=Price, Mode=OneWay}"
+                                            ContentStringFormat="{Binding Path=PriceFmt, Mode=OneWay}"
+                                            Foreground="{Binding Path=Side, Mode=OneWay, Converter={StaticResource ResourceKey=convOrderSide}}"
+                                            Style="{StaticResource ContentControlRightAligned}"/>
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                            <GridViewColumn x:Name="clOrderBookQuantity" Width="108">
+                                <GridViewColumn.Header>
+                                    <TextBlock FontFamily="{StaticResource RobotoCondensed}" FontSize="12">
+                                        <Run Text="Amount,"/>
+                                        <Run Text="{Binding Path=CurrentSymbolInformation.BaseAsset, Mode=OneWay, FallbackValue=---}"/>
+                                    </TextBlock>
+                                </GridViewColumn.Header>
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <ContentControl
+                                                Content="{Binding Path=Quantity, Mode=OneWay}"
+                                                ContentStringFormat="{Binding Path=QuantityFmt, Mode=OneWay}"
+                                                Style="{StaticResource ContentControlRightAligned}"/>
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                            <GridViewColumn x:Name="clOrderBookTotal" Width="85">
+                                <GridViewColumn.Header>
+                                    <TextBlock FontFamily="{StaticResource RobotoCondensed}" FontSize="12">
+                                        <Run Text="Total,"/>
+                                        <Run Text="{Binding Path=CurrentSymbolInformation.QuoteAsset, Mode=OneWay, FallbackValue=---}"/>
+                                    </TextBlock>
+                                </GridViewColumn.Header>
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="3 0 -3 0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="{Binding Path=QuantityPercentage, Converter={StaticResource convPercentToGridLength}, ConverterParameter='-'}"/>
+                                                <ColumnDefinition Width="{Binding Path=QuantityPercentage, Converter={StaticResource convPercentToGridLength}}"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Rectangle Grid.Column="1" Fill="{StaticResource BearCandleBrush}" Opacity="0.2"/>
+                                            <ContentControl Grid.ColumnSpan="2"
+                                                    Content="{Binding Path=Total, Mode=OneWay}"
+                                                    ContentStringFormat="N2"
+                                                    Style="{StaticResource ContentControlRightAligned}" Margin="0"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                            <GridViewColumn x:Name="clOrderBookTotalCumulative" Width="85">
+                                <GridViewColumn.Header>
+                                    <TextBlock FontFamily="{StaticResource RobotoCondensed}" FontSize="12">
+                                            <Run Text="Cumul.,"/>
+                                            <Run Text="{Binding Path=CurrentSymbolInformation.QuoteAsset, Mode=OneWay, FallbackValue=---}"/>
+                                    </TextBlock>
+                                </GridViewColumn.Header>
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <ContentControl
+                                                Content="{Binding Path=TotalCumulative, Mode=OneWay}"
+                                                ContentStringFormat="N2"
+                                                Style="{StaticResource ContentControlRightAligned}"/>
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                        </GridView.Columns>
+                    </GridView>
+                </ListView.View>
+            </ListView>
+
+            <Border Grid.Row="1" BorderThickness="0 1" BorderBrush="LightGray" VerticalAlignment="Center">
+                <DockPanel>
+                    <DockPanel Width="{Binding ElementName=clOrderBookPrice, Path=ActualWidth, Mode=OneWay}">
+                        <ContentControl
+                            Content="{Binding Path=OrderBook.Spread, Mode=OneWay}"
+                            ContentStringFormat="{Binding Path=CurrentSymbolInformation.PriceFmt, Mode=OneWay}"
+                            Style="{StaticResource ContentControlRightAligned}" Margin="0 0 -1 0"/>
+                    </DockPanel>
+                    <DockPanel Width="{Binding ElementName=clOrderBookQuantity, Path=ActualWidth, Mode=OneWay}" x:Name="lblPrice">
+                        <TextBlock HorizontalAlignment="Right">
+                        </TextBlock>
+                    </DockPanel>
+                    <DockPanel Width="{Binding Path=ActualWidth, ElementName=clOrderBookTotal}">
+                        <ContentControl
+                            Content="{Binding Path=OrderBook.SpreadPercentage, Mode=OneWay}"
+                            ContentStringFormat="N2"
+                            Style="{StaticResource ContentControlRightAligned}" Margin="0 0 -1 0"/>
+                    </DockPanel>
+                    <DockPanel>
+                        <ContentControl
+                            Content="%"
+                            Style="{StaticResource ContentControlRightAligned}"
+                            HorizontalAlignment="Left" HorizontalContentAlignment="Left"
+                            Margin="3 0 0 0"/>
+                    </DockPanel>
+                </DockPanel>
+            </Border>
+
+            <ListView x:Name="dgBids" Grid.Row="2" ItemsSource="{Binding Path=OrderBook.Bids, Mode=OneWay}"
+                      ItemContainerStyle="{StaticResource ListViewItemStyleCustom}"
+                      MouseDoubleClick="OrderBook_MouseDoubleClick">
+                <ListView.View>
+                    <GridView ScrollViewer.VerticalScrollBarVisibility="Visible">
+                        <GridView.ColumnHeaderContainerStyle>
+                            <Style TargetType="GridViewColumnHeader">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                            </Style>
+                        </GridView.ColumnHeaderContainerStyle>
+                        <GridView.Columns>
+                            <GridViewColumn Header="Price" Width="{Binding Path=ActualWidth, ElementName=clOrderBookPrice}">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <ContentControl
+                                            Content="{Binding Path=Price, Mode=OneWay}"
+                                            ContentStringFormat="{Binding Path=PriceFmt, Mode=OneWay}"
+                                            Foreground="{Binding Path=Side, Mode=OneWay, Converter={StaticResource ResourceKey=convOrderSide}}"
+                                            Style="{StaticResource ContentControlRightAligned}"/>
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                            <GridViewColumn Header="Amount" Width="{Binding Path=ActualWidth, ElementName=clOrderBookQuantity}">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <ContentControl
+                                            Content="{Binding Path=Quantity, Mode=OneWay}"
+                                            ContentStringFormat="{Binding Path=QuantityFmt, Mode=OneWay}"
+                                            FontFamily="{StaticResource RobotoCondensed}"
+                                            Style="{StaticResource ContentControlRightAligned}"/>
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                            <GridViewColumn Header="Total" Width="{Binding Path=ActualWidth, ElementName=clOrderBookTotal}">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="1 0 -5 0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="{Binding Path=QuantityPercentage, Converter={StaticResource convPercentToGridLength}, ConverterParameter='-'}"/>
+                                                <ColumnDefinition Width="{Binding Path=QuantityPercentage, Converter={StaticResource convPercentToGridLength}}"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Rectangle Grid.Column="1" Fill="{StaticResource BullCandleBrush}" Opacity="0.2"/>
+                                            <ContentControl Grid.ColumnSpan="2"
+                                                Content="{Binding Path=Total, Mode=OneWay}"
+                                                ContentStringFormat="N2"
+                                                Style="{StaticResource ContentControlRightAligned}" Margin="0"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                            <GridViewColumn Header="Total Cum." Width="{Binding Path=ActualWidth, ElementName=clOrderBookTotalCumulative}">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <ContentControl
+                                            Content="{Binding Path=TotalCumulative, Mode=OneWay}"
+                                            ContentStringFormat="N2"
+                                            Style="{StaticResource ContentControlRightAligned}"/>
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                        </GridView.Columns>
+                    </GridView>
+                </ListView.View>
+            </ListView>
+        </Grid>
+
+    </Grid>
+</UserControl>

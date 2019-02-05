@@ -1,0 +1,116 @@
+﻿<UserControl x:Class="Terminal.WPF.DsxTerminalView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:telerik="http://schemas.telerik.com/2008/xaml/presentation"
+             xmlns:local="clr-namespace:Terminal.WPF"
+             mc:Ignorable="d" 
+             d:DesignHeight="450" d:DesignWidth="800"
+             FontFamily="{StaticResource RobotoCondensed}">
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="370"/>
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <DockPanel Grid.Row="0">
+            <UniformGrid DockPanel.Dock="Top" Columns="5" HorizontalAlignment="Left">
+                <Button Command="{Binding Path=GetExchangeInfoCommand}">Exchange Info</Button>
+                <Label HorizontalContentAlignment="Right">
+                    <TextBlock>
+                        <Run Text="{Binding Path=GetExchangeInfoElapsed, Mode=OneWay}"/>ms.
+                    </TextBlock>
+                </Label>
+                <Button Command="{Binding Path=GetTickersCommand}">Tickers</Button>
+                <telerik:RadToggleButton Command="{Binding Path=GetTickersSubscribeCommand}"
+                              CommandParameter="{Binding RelativeSource={RelativeSource Mode=Self}, Path=IsChecked, Mode=OneWay}">Tickers!</telerik:RadToggleButton>
+                <Label HorizontalContentAlignment="Right">
+                    <TextBlock>
+                        <Run Text="{Binding Path=GetTickersElapsed, Mode=OneWay}"/>ms.
+                    </TextBlock>
+                </Label>
+            </UniformGrid>
+            <DataGrid AutoGenerateColumns="False" BorderBrush="LightGray" BorderThickness="1"
+                      ColumnWidth="*"
+                      AlternatingRowBackground="#F0F0F0"
+                      ItemsSource="{Binding Path=Tickers, Mode=OneWay}"
+                      SelectedValuePath="SymbolInformation"
+                      SelectedValue="{Binding Path=CurrentSymbol}">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Pair" Binding="{Binding Path=SymbolInformation.Caption, Mode=OneWay}"/>
+                    <DataGridTextColumn Header="Price" Binding="{Binding Path=LastPrice, Mode=OneWay}"/>
+                    <DataGridTextColumn Header="High" Binding="{Binding Path=HighPrice, Mode=OneWay}"/>
+                    <DataGridTextColumn Header="Low" Binding="{Binding Path=LowPrice, Mode=OneWay}"/>
+                    <DataGridTextColumn Header="Buy" Binding="{Binding Path=Bid, Mode=OneWay}"/>
+                    <DataGridTextColumn Header="Sell" Binding="{Binding Path=Ask, Mode=OneWay}"/>
+                    <DataGridTextColumn Header="Vol." Binding="{Binding Path=Volume, StringFormat=N0, Mode=OneWay}"/>
+                    <DataGridTextColumn Header="Q.Vol." Binding="{Binding Path=QuoteVolume, StringFormat=N0, Mode=OneWay}"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </DockPanel>
+
+        <telerik:RadTabControl Grid.Row="1">
+            
+        </telerik:RadTabControl>
+
+        <Grid Grid.RowSpan="2" Grid.Column="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="70*"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="30*"/>
+            </Grid.RowDefinitions>
+
+            <Label>
+                <TextBlock>
+                    <Run Text="{Binding Path=CurrentSymbol.Caption, Mode=OneWay}" FontWeight="Bold"/>
+                </TextBlock>
+            </Label>
+
+            <UniformGrid Grid.Row="1" Columns="3">
+                <Button Command="{Binding Path=GetDepthCommand}">Depth</Button>
+                <telerik:RadToggleButton Command="{Binding Path=GetDepthSubscribeCommand}"
+                              CommandParameter="{Binding RelativeSource={RelativeSource Mode=Self}, Path=IsChecked, Mode=OneWay}">Depth!</telerik:RadToggleButton>
+                <Label HorizontalContentAlignment="Right">
+                    <TextBlock>
+                        <Run Text="{Binding Path=GetDepthElapsed, Mode=OneWay}"/>ms.
+                    </TextBlock>
+                </Label>
+            </UniformGrid>
+            
+            <local:OrderBookView Grid.Row="2">
+                
+            </local:OrderBookView>
+
+            <UniformGrid Grid.Row="3" Columns="3">
+                <Button Command="{Binding Path=GetTradesCommand}">Trades</Button>
+                <telerik:RadToggleButton Command="{Binding Path=GetTradesSubscribeCommand}"
+                              CommandParameter="{Binding RelativeSource={RelativeSource Mode=Self}, Path=IsChecked, Mode=OneWay}">Trades!</telerik:RadToggleButton>
+                <Label HorizontalContentAlignment="Right">
+                    <TextBlock>
+                        <Run Text="{Binding Path=GetTradesElapsed, Mode=OneWay}"/>ms.
+                    </TextBlock>
+                </Label>
+            </UniformGrid>
+
+            <local:RecentTradesView Grid.Row="4">
+                
+            </local:RecentTradesView>
+        </Grid>
+
+        <StatusBar Grid.Row="2" Grid.ColumnSpan="2">
+            <StatusBarItem>
+                <Label>
+                    <TextBlock Text="{Binding Path=Status, Mode=OneWay}"/>
+                </Label>
+            </StatusBarItem>
+        </StatusBar>
+    </Grid>
+</UserControl>
