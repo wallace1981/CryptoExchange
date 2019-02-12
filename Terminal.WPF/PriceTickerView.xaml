@@ -41,10 +41,12 @@
             <Label HorizontalContentAlignment="Right" VerticalAlignment="Center" FontSize="11" Width="50">
                 <TextBlock Text="{Binding Path=GetTickersElapsed, Mode=OneWay, FallbackValue=9999, StringFormat='{}{0}ms.'}"/>
             </Label>
-            <telerik:RadComboBox ItemsSource="{Binding Path=MarketAssets, Mode=OneWay}"
-                          DockPanel.Dock="Right" Margin="3 3 1 3" Width="80"
-                                 SelectedValue="{Binding Path=CurrentMarket, Mode=TwoWay}"
-                                 SelectionChanged="RadComboBox_SelectionChanged">
+            <telerik:RadComboBox
+                DockPanel.Dock="Right" Margin="3 3 1 3" Width="80"
+                ItemsSource="{Binding Path=MarketAssets, Mode=OneWay}"
+                SelectedValue="{Binding Path=CurrentMarket, Mode=TwoWay}"
+                SelectionChanged="RadComboBox_SelectionChanged"
+                MaxDropDownHeight="250">
                 <!--<ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
                         <WrapPanel Orientation="Horizontal"/>
@@ -66,27 +68,29 @@
             </telerik:RadComboBox>
         </DockPanel>
         
-        <telerik:RadGridView Grid.Row="1"
-                             IsReadOnly="True"
-                             ItemsSource="{Binding Path=MarketSummaries, Mode=OneWay}"
-                             SelectedItem="{Binding Path=CurrentSymbolTickerPrice, Mode=TwoWay}"
-                             SelectionMode="Single" SelectionUnit="FullRow"
-                             IsSynchronizedWithCurrentItem="False"
-                             AutoGenerateColumns="False"
-                             FrozenColumnsSplitterVisibility="Collapsed"
-                             RowIndicatorVisibility="Collapsed"
-                             ShowGroupPanel="False"
-                             FilteringMode="Popup" IsFilteringAllowed="True" GroupRenderMode="Flat"
-                             RowStyle="{StaticResource rowStyle}"
-                             ValidatesOnDataErrors="None"
-                             ScrollViewer.VerticalScrollBarVisibility="Visible"
-                             x:Name="gv">
+        <telerik:RadGridView
+            Grid.Row="1"
+            IsReadOnly="True"
+            ItemsSource="{Binding Path=MarketSummaries, Mode=OneWay}"
+            SelectedItem="{Binding Path=CurrentSymbolTickerPrice, Mode=TwoWay}"
+            SelectionMode="Single" SelectionUnit="FullRow"
+            IsSynchronizedWithCurrentItem="False"
+            AutoGenerateColumns="False"
+            FrozenColumnsSplitterVisibility="Collapsed"
+            RowIndicatorVisibility="Collapsed"
+            ShowGroupPanel="False"
+            FilteringMode="Popup" IsFilteringAllowed="True" GroupRenderMode="Flat"
+            RowStyle="{StaticResource rowStyle}"
+            ValidatesOnDataErrors="None"
+            ScrollViewer.VerticalScrollBarVisibility="Visible"
+            x:Name="gv">
+            
             <telerik:RadGridView.Columns>
-
                 <telerik:GridViewColumn Header="Пара" Width="85" SortMemberPath="SymbolInformation.ProperSymbol" FilterMemberPath="SymbolInformation.ProperSymbol" CellStyle="{StaticResource cellStyle}">
                     <telerik:GridViewColumn.CellTemplate>
                         <DataTemplate>
-                            <TextBlock FontFamily="{StaticResource RobotoCondensed}"><Run Text="{Binding Path=SymbolInformation.BaseAsset, Mode=OneWay}"/>/<Run Text="{Binding Path=SymbolInformation.QuoteAsset, Mode=OneWay}"/>
+                            <TextBlock FontFamily="{StaticResource RobotoCondensed}" FontSize="12">
+                                <Run Text="{Binding Path=SymbolInformation.BaseAsset, Mode=OneWay}"/>/<Run Text="{Binding Path=SymbolInformation.QuoteAsset, Mode=OneWay}"/>
                                 <TextBlock.Style>
                                     <Style>
                                         <Setter Property="TextBlock.Foreground" Value="{Binding Path=SymbolInformation, Mode=OneWay, Converter={StaticResource convSymbolToBrush}}"/>
@@ -100,7 +104,7 @@
                 <telerik:GridViewColumn Header="Цена" Width="85" SortMemberPath="LastPrice" CellStyle="{StaticResource cellStyle}">
                     <telerik:GridViewColumn.CellTemplate>
                         <DataTemplate>
-                            <TextBlock Text="{Binding Path=LastPrice, Mode=OneWay, TargetNullValue='- -'}" HorizontalAlignment="Left" FontFamily="{StaticResource RobotoCondensed}">
+                            <TextBlock Text="{Binding Path=LastPrice, Mode=OneWay, TargetNullValue='- -'}" HorizontalAlignment="Left" FontFamily="{StaticResource RobotoCondensed}" FontSize="12">
                                 <TextBlock.Style>
                                     <Style>
                                         <Setter Property="TextBlock.Foreground" Value="{Binding Path=PriceDiff, Mode=OneWay, Converter={StaticResource convPriceDiffToBrush}}"/>
@@ -121,8 +125,8 @@
                     <telerik:GridViewColumn.CellTemplate>
                         <DataTemplate>
                             <StackPanel HorizontalAlignment="Right">
-                                <TextBlock Foreground="{Binding Path=PriceChangePercent, Mode=OneWay, Converter={StaticResource convPriceDiffToBrush}}" HorizontalAlignment="Right" FontFamily="{StaticResource RobotoCondensed}">
-                                            <Run Text="{Binding Path=PriceChangePercent, Mode=OneWay, TargetNullValue='- -', StringFormat={StaticResource StringFormatPercentage}}"/>
+                                <TextBlock Foreground="{Binding Path=PriceChangePercent, Mode=OneWay, Converter={StaticResource convPriceDiffToBrush}}" HorizontalAlignment="Right" FontFamily="{StaticResource RobotoCondensed}" FontSize="12">
+                                    <Run Text="{Binding Path=PriceChangePercent, Mode=OneWay, TargetNullValue='- -', StringFormat={StaticResource StringFormatPercentage}}"/>
                                 </TextBlock>
                             </StackPanel>
                         </DataTemplate>
@@ -132,12 +136,12 @@
                 <telerik:GridViewColumn Header="Объем" HeaderTextAlignment="Right" IsVisible="{Binding ElementName=collapse, Path=IsChecked}" Width="90" SortMemberPath="QuoteVolume" FilterMemberPath="QuoteVolume" CellStyle="{StaticResource cellStyle}">
                     <telerik:GridViewColumn.CellTemplate>
                         <DataTemplate>
-                            <TextBlock DockPanel.Dock="Right" HorizontalAlignment="Right" FontFamily="{StaticResource RobotoCondensed}"><Run Text="{Binding Path=QuoteVolume, Mode=OneWay, TargetNullValue='- -', StringFormat='N0'}"/>
+                            <TextBlock DockPanel.Dock="Right" HorizontalAlignment="Right" FontFamily="{StaticResource RobotoCondensed}" FontSize="12">
+                                <Run Text="{Binding Path=QuoteVolume, Mode=OneWay, TargetNullValue='- -', StringFormat='N0'}"/>
                             </TextBlock>
                         </DataTemplate>
                     </telerik:GridViewColumn.CellTemplate>
                 </telerik:GridViewColumn>
-
             </telerik:RadGridView.Columns>
 
             <telerik:RadGridView.SortDescriptors>

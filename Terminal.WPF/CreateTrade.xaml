@@ -1,0 +1,221 @@
+﻿<rxui:ReactiveUserControl
+    x:Class="Terminal.WPF.CreateTrade"
+    x:TypeArguments="local:TradeTaskViewModel"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+    xmlns:rxui="http://reactiveui.net"
+    xmlns:local="clr-namespace:Terminal.WPF"
+    xmlns:telerik="http://schemas.telerik.com/2008/xaml/presentation"
+    mc:Ignorable="d"
+    UseLayoutRounding="True"
+    SnapsToDevicePixels="False"
+    >
+    <UserControl.Resources>
+        <Style TargetType="Label">
+            <Setter Property="Padding" Value="6 8"/>
+        </Style>
+        <telerik:InvertedBooleanConverter x:Key="convInvertedBoolean"/>
+    </UserControl.Resources>
+    <Grid Grid.IsSharedSizeScope="True">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition SharedSizeGroup="col1" Width="Auto"/>
+            <ColumnDefinition SharedSizeGroup="col2"/>
+            <ColumnDefinition SharedSizeGroup="col3" Width="130"/>
+            <ColumnDefinition SharedSizeGroup="col4" Width="50" />
+        </Grid.ColumnDefinitions>
+
+        <Label Grid.Column="1" FontSize="18" FontWeight="Bold" Padding="0 6">
+            <TextBlock Text="{Binding Path=SymbolInformation.Caption, Mode=OneTime, FallbackValue='BTC / USD'}"/>
+        </Label>
+
+        <Label Grid.Column="0" Grid.Row="1">
+            <TextBlock>Цена покупки:</TextBlock>
+        </Label>
+        <telerik:RadNumericUpDown
+            Grid.Column="1" Grid.Row="1"
+            HorizontalContentAlignment="Left" VerticalAlignment="Center"
+            ValueFormat="Numeric" ShowButtons="False"
+            NumberDecimalDigits="{Binding Path=SymbolInformation.PriceDecimals, Mode=OneWay}"
+            Maximum="{Binding Path=SymbolInformation.MaxPrice, Mode=OneWay}"
+            Minimum="{Binding Path=SymbolInformation.MinPrice, Mode=OneWay}"
+            Value="{Binding Path=Buy.Price, Mode=TwoWay, Converter={StaticResource convDecimalToDouble}}"
+            UpdateValueEvent="PropertyChanged"
+            IsEnabled="{Binding ElementName=chkIsMarket, Path=IsChecked, Converter={StaticResource convInvertedBoolean}}"
+            x:Name="txtPrice"/>
+        <TextBlock
+            Grid.Column="1" Grid.Row="1" HorizontalAlignment="Right" VerticalAlignment="Center" Padding="0 0 6 0"
+            Text="{Binding Path=SymbolInformation.QuoteAsset, Mode=OneTime, FallbackValue=USD}" Foreground="LightGray"/>
+        <CheckBox
+            Grid.Column="2" Grid.ColumnSpan="2" Grid.Row="1" Margin="6 0 0 0"
+            IsChecked="{Binding Path=IsMarketBuy, Mode=TwoWay}"
+            x:Name="chkIsMarket">
+            <TextBlock>По рынку</TextBlock>
+        </CheckBox>
+
+        <Label Grid.Column="0" Grid.Row="3">
+            <TextBlock>Объем:</TextBlock>
+        </Label>
+        <telerik:RadNumericUpDown
+            Grid.Column="1" Grid.Row="3"
+            HorizontalContentAlignment="Left" VerticalAlignment="Center"
+            ValueFormat="Numeric"
+            NumberDecimalDigits="{Binding Path=SymbolInformation.QuantityDecimals, Mode=OneTime}"
+            ShowButtons="False"
+            Maximum="{Binding Path=SymbolInformation.MaxQuantity, Mode=OneWay}"
+            Minimum="{Binding Path=SymbolInformation.MinQuantity, Mode=OneWay}"
+            Value="{Binding Path=Buy.Quantity, Mode=TwoWay, Converter={StaticResource convDecimalToDouble}}"
+            UpdateValueEvent="PropertyChanged"
+            x:Name="txtAmount"/>
+        <TextBlock
+            Grid.Column="1" Grid.Row="3" HorizontalAlignment="Right" VerticalAlignment="Center" Padding="0 0 6 0"
+            Text="{Binding Path=SymbolInformation.BaseAsset, Mode=OneTime, FallbackValue=BTC}" Foreground="LightGray"/>
+        <DockPanel Grid.Column="1" Grid.Row="4" VerticalAlignment="Top" Visibility="Collapsed">
+            <TextBlock Text="{Binding Path=SymbolInformation.MinQuantity, Mode=OneWay}" FontSize="10" HorizontalAlignment="Left"/>
+        </DockPanel>
+
+        <Label Grid.Column="0" Grid.Row="4">
+            <TextBlock>
+                <Run Text="Сумма:"/>
+            </TextBlock>
+        </Label>
+        <Grid Grid.Column="1" Grid.Row="4" Margin="0 3 0 0">
+            <Grid.RowDefinitions>
+                <RowDefinition/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <telerik:RadProgressBar
+                Minimum="0" Maximum="{Binding Path=QuoteBalance, Mode=OneTime}" Value="{Binding Path=Total, Mode=OneWay}">
+            </telerik:RadProgressBar>
+            <Label VerticalAlignment="Top" HorizontalAlignment="Center">
+                <TextBlock>
+                    <Run Text="{Binding Path=Total, Mode=OneWay, StringFormat=N6}"/>
+                    <Run Text="/"/>
+                    <Run Text="{Binding Path=QuoteBalance, Mode=OneTime, StringFormat=N6}"/>
+                    <Run Text="{Binding Path=SymbolInformation.QuoteAsset, Mode=OneTime}"/>
+                </TextBlock>
+            </Label>
+            <telerik:RadSlider
+                Grid.Row="1" Margin="0 -5 0 0" Width="208"
+                Minimum="0" Maximum="1" SmallChange="0.01" LargeChange="0.05" Value="{Binding Path=QuoteBalancePercent}"
+                TickFrequency="0.1" TickPlacement="BottomRight" x:Name="sliderQtyPercents">
+            </telerik:RadSlider>
+
+        </Grid>
+        <TextBlock
+            Grid.Column="2" Grid.Row="4" VerticalAlignment="Bottom" Margin="6 0 0 0"
+            Text="{Binding ElementName=sliderQtyPercents, Path=Value, StringFormat=P2}"/>
+
+        <Border
+            Grid.Column="0" Grid.ColumnSpan="4" Grid.Row="5"
+            BorderThickness="0 1 0 0" Margin="6 6" BorderBrush="LightGray"/>
+        
+        <Label
+            Grid.Column="0" Grid.Row="6">
+            <TextBlock>Стоп:</TextBlock>
+        </Label>
+        <telerik:RadNumericUpDown
+            Grid.Column="1" Grid.Row="6"
+            HorizontalContentAlignment="Left" VerticalAlignment="Center"
+            ValueFormat="Numeric"
+            Maximum="{Binding Path=SymbolInformation.MaxPrice, Mode=OneWay}"
+            Minimum="{Binding Path=SymbolInformation.MinPrice, Mode=OneWay}"
+            NumberDecimalDigits="{Binding Path=SymbolInformation.PriceDecimals, Mode=OneTime}"
+            ShowButtons="False"
+            Value="{Binding Path=StopLoss.Price, Mode=TwoWay, Converter={StaticResource convDecimalToDouble}}"
+            UpdateValueEvent="PropertyChanged"
+            x:Name="txtStopLoss"/>
+        <TextBlock
+            Grid.Column="1" Grid.Row="6" HorizontalAlignment="Right" VerticalAlignment="Center" Padding="0 0 6 0"
+            Text="{Binding Path=SymbolInformation.QuoteAsset, Mode=OneTime, FallbackValue=USD}" Foreground="LightGray"/>
+        <CheckBox
+            Grid.Column="2" Grid.ColumnSpan="2" Grid.Row="6" Margin="6 0 0 0"
+            IsChecked="{Binding Path=IsLimitStop, Mode=TwoWay}"
+            x:Name="chkIsStopLimit">
+            <TextBlock>Лимитный</TextBlock>
+        </CheckBox>
+
+        <Border
+            Grid.Column="0" Grid.ColumnSpan="4" Grid.Row="7"
+            BorderThickness="0 1 0 0" Margin="6 6" BorderBrush="LightGray"/>
+
+        <ItemsControl
+            Grid.ColumnSpan="4" Grid.Row="8" ItemsSource="{Binding Path=TakeProfit, Mode=OneWay}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition SharedSizeGroup="col1"/>
+                            <ColumnDefinition SharedSizeGroup="col2"/>
+                            <ColumnDefinition SharedSizeGroup="col3"/>
+                            <ColumnDefinition SharedSizeGroup="col4"/>
+                        </Grid.ColumnDefinitions>
+                        <Label Grid.Column="0">
+                            <TextBlock Text="{Binding Path=Caption, Mode=OneTime, StringFormat=\{0\}:}"/>
+                        </Label>
+                        <telerik:RadNumericUpDown
+                            Grid.Column="1" HorizontalContentAlignment="Left" VerticalAlignment="Center"
+                            ValueFormat="Numeric"
+                            NumberDecimalDigits="{Binding Path=TradeTask.SymbolInformation.PriceDecimals, Mode=OneTime}"
+                            ShowButtons="False"
+                            Maximum="{Binding Path=TradeTask.SymbolInformation.MaxPrice, Mode=OneWay}"
+                            Minimum="{Binding Path=TradeTask.SymbolInformation.MinPrice, Mode=OneWay}"
+                            Value="{Binding Path=Price, Mode=TwoWay, Converter={StaticResource convDecimalToDouble}}"
+                            UpdateValueEvent="PropertyChanged"
+                            />
+                        <TextBlock
+                            Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" Padding="0 0 6 0"
+                            Text="{Binding Path=TradeTask.SymbolInformation.QuoteAsset, Mode=OneTime}" Foreground="LightGray"/>
+                        <TextBlock
+                            Grid.Column="2" Text="{Binding Path=QuantityPercentStart, Mode=OneWay, StringFormat=P2}" Visibility="Collapsed"/>
+                        <TextBlock
+                            Grid.Column="3" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                            Text="{Binding Path=QuantityPercent, Mode=OneWay, StringFormat=P2}"/>
+                        <telerik:RadSlider
+                            Grid.Column="2" VerticalAlignment="Bottom" Margin="6 0 0 0"
+                            Minimum="0" Maximum="1" SmallChange="0.01" LargeChange="0.05"
+                            SelectionStart="{Binding Path=QuantityPercentStart, Mode=TwoWay}"
+                            SelectionEnd="{Binding Path=QuantityPercentEnd, Mode=TwoWay}"
+                            IsSelectionRangeEnabled="True" Width="116"
+                            TickFrequency="0.1"
+                            TickPlacement="BottomRight">
+                        </telerik:RadSlider>
+                    </Grid>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <telerik:RadButton
+            Grid.Column="1" Grid.Row="9" Command="{Binding Path=AddTakeProfitCommand, Mode=OneTime}">
+            <TextBlock Text="Добавить тейк" FontWeight="Bold"/>
+        </telerik:RadButton>
+
+        <Border
+            Grid.Column="0" Grid.ColumnSpan="4" Grid.Row="10"
+            BorderThickness="0 1 0 0" Margin="6 6" BorderBrush="LightGray"/>
+
+        <Button
+            Grid.Column="1" Grid.Row="11" IsDefault="True"
+            Command="{Binding Path=SubmitCommand, Mode=OneTime}"
+            Click="Button_Click">
+            <TextBlock Text="Создать" FontWeight="Bold"/>
+        </Button>
+
+    </Grid>
+</rxui:ReactiveUserControl>

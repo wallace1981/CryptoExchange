@@ -1,8 +1,10 @@
 ﻿using ReactiveUI;
 using System;
+using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Reactive;
 using System.Reactive.Disposables;
@@ -12,7 +14,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Data;
 using System.Windows.Input;
-
+using Terminal.WPF;
 
 namespace Exchange.Net
 {
@@ -138,6 +140,7 @@ namespace Exchange.Net
         public ReactiveList<Order> OrderHistory { get; }
         public ReactiveList<TradingRuleProxy> TradingRuleProxies => tradingRuleProxies;
         public BalanceManager BalanceManager => balanceManager;
+        public ReactiveList<TradeTaskViewModel> TradeTasks { get; }
 
         protected abstract string DefaultMarket { get; }
         protected List<string> UsdAssets = new List<string>();
@@ -189,6 +192,11 @@ namespace Exchange.Net
             deposits = new ReactiveList<Transfer>();
             withdrawals = new ReactiveList<Transfer>();
             balanceManager = new BalanceManager();
+            TradeTasks = new ReactiveList<TradeTaskViewModel>();
+
+            marketAssets.EnableThreadSafety();
+            marketSummaries.EnableThreadSafety();
+            TradeTasks.EnableThreadSafety();
 
             setCurrentMarketCommand = ReactiveCommand.Create<string>(x => CurrentMarket = x);
             setCurrentSymbolCommand = ReactiveCommand.Create<string>(x => { CurrentSymbol = x; CurrentSymbolInformation = GetSymbolInformation(x); });
@@ -199,7 +207,8 @@ namespace Exchange.Net
             refreshPrivateDataCommand = ReactiveCommand.CreateFromTask(RefreshPrivateDataExecute);
             CancelOrderCommand = ReactiveCommand.CreateFromTask<string>(CancelOrder);
             SubmitOrderCommand = ReactiveCommand.CreateFromTask<NewOrder>(SubmitOrder);
-            CreateRuleCommand = ReactiveCommand.Create<object>(CreateRuleExecute);
+            //CreateRuleCommand = ReactiveCommand.Create<object>(CreateRuleExecute);
+            CreateRuleCommand = ReactiveCommand.CreateFromTask<string>(CreateTradeTaskExecute);
             SubmitRuleCommand = ReactiveCommand.Create<object>(SubmitRuleExecute);
 
             var subSI = this.ObservableForProperty(vm => vm.CurrentSymbolInformation)
@@ -766,6 +775,20 @@ namespace Exchange.Net
             return result;
         }
 
+        protected PriceTicker GetPriceTicker(string market)
+        {
+            if (tickersMapping.TryGetValue(market, out int idx))
+            {
+                return MarketSummaries[idx];
+            }
+            return null;
+        }
+
+        protected virtual Task<SymbolInformation> GetFullSymbolInformation()
+        {
+            return Task.FromResult(CurrentSymbolInformation);
+        }
+
         protected async void OnRefreshMarketSummary2(PriceTicker ticker)
         {
             if (tickersMapping.TryGetValue(ticker.Symbol, out int idx))
@@ -790,9 +813,9 @@ namespace Exchange.Net
                 if (ticker.PriceChangePercent != null) oldTicker.PriceChangePercent = ticker.PriceChangePercent;
 #endif
                 Debug.Assert(marketsMapping.TryGetValue(ticker.Symbol, out SymbolInformation market));
-                BalanceManager.UpdateWithLastPrice(market.ProperSymbol, ticker.Bid.GetValueOrDefault());
                 if (tickerChanged)
                 {
+                    BalanceManager.UpdateWithLastPrice(market.ProperSymbol, ticker.Bid.GetValueOrDefault());
                     UpdateWithTicker(ticker);
                     await ProcessTradingRules(ticker);
                 }
@@ -934,6 +957,18 @@ namespace Exchange.Net
             viewModel.NewOrder = order;
             wnd.DataContext = viewModel;
             wnd.ShowDialog();
+        }
+
+        public Interaction<TradeTaskViewModel, bool> CreateTask { get; } = new Interaction<TradeTaskViewModel, bool>();
+
+        private async Task CreateTradeTaskExecute(string param)
+        {
+            var si = await GetFullSymbolInformation();
+            var viewModel = new TradeTaskViewModel(si, ExchangeName);
+
+            var ok = await CreateTask.Handle(viewModel);
+            if (ok)
+                TradeTasks.Add(viewModel);
         }
 
         private void SubmitRuleExecute(object param)
@@ -1092,6 +1127,28 @@ namespace Exchange.Net
             this.ObservableForProperty(x => x.TradesSubscribed).Subscribe(x => SetTradesSubscription(x.Value));
             this.ObservableForProperty(x => x.DepthSubscribed).Subscribe(x => SetDepthSubscription(x.Value));
             this.ObservableForProperty(x => x.PrivateDataSubscribed).Subscribe(x => SetPrivateDataSubscription(x.Value));
+
+            InitializeAsync();
+        }
+
+        private async void InitializeAsync()
+        {
+            IsInitializing = true;
+            await GetExchangeInfo().ConfigureAwait(false);
+            await GetTickers().ConfigureAwait(false);
+            IsInitializing = false;
+            //SetTickersSubscription(true);
+
+            foreach (var file in Directory.EnumerateFiles(".", "????????-*.json"))
+            {
+                var json = File.ReadAllText(file);
+                var taskModel = TradeTaskViewModel.DeserializeModel(json);
+                if (taskModel.Exchange == ExchangeName)
+                {
+                    var si = GetSymbolInformation(taskModel.Symbol);
+                    TradeTasks.Add(new TradeTaskViewModel(si, taskModel));
+                }
+            }
         }
 
         protected virtual Task GetExchangeInfo()
@@ -1151,7 +1208,6 @@ namespace Exchange.Net
         {
             if (isEnabled)
                 getTickersSubscription = ObserveTickers123()
-                                        .ObserveOnDispatcher()
                                         .Subscribe(OnRefreshMarketSummary2);
 
             else if (getTickersSubscription != null)
@@ -1192,6 +1248,11 @@ namespace Exchange.Net
                               .InvokeCommand(RefreshPrivateDataCommand);
             else if (getPrivateDataSubscription != null)
                 getPrivateDataSubscription.Dispose();
+        }
+
+        protected virtual Task<Balance> GetBalance(string asset)
+        {
+            return Task.FromResult(new Balance(asset));
         }
 
         public virtual string[] OrderTypes => new string[] { "limit", "market", "fill-or-kill" };
@@ -1412,5 +1473,13 @@ namespace Exchange.Net
         PartiallyFilled,
         Rejected,
         Cancelled
+    }
+
+    public static class ReactiveListExtensions
+    {
+        public static void EnableThreadSafety<T>(this ReactiveList<T> list)
+        {
+            BindingOperations.EnableCollectionSynchronization(list, (list as ICollection).SyncRoot);
+        }
     }
 }

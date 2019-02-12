@@ -1,19 +1,7 @@
 ﻿using Exchange.Net;
 using ReactiveUI;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
 
 namespace Terminal.WPF
 {
@@ -25,7 +13,7 @@ namespace Terminal.WPF
         public ExchangeView()
         {
             InitializeComponent();
-            this.WhenActivated(d =>
+            this.WhenActivated(disposables =>
             {
                 //d(this.OneWayBind(this.ViewModel, vm => vm.RefreshMarketSummariesElapsed, v => v.lblRefreshMarketSummariesElapsed.Content));
                 //d(this.OneWayBind(this.ViewModel, vm => vm.RefreshTradesElapsed, v => v.lblRefreshTradesElapsed.Content));
@@ -42,7 +30,28 @@ namespace Terminal.WPF
                 //d(this.OneWayBind(this.ViewModel, vm => vm.Withdrawals, v => v.grdWithdrawals.ItemsSource));
                 //d(this.Bind(this.ViewModel, vm => vm.MarketFilter, v => v.txtMarketFilter.Text));
                 //d(this.OneWayBind(this.ViewModel, vm => vm, v => v.brdFunds.DataContext));
-                d(this.OneWayBind(this.ViewModel, x => x, x => x.priceTicker.DataContext));
+                disposables(this.OneWayBind(this.ViewModel, x => x, x => x.priceTicker.DataContext));
+                disposables(this
+                    .ViewModel
+                    .CreateTask
+                    .RegisterHandler(
+                        interaction =>
+                        {
+                            var wnd = new Window
+                            {
+                                Content = interaction.Input,
+                                ContentTemplate = Application.Current.Resources["rxuiViewModelHostTemplate"] as DataTemplate,
+                                Owner = Application.Current.MainWindow,
+                                ShowInTaskbar = false,
+                                ShowActivated = true,
+                                SizeToContent = SizeToContent.WidthAndHeight,
+                                Title = "Create Task",
+                                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                                WindowStyle = WindowStyle.ToolWindow
+                            };
+                            var result = wnd.ShowDialog();
+                            interaction.SetOutput(result.GetValueOrDefault());
+                        }));
             });
         }
 

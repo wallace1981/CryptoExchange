@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Exchange.Net
@@ -312,6 +313,7 @@ namespace Exchange.Net
         public string QuoteAsset { get; set; }
         public Balance BaseAssetBalance { get; set; }
         public Balance QuoteAssetBalance { get; set; }
+        public PriceTicker PriceTicker { get; set; }
         public decimal MinPrice { get; set; }
         public decimal MaxPrice { get; set; }
         public decimal TickSize { get; set; }
@@ -329,6 +331,29 @@ namespace Exchange.Net
         public string ProperSymbol => (BaseAsset + QuoteAsset).ToUpper();
         public string Caption => $"{BaseAsset} / {QuoteAsset}";
 		public string Status { get; set; }
+
+        public decimal ClampQuantity(decimal quantity)
+        {
+            quantity = Math.Min(MaxQuantity, quantity);
+            quantity = Math.Max(MinQuantity, quantity);
+            quantity -= quantity % StepSize;
+            quantity = Floor(quantity);
+            return quantity;
+        }
+
+        public decimal ClampPrice(decimal price)
+        {
+            price = Math.Min(MaxPrice, price);
+            price = Math.Max(MinPrice, price);
+            price -= price % TickSize;
+            price = Floor(price);
+            return price;
+        }
+
+        private static decimal Floor(decimal number)
+        {
+            return Math.Floor(number * 100000000) / 100000000;
+        }
     }
 
     public class PublicTrade : ReactiveObject
@@ -382,6 +407,7 @@ namespace Exchange.Net
         private decimal _LowPrice;
         private decimal _PriceChange;
         private decimal? _bid, _ask;
+        private CancellationTokenSource ctsLastPrice;
 
         public string Symbol { get => _symbol; set => this.RaiseAndSetIfChanged(ref _symbol, value); }
         public decimal WeightedAveragePrice { get => _WeightedAveragePrice; set => this.RaiseAndSetIfChanged(ref _WeightedAveragePrice, value); }
@@ -395,19 +421,20 @@ namespace Exchange.Net
             get => _lastPrice;
             set
             {
-                if (PrevLastPrice == null)
+                PrevLastPrice = _lastPrice;
+                if (value != PrevLastPrice)
                 {
-                    PrevLastPrice = _lastPrice;
                     this.RaiseAndSetIfChanged(ref _lastPrice, value);
-                }
-                else if (value != PrevLastPrice.Value)
-                {
-                    PrevLastPrice = _lastPrice;
-                    this.RaiseAndSetIfChanged(ref _lastPrice, value);
+                    if (ctsLastPrice != null)
+                    {
+                        ctsLastPrice.Cancel();
+                        ctsLastPrice.Dispose();
+                    }
+                    ctsLastPrice = new CancellationTokenSource();
                     IsLastPriceUpdated = true;
-                    Task.Delay(500).ContinueWith((x) => IsLastPriceUpdated = false);
-                    this.RaisePropertyChanged(nameof(PriceDiff));
+                    Task.Delay(500, ctsLastPrice.Token).ContinueWith((x) => IsLastPriceUpdated = false);
                 }
+                this.RaisePropertyChanged(nameof(PriceDiff));
             }
         }
         public decimal? Bid { get => _bid; set => this.RaiseAndSetIfChanged(ref _bid, value); }

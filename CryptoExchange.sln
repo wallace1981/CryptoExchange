@@ -10,6 +10,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Terminal.WPF", "Terminal.WP
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tests", "Tests\Tests.csproj", "{E28D80C8-4365-4429-9802-E5BCE1BF9C46}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WpfApp1", "WpfApp1\WpfApp1.csproj", "{62CF6BE0-2677-4568-A77E-04EF2BC5D6BB}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -48,6 +50,14 @@ Global
 		{E28D80C8-4365-4429-9802-E5BCE1BF9C46}.Release|Any CPU.Build.0 = Release|Any CPU
 		{E28D80C8-4365-4429-9802-E5BCE1BF9C46}.Release|x86.ActiveCfg = Release|Any CPU
 		{E28D80C8-4365-4429-9802-E5BCE1BF9C46}.Release|x86.Build.0 = Release|Any CPU
+		{62CF6BE0-2677-4568-A77E-04EF2BC5D6BB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{62CF6BE0-2677-4568-A77E-04EF2BC5D6BB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{62CF6BE0-2677-4568-A77E-04EF2BC5D6BB}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{62CF6BE0-2677-4568-A77E-04EF2BC5D6BB}.Debug|x86.Build.0 = Debug|Any CPU
+		{62CF6BE0-2677-4568-A77E-04EF2BC5D6BB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{62CF6BE0-2677-4568-A77E-04EF2BC5D6BB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{62CF6BE0-2677-4568-A77E-04EF2BC5D6BB}.Release|x86.ActiveCfg = Release|Any CPU
+		{62CF6BE0-2677-4568-A77E-04EF2BC5D6BB}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

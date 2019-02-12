@@ -26,10 +26,17 @@ namespace Terminal.WPF
         private void Application_Startup(object sender, StartupEventArgs e)
         {
             SetIEFeature(IE_FEATURE_BROWSER_EMULATION, 0x2AF8);
-            //CrystalPalette.Palette.AccentPressedColor = Colors.Bisque;
-            //CrystalPalette.Palette.MouseOverHighColor = Colors.Bisque;
-            //CrystalPalette.Palette.FontSize = 12;
-            //CrystalPalette.Palette.FontFamily = new FontFamily("Roboto");
+            CrystalPalette.Palette.AccentPressedColor = Colors.Bisque;
+            CrystalPalette.Palette.MouseOverHighColor = Colors.Bisque;
+            //CrystalPalette.Palette.FontFamily = Application.Current.Resources["RobotoCondensed"] as FontFamily;
+            //CrystalPalette.Palette.FontSize = 15;
+            CrystalPalette.Palette.CornerRadius = new CornerRadius(0);
+
+            //FluentPalette.Palette.FontFamily = Application.Current.Resources["RobotoCondensed"] as FontFamily;
+            //FluentPalette.Palette.FontSize = 13;
+            //Office2013Palette.Palette.FontSizeL = 12;
+            //Office2013Palette.Palette.FontSizeXL = 12;
+            //Office2013Palette.Palette.FontFamily = new FontFamily("Roboto");
 
             Locator.CurrentMutable.Register(() => new ExchangeView(), typeof(IViewFor<BinanceViewModel>));
             Locator.CurrentMutable.Register(() => new ExchangeView(), typeof(IViewFor<DsxViewModel>));
@@ -38,6 +45,7 @@ namespace Terminal.WPF
             Locator.CurrentMutable.Register(() => new ExchangeView(), typeof(IViewFor<CryptopiaViewModel>));
             Locator.CurrentMutable.Register(() => new ExchangeView(), typeof(IViewFor<HitBtcViewModel>));
             Locator.CurrentMutable.Register(() => new ExchangeView(), typeof(IViewFor<OKexViewModel>));
+            Locator.CurrentMutable.Register(() => new CreateTrade(), typeof(IViewFor<TradeTaskViewModel>));
 
             ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls11 | SecurityProtocolType.Tls12;
         }
@@ -160,8 +168,8 @@ namespace Terminal.WPF
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            var dbl = (double)value;
-            return new GridLength(dbl, GridUnitType.Pixel);
+            var dbl = Math.Abs((double)value);
+            return new GridLength(dbl, parameter as string == "*" ? GridUnitType.Star : GridUnitType.Pixel);
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)

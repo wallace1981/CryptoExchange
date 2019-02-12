@@ -7,26 +7,27 @@
         xmlns:telerik="http://schemas.telerik.com/2008/xaml/presentation"
         xmlns:rxui="http://reactiveui.net"
         mc:Ignorable="d"
-        Title="MainWindow" Height="800" Width="1280">
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="False"
+        WindowStartupLocation="CenterScreen"
+        TextOptions.TextFormattingMode="Ideal"
+        RenderOptions.ClearTypeHint="Auto"
+        Title="Terminal.WPF" Height="800" Width="1280">
     <Grid>
         
-        <telerik:RadTabControl x:Name="tab" IsContentPreserved="True" Visibility="Visible">
+        <telerik:RadTabControl
+            x:Name="tab"
+            IsContentPreserved="True"
+            Visibility="Visible"
+            ContentTemplate="{StaticResource rxuiViewModelHostTemplate}">
             <telerik:RadTabControl.ItemTemplate>
                 <DataTemplate>
                     <TextBlock Margin="8,0,0,0" Text="{Binding Path=ExchangeName, Mode=OneTime}" />
                 </DataTemplate>
             </telerik:RadTabControl.ItemTemplate>
-            <telerik:RadTabControl.ContentTemplate>
-                <DataTemplate>
-                    <rxui:ViewModelViewHost
-                        HorizontalContentAlignment="Stretch"
-                        ViewModel="{Binding Mode=OneWay}"
-                        VerticalContentAlignment="Stretch"
-                        Margin="3 6 3 0"
-                        />
-                </DataTemplate>
-            </telerik:RadTabControl.ContentTemplate>
+            
         </telerik:RadTabControl>
+        
         <telerik:RadToggleButton
             DataContext="{Binding ElementName=tab, Path=SelectedItem}"
             IsChecked="{Binding Path=IsActive, Mode=TwoWay}"

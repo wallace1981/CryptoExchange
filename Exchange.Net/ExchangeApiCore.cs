@@ -120,6 +120,24 @@ namespace Exchange.Net
 #endif
         }
 
+        protected string LoadJson(string contentPath)
+        {
+            if (string.IsNullOrWhiteSpace(contentPath))
+                return null;
+            try
+            {
+                var path = Path.Combine(LogName, Path.ChangeExtension(contentPath, ".json"));
+                if (!File.Exists(path))
+                    return null;
+                return File.ReadAllText(path);
+            }
+            catch (Exception ex)
+            {
+                Debug.Print(ex.ToString());
+                return null;
+            }
+        }
+
         internal void InitializeLog()
         {
             if (Log == null)

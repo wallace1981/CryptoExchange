@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:Terminal.WPF"
              xmlns:sys="clr-namespace:System;assembly=mscorlib"
+             xmlns:rxui="http://reactiveui.net"
              StartupUri="MainWindow.xaml"
              Startup="Application_Startup"
              DispatcherUnhandledException="Application_DispatcherUnhandledException"
@@ -11,16 +12,26 @@
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="/Telerik.Windows.Themes.Crystal;component/Themes/System.Windows.xaml"/>
-                <ResourceDictionary Source="/Telerik.Windows.Themes.Crystal;component/Themes/Telerik.Windows.Controls.xaml"/>
-                <ResourceDictionary Source="/Telerik.Windows.Themes.Crystal;component/Themes/Telerik.Windows.Controls.GridView.xaml"/>
-                <ResourceDictionary Source="/Telerik.Windows.Themes.Crystal;component/Themes/Telerik.Windows.Controls.Input.xaml"/>
-                <ResourceDictionary Source="/Telerik.Windows.Themes.Crystal;component/Themes/Telerik.Windows.Controls.Navigation.xaml"/>
+                <!--<ResourceDictionary Source="/Telerik.Windows.Themes.Crystal;component/Themes/System.Windows.xaml"/>-->
+                <ResourceDictionary Source="/Telerik.Windows.Themes.Office_Black;component/Themes/Telerik.Windows.Controls.xaml"/>
+                <ResourceDictionary Source="/Telerik.Windows.Themes.Office_Black;component/Themes/Telerik.Windows.Controls.GridView.xaml"/>
+                <ResourceDictionary Source="/Telerik.Windows.Themes.Office_Black;component/Themes/Telerik.Windows.Controls.Input.xaml"/>
+                <ResourceDictionary Source="/Telerik.Windows.Themes.Office_Black;component/Themes/Telerik.Windows.Controls.Navigation.xaml"/>
+
+                <!--<ResourceDictionary Source="pack://application:,,,/MaterialDesignThemes.Wpf;component/Themes/MaterialDesignTheme.Light.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/MaterialDesignThemes.Wpf;component/Themes/MaterialDesignTheme.Defaults.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/MaterialDesignColors;component/Themes/Recommended/Primary/MaterialDesignColor.LightBlue.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/MaterialDesignColors;component/Themes/Recommended/Accent/MaterialDesignColor.LightBlue.xaml" />-->
             </ResourceDictionary.MergedDictionaries>
 
             <FontFamily x:Key="Roboto">pack://application:,,,/Fonts/#Roboto</FontFamily>
             <FontFamily x:Key="RobotoCondensed">pack://application:,,,/Fonts/#Roboto Condensed</FontFamily>
 
+            <Style TargetType="{x:Type Label}">
+                <Setter Property="TextBlock.FontFamily" Value="{StaticResource Roboto}"/>
+                <Setter Property="TextBlock.FontSize" Value="12"/>
+            </Style>
+            
             <Style TargetType="{x:Type GridView}">
                 <Setter Property="AllowsColumnReorder" Value="False"/>
             </Style>
@@ -60,7 +71,7 @@
             </Style>
             
             <Style TargetType="{x:Type ContentControl}" x:Key="ContentControlRightAligned">
-                <Setter Property="FontFamily"   Value="{StaticResource RobotoCondensed}"/>
+                <Setter Property="FontFamily" Value="{StaticResource RobotoCondensed}"/>
                 <Setter Property="FontSize" Value="12"/>
                 <Setter Property="HorizontalAlignment" Value="Right"/>
                 <Setter Property="Margin" Value="1 0 -5 0"/>
@@ -86,6 +97,14 @@
             <sys:String x:Key="StringFormatPriceUsd">${0:N2}</sys:String>
             <sys:String x:Key="StringFormatPriceBtc">{0:F8} BTC</sys:String>
 
+            <DataTemplate x:Key="rxuiViewModelHostTemplate">
+                <rxui:ViewModelViewHost
+                        HorizontalContentAlignment="Stretch"
+                        ViewModel="{Binding Mode=OneWay}"
+                        VerticalContentAlignment="Stretch"
+                        Margin="3 6 3 0"
+                        />
+            </DataTemplate>
             <BooleanToVisibilityConverter x:Key="convBoolToVisib"/>
         </ResourceDictionary>
     </Application.Resources>

@@ -215,6 +215,8 @@ namespace Exchange.Net
         const int GetKlinesWeight = 1;
         const string GetBookTickerEndpoint = "/api/v3/ticker/bookTicker";
         const int GetBookTickerWeight = 2;
+        const string GetAvgPriceEndpoint = "/api/v3/avgPrice";
+        const int GetAvgPriceWeight = 1;
 
         public Task<ApiResult<Binance.ServerTime>> GetServerTimeAsync()
         {
@@ -256,10 +258,17 @@ namespace Exchange.Net
             return Observable.Interval(TimeSpan.FromSeconds(1)).SelectMany(x => obs);
         }
 
+        public Task<ApiResult<Binance.PriceTicker24hr>> Get24hrPriceTickerAsync(string symbol)
+        {
+            var requestParams = new Dictionary<string, object>() { { "symbol", symbol } };
+            var requestMessage = CreateRequestMessage(requestParams, Get24hrPriceTickerEndpoint, HttpMethod.Get);
+            return ExecuteRequestAsync<Binance.PriceTicker24hr>(requestMessage, 1, contentPath: $"ticker24hr-{symbol}");
+        }
+
         public Task<ApiResult<Binance.PriceTicker24hr[]>> Get24hrPriceTickerAsync()
         {
             var requestMessage = CreateRequestMessage(new BlankPublicRequest(), Get24hrPriceTickerEndpoint, HttpMethod.Get);
-            return ExecuteRequestAsync<Binance.PriceTicker24hr[]>(requestMessage, Get24hrPriceTickerWeight, contentPath: "tickers24hr");
+            return ExecuteRequestAsync<Binance.PriceTicker24hr[]>(requestMessage, Get24hrPriceTickerWeight, contentPath: "ticker24hr");
         }
 
         public IObservable<ApiResult<Binance.PriceTicker24hr[]>> Observe24hrPriceTicker()
@@ -319,6 +328,33 @@ namespace Exchange.Net
             return Observable.Interval(TimeSpan.FromSeconds(2)).SelectMany(x => obs);
         }
 
+        public Task<ApiResult<Binance.AvgPrice>> GetAveragePrice(string symbol)
+        {
+            var requestParams = new Dictionary<string, object>() { { "symbol", symbol } };
+            var requestMessage = CreateRequestMessage(requestParams, GetAvgPriceEndpoint, HttpMethod.Get);
+            return ExecuteRequestAsync<Binance.AvgPrice>(requestMessage, GetAvgPriceWeight, contentPath: $"avgPrice-{symbol}");
+        }
+
+        #endregion
+
+        #region Test API
+        public ApiResult<Binance.ExchangeInfo> GetExchangeInfoOffline()
+        {
+            var json = LoadJson("exchangeInfo");
+            return new ApiResult<Binance.ExchangeInfo>(JsonConvert.DeserializeObject<Binance.ExchangeInfo>(json), null);
+        }
+
+        public ApiResult<Binance.PriceTicker24hr[]> GetPriceTicker24hrOffline()
+        {
+            var json = LoadJson("ticker24hr");
+            return new ApiResult<Binance.PriceTicker24hr[]>(JsonConvert.DeserializeObject<Binance.PriceTicker24hr[]>(json), null);
+        }
+
+        public ApiResult<Binance.AccountInfo> GetAccountInfoOffline()
+        {
+            var json = LoadJson("account");
+            return new ApiResult<Binance.AccountInfo>(JsonConvert.DeserializeObject<Binance.AccountInfo>(json), null);
+        }
         #endregion
 
         #region Signed API
@@ -602,6 +638,19 @@ namespace Exchange.Net
             return requestMessage;
         }
 
+        protected HttpRequestMessage CreateRequestMessage(IDictionary<string, object> requestParams, string endpoint, HttpMethod method)
+        {
+            var query = requestParams.BuildQuery();
+            HttpContent content = null;
+            if (method == HttpMethod.Get)
+                endpoint = endpoint + query;
+            else
+                content = new StringContent(query);
+            var requestMessage = new HttpRequestMessage(method, endpoint) { Content = content };
+            requestMessage.Properties.Add("QUERY", query);
+            return requestMessage;
+        }
+
         protected const int RateLimitStatusCode = 429;
         protected const int BannedStatusCode = 418;
 
@@ -742,10 +791,14 @@ namespace Binance
     public enum FilterType
     {
         PRICE_FILTER,
+        PERCENT_PRICE,
         LOT_SIZE,
         MIN_NOTIONAL,
         ICEBERG_PARTS,
-        MAX_NUM_ALGO_ORDERS
+        MARKET_LOT_SIZE,
+        MAX_NUM_ORDERS,
+        MAX_NUM_ALGO_ORDERS,
+        MAX_NUM_ICEBERG_ORDERS
     }
 
     public enum OrderStatus
@@ -790,6 +843,9 @@ namespace Binance
         public decimal minPrice { get; set; }       // "PRICE_FILTER"
         public decimal maxPrice { get; set; }       // "PRICE_FILTER"
         public decimal tickSize { get; set; }       // "PRICE_FILTER"
+        public decimal multiplierUp { get; set; }   // "PERCENT_PRICE"
+        public decimal multiplierDown { get; set; } // "PERCENT_PRICE"
+        public int avgPriceMins { get; set; }       // "PERCENT_PRICE"
         public decimal minQty { get; set; }         // "LOT_SIZE"
         public decimal maxQty { get; set; }         // "LOT_SIZE"
         public decimal stepSize { get; set; }       // "LOT_SIZE"
@@ -871,6 +927,12 @@ namespace Binance
         public decimal bidQty { get; set; }
         public decimal askPrice { get; set; }
         public decimal askQty { get; set; }
+    }
+
+    public class AvgPrice
+    {
+        public int mins { get; set; }
+        public decimal price { get; set; }
     }
 
     public class AccountInfo : CallResult

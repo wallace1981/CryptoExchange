@@ -24,10 +24,11 @@ namespace Exchange.Net
 
         protected override async Task GetExchangeInfo()
         {
-            var resultExchangeInfo = await client.GetExchangeInfoAsync().ConfigureAwait(true);
+            var resultExchangeInfo = await client.GetExchangeInfoAsync().ConfigureAwait(false);
             if (resultExchangeInfo.Success)
             {
                 GetExchangeInfoElapsed = resultExchangeInfo.ElapsedMilliseconds;
+                currentExchangeInfo = resultExchangeInfo.Data;
                 var symbols = resultExchangeInfo.Data.symbols.Select(CreateSymbolInformation);
                 ProcessExchangeInfo(symbols);
                 var serverTime = resultExchangeInfo.Data.serverTime.FromUnixTimestamp();
@@ -57,7 +58,7 @@ namespace Exchange.Net
 
         private async Task GetTickers24hr()
         {
-            var resultTickers = await client.Get24hrPriceTickerAsync().ConfigureAwait(true);
+            var resultTickers = await client.Get24hrPriceTickerAsync().ConfigureAwait(false);
             if (resultTickers.Success)
             {
                 ticker24hrLastRun = DateTime.Now.AddSeconds(6);
@@ -76,7 +77,7 @@ namespace Exchange.Net
         {
             var priceTickersTask = client.GetPriceTickerAsync();
             var bookTickersTask = client.GetBookTickerAsync();
-            await Task.WhenAll(priceTickersTask, bookTickersTask).ConfigureAwait(true);
+            await Task.WhenAll(priceTickersTask, bookTickersTask).ConfigureAwait(false);
             if (priceTickersTask.IsCompleted && bookTickersTask.IsCompleted)
             {
                 if (priceTickersTask.Result.Success && bookTickersTask.Result.Success)
@@ -143,6 +144,39 @@ namespace Exchange.Net
             }
         }
 
+        protected override async Task<Balance> GetBalance(string asset)
+        {
+            var result = await client.GetAccountInfoAsync();
+            //var result = await Task.FromResult(client.GetAccountInfoOffline());
+            if (result.Success)
+            {
+                var b = result.Data.balances.SingleOrDefault(x => x.asset == asset);
+                return new Balance(asset) { Free = b.free, Locked = b.locked };
+            }
+            else
+                throw new Exception(result.Error.ToString());
+        }
+
+        private Binance.ExchangeInfo currentExchangeInfo;
+
+        protected override async Task<SymbolInformation> GetFullSymbolInformation()
+        {
+            var si = CurrentSymbolInformation;
+            si.QuoteAssetBalance = await GetBalance(si.QuoteAsset);
+            si.QuoteAssetBalance.Free = Math.Round(si.QuoteAssetBalance.Free, si.PriceDecimals);
+            si.PriceTicker = GetPriceTicker(si.Symbol);
+            var filter = currentExchangeInfo.symbols.SingleOrDefault(x => x.symbol == si.Symbol).filters.SingleOrDefault(x => x.filterType == Binance.FilterType.PERCENT_PRICE.ToString());
+            if (filter != null)
+            {
+                if (filter != null)
+                {
+                    si.MaxPrice = si.PriceTicker.WeightedAveragePrice * filter.multiplierUp;
+                    si.MinPrice = si.PriceTicker.WeightedAveragePrice * filter.multiplierDown;
+                }
+            }
+            return si;
+        }
+
         protected override IObservable<PriceTicker> ObserveTickers123()
         {
             return client.SubscribeMarketSummariesAsync(null).Select(ToPriceTicker);
@@ -206,6 +240,7 @@ namespace Exchange.Net
         {
             var priceFilter = market.filters.SingleOrDefault((f) => f.filterType == Binance.FilterType.PRICE_FILTER.ToString());
             var lotSizeFilter = market.filters.SingleOrDefault((f) => f.filterType == Binance.FilterType.LOT_SIZE.ToString());
+            var minNotionalFilter = market.filters.SingleOrDefault((f) => f.filterType == Binance.FilterType.MIN_NOTIONAL.ToString());
             var cmcEntry = GetCmcEntry(market.baseAsset);
             return new SymbolInformation()
             {
@@ -221,6 +256,7 @@ namespace Exchange.Net
                 MaxQuantity = lotSizeFilter.maxQty,
                 StepSize = lotSizeFilter.stepSize,
                 QuantityDecimals = DigitsCount(lotSizeFilter.stepSize),
+                MinNotional = minNotionalFilter.minNotional,
                 CmcId = cmcEntry != null ? cmcEntry.id : -1,
                 CmcName = cmcEntry != null ? cmcEntry.name : market.baseAsset,
                 CmcSymbol = cmcEntry != null ? cmcEntry.symbol : market.symbol
@@ -583,15 +619,17 @@ namespace Exchange.Net
             this.WhenActivated(registerDisposable =>
             {
                 registerDisposable(getServerTimeCommand);
-            });
 
-            var rule = new TrailingTakeProfit(0.00012200m, 0.01m);
-            rule.Market = "LINKBTC";
-            rule.Property = ThresholdType.LastPrice;
-            rule.OrderVolume = 10;
-            rule.OrderSide = TradeSide.Sell;
-            rule.OrderType = "market";
-            //AddRule(rule);
+                //var resultExchangeInfo = client.GetExchangeInfoOffline();
+                //currentExchangeInfo = resultExchangeInfo.Data;
+                //var symbols = resultExchangeInfo.Data.symbols.Select(CreateSymbolInformation);
+                //ProcessExchangeInfo(symbols);
+
+                //var resultTickers = client.GetPriceTicker24hrOffline();
+                //var tickers = resultTickers.Data.Select(ToPriceTicker);
+                //ProcessPriceTicker(tickers);
+            });
+            //CurrentSymbol = "LTCBNB";
         }
 
         protected async Task<DateTime> GetServerTimeAsync()
