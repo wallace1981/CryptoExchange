@@ -22,7 +22,7 @@ namespace Exchange.Net
             ServerStatus = serverStatus;
         }
 
-        protected override async Task GetExchangeInfo()
+        protected override async Task GetExchangeInfoImpl()
         {
             var resultExchangeInfo = await client.GetExchangeInfoAsync().ConfigureAwait(false);
             if (resultExchangeInfo.Success)
@@ -42,7 +42,7 @@ namespace Exchange.Net
 
         private DateTime ticker24hrLastRun = DateTime.MinValue;
 
-        protected override async Task GetTickers()
+        protected override async Task GetTickersImpl()
         {
             if (Markets.Count() < 1)
                 return;
@@ -104,7 +104,7 @@ namespace Exchange.Net
             }
         }
 
-        protected override async Task GetTrades()
+        protected override async Task GetTradesImpl()
         {
             if (CurrentSymbol == null)
                 return;
@@ -123,7 +123,7 @@ namespace Exchange.Net
             }
         }
 
-        protected override async Task GetDepth()
+        protected override async Task GetDepthImpl()
         {
             if (CurrentSymbol == null)
                 return;
@@ -144,7 +144,7 @@ namespace Exchange.Net
             }
         }
 
-        protected override async Task<Balance> GetBalance(string asset)
+        protected override async Task<Balance> GetAssetBalance(string asset)
         {
             var result = await client.GetAccountInfoAsync();
             //var result = await Task.FromResult(client.GetAccountInfoOffline());
@@ -157,12 +157,28 @@ namespace Exchange.Net
                 throw new Exception(result.Error.ToString());
         }
 
+        protected override async Task<List<Balance>> GetBalancesAsync()
+        {
+            var result = await client.GetAccountInfoAsync();
+            if (result.Success)
+            {
+                return result.Data.balances.Select(
+                    p => new Balance(p.asset, UsdAssets.Contains(p.asset))
+                    {
+                        Free = p.free,
+                        Locked = p.locked
+                    }).ToList();
+            }
+            else
+                throw new Exception(result.Error.ToString());
+        }
+
         private Binance.ExchangeInfo currentExchangeInfo;
 
         protected override async Task<SymbolInformation> GetFullSymbolInformation()
         {
             var si = CurrentSymbolInformation;
-            si.QuoteAssetBalance = await GetBalance(si.QuoteAsset);
+            si.QuoteAssetBalance = await GetAssetBalance(si.QuoteAsset);
             si.QuoteAssetBalance.Free = Math.Round(si.QuoteAssetBalance.Free, si.PriceDecimals);
             si.PriceTicker = GetPriceTicker(si.Symbol);
             var filter = currentExchangeInfo.symbols.SingleOrDefault(x => x.symbol == si.Symbol).filters.SingleOrDefault(x => x.filterType == Binance.FilterType.PERCENT_PRICE.ToString());
@@ -522,6 +538,8 @@ namespace Exchange.Net
             var si = GetSymbolInformation(ticker.symbol);
             if (si.Status != "BREAK") return new PriceTicker()
             {
+                Bid = ticker.bidPrice,
+                Ask = ticker.askPrice,
                 BuyVolume = 0m,
                 HighPrice = Math.Round(ticker.highPrice, si.PriceDecimals),
                 LastPrice = Math.Round(ticker.lastPrice, si.PriceDecimals),
@@ -546,6 +564,8 @@ namespace Exchange.Net
             var si = GetSymbolInformation(ticker.symbol);
             return new PriceTicker()
             {
+                Bid = ticker.bidPrice,
+                Ask = ticker.askPrice,
                 BuyVolume = 0m,
                 HighPrice = Math.Round(ticker.highPrice, si.PriceDecimals),
                 LastPrice = Math.Round(ticker.lastPrice, si.PriceDecimals),
@@ -829,20 +849,149 @@ namespace Exchange.Net
             return result.Success ? result.Data.orderId.ToString() : null;
         }
 
-        protected override async Task RefreshCommandExecute(int x)
+        protected override async Task GetBalanceImpl()
         {
-            var result = await client.PlaceOrderAsync("BNBBTC", Binance.TradeSide.SELL, Binance.OrderType.LIMIT, 1m, 0.0029m).ConfigureAwait(false);
-            if (!result.Success)
-                throw new Exception(result.Error.ToString());
-            var query = await client.QueryOrderAsync(result.Data.symbol, result.Data.orderId);
-            if (!query.Success)
-                throw new Exception(query.Error.ToString());
-            query = await client.QueryOrderAsync(result.Data.symbol, origClientOrderId: result.Data.clientOrderId);
-            if (!query.Success)
-                throw new Exception(query.Error.ToString());
-            var cancel = await client.CancelOrderAsync(result.Data.symbol, result.Data.orderId);
-            if (!cancel.Success)
-                throw new Exception(cancel.Error.ToString());
+            var result = await GetBalancesAsync();
+            foreach (Balance b in result)
+            {
+                BalanceManager.AddUpdateBalance(b);
+            }
+            foreach (var ticker in MarketSummaries)
+                BalanceManager.UpdateWithLastPrice(ticker.Symbol, ticker.LastPrice.GetValueOrDefault());
+        }
+
+        //var result = await client.PlaceOrderAsync("BNBBTC", Binance.TradeSide.SELL, Binance.OrderType.LIMIT, 1m, 0.0029m).ConfigureAwait(false);
+        //if (!result.Success)
+        //    throw new Exception(result.Error.ToString());
+        //var query = await client.QueryOrderAsync(result.Data.symbol, result.Data.orderId);
+        //if (!query.Success)
+        //    throw new Exception(query.Error.ToString());
+        //query = await client.QueryOrderAsync(result.Data.symbol, origClientOrderId: result.Data.clientOrderId);
+        //if (!query.Success)
+        //    throw new Exception(query.Error.ToString());
+        //var cancel = await client.CancelOrderAsync(result.Data.symbol, result.Data.orderId);
+        //if (!cancel.Success)
+        //    throw new Exception(cancel.Error.ToString());
+
+        protected override async Task GetOpenOrdersImpl()
+        {
+            var ordersResult = await client.GetOpenOrdersAsync().ConfigureAwait(false);
+            UpdateStatus();
+            if (ordersResult.Success)
+            {
+                var orders = ordersResult.Data.Select(arg => new Order(GetSymbolInformation(arg.symbol))
+                {
+                    Price = arg.price,
+                    Quantity = arg.origQty,
+                    Side = arg.side == "BUY" ? TradeSide.Buy : TradeSide.Sell,
+                    StopPrice = arg.stopPrice,
+                    Timestamp = arg.time.FromUnixTimestamp(),
+                    Type = arg.type
+                }).OrderByDescending(x => x.Timestamp);
+                OpenOrders.Reset();
+                OpenOrders.AddRange(orders);
+            }
+        }
+
+        protected override async Task GetDepositsImpl()
+        {
+            var result = await client.GetDepositHistoryAsync().ConfigureAwait(false);
+            UpdateStatus();
+            if (result.Success)
+            {
+                var deposits = result.Data.depositList.Select(
+                    x => new Transfer()
+                    {
+                        Address = x.address,
+                        //Comission = x.TxCost,
+                        Asset = x.asset,
+                        Quantity = x.amount,
+                        Status = Code2DepositStatus(x.status),
+                        Timestamp = x.insertTime.FromUnixTimestamp(),
+                        Type = TransferType.Deposit
+                    }).ToList();
+                Deposits.Reset();
+                Deposits.AddRange(deposits);
+            }
+        }
+
+        protected override async Task GetWithdrawalsImpl()
+        {
+            var result = await client.GetWithdrawHistoryAsync().ConfigureAwait(false);
+            UpdateStatus();
+            if (result.Success)
+            {
+                var withdrawals = result.Data.withdrawList.Select(
+                    x => new Transfer()
+                    {
+                        Address = x.address,
+                        //Comission = x.TxCost,
+                        Asset = x.asset,
+                        Quantity = x.amount,
+                        Status = Code2WithdrawalStatus(x.status),
+                        Timestamp = x.applyTime.FromUnixTimestamp(),
+                        Type = TransferType.Withdrawal
+                    });
+                Withdrawals.Reset();
+                Withdrawals.AddRange(withdrawals);
+            }
+        }
+
+        protected override async Task GetOrdersHistoryImpl()
+        {
+            var ordersResult = await client.GetOrdersHistoryAsync(CurrentSymbol).ConfigureAwait(false);
+            UpdateStatus();
+            if (ordersResult.Success)
+            {
+                var orders = ordersResult.Data
+                    .Where(x => x.status != Binance.OrderStatus.NEW.ToString())
+                    .Select(arg => new Order(GetSymbolInformation(arg.symbol))
+                    {
+                        Price = arg.price,
+                        Quantity = arg.origQty,
+                        Side = arg.side == "BUY" ? TradeSide.Buy : TradeSide.Sell,
+                        StopPrice = arg.stopPrice,
+                        Timestamp = arg.time.FromUnixTimestamp(),
+                        Type = arg.type
+                    })
+                    .OrderByDescending(x => x.Timestamp);
+                OrdersHistory.Reset();
+                OrdersHistory.AddRange(orders);
+            }
+        }
+
+        private static TransferStatus Code2DepositStatus(int code)
+        {
+            switch (code)
+            {
+                case 0:
+                    return TransferStatus.Pending;
+                case 1:
+                    return TransferStatus.Completed;
+            }
+            return TransferStatus.Undefined;
+        }
+
+        private static TransferStatus Code2WithdrawalStatus(int code)
+        {
+            switch (code)
+            {
+                case 0:
+                    return TransferStatus.EmailSent;
+                case 1:
+                    return TransferStatus.Cancelled;
+                case 2:
+                    return TransferStatus.AwaitingApproval;
+                case 3:
+                    return TransferStatus.Rejected;
+                case 4:
+                    return TransferStatus.Processing;
+                case 5:
+                    return TransferStatus.Failed;
+                case 6:
+                    return TransferStatus.Completed;
+            }
+            return TransferStatus.Undefined;
         }
 
         private async void Initialize123()

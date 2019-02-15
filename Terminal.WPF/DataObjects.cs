@@ -1,4 +1,5 @@
 ﻿using ReactiveUI;
+using ReactiveUI.Legacy;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -329,7 +330,7 @@ namespace Exchange.Net
         //public string ProperSymbol { get => (BaseAsset + QuoteAsset).ToUpper(); }
         public string ImageUrl => $"https://s2.coinmarketcap.com/static/img/coins/32x32/{CmcId}.png";
         public string ProperSymbol => (BaseAsset + QuoteAsset).ToUpper();
-        public string Caption => $"{BaseAsset} / {QuoteAsset}";
+        public string Caption => $"{BaseAsset}/{QuoteAsset}";
 		public string Status { get; set; }
 
         public decimal ClampQuantity(decimal quantity)

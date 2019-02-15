@@ -1,0 +1,94 @@
+﻿<rxui:ReactiveUserControl
+    x:Class="Terminal.WPF.CreateExchangeAccount"
+    x:TypeArguments="local:CreateExchangeAccountViewModel"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+    xmlns:rxui="http://reactiveui.net"
+    xmlns:local="clr-namespace:Terminal.WPF"
+    xmlns:telerik="http://schemas.telerik.com/2008/xaml/presentation"
+    mc:Ignorable="d" 
+    MinWidth="350" MinHeight="150"
+    >
+    <UserControl.Resources>
+        <Style TargetType="Label">
+            <Setter Property="Padding" Value="0 6 6 6"/>
+        </Style>
+    </UserControl.Resources>
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <Label
+            Grid.Column="0" Grid.Row="2">
+            <TextBlock Text="Биржа:"/>
+        </Label>
+
+        <Label
+            Grid.Column="0" Grid.Row="3">
+            <TextBlock Text="Название:"/>
+        </Label>
+
+        <Label
+            Grid.Column="0" Grid.Row="4">
+            <TextBlock Text="API Key:"/>
+        </Label>
+
+        <Label
+            Grid.Column="0" Grid.Row="5">
+            <TextBlock Text="API Secret:"/>
+        </Label>
+
+        <telerik:RadComboBox
+            Grid.Column="1" Grid.Row="2"
+            VerticalAlignment="Center"
+            ItemsSource="{Binding Path=Exchanges, Mode=OneTime}"
+            SelectedItem="{Binding Path=Exchange, Mode=TwoWay}"
+            DisplayMemberPath="ExchangeName"
+            />
+
+        <TextBox
+            Grid.Column="1" Grid.Row="3"
+            VerticalAlignment="Center"
+            Text="{Binding Path=Name, Mode=TwoWay}"
+            />
+
+        <PasswordBox
+            Grid.Column="1" Grid.Row="4"
+            VerticalAlignment="Center"
+            x:Name="pwdApiKey"
+            />
+
+        <PasswordBox
+            Grid.Column="1" Grid.Row="5"
+            VerticalAlignment="Center"
+            x:Name="pwdApiSecret"
+            />
+
+        <telerik:RadButton
+            Grid.Column="1" Grid.Row="9"
+            HorizontalAlignment="Right" VerticalAlignment="Center"
+            MinWidth="75"
+            Command="{Binding Path=Submit, Mode=OneTime}"
+            >
+            <TextBlock Text="Создать"/>
+        </telerik:RadButton>
+        
+    </Grid>
+</rxui:ReactiveUserControl>

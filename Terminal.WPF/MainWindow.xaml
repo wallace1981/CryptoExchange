@@ -27,14 +27,20 @@
             </telerik:RadTabControl.ItemTemplate>
             
         </telerik:RadTabControl>
-        
-        <telerik:RadToggleButton
-            DataContext="{Binding ElementName=tab, Path=SelectedItem}"
-            IsChecked="{Binding Path=IsActive, Mode=TwoWay}"
-            Command="{Binding Path=SetActiveCommand, Mode=OneWay}"
-            CommandParameter="{Binding RelativeSource={RelativeSource Self}, Path=IsChecked, Mode=OneWay}"
-            VerticalAlignment="Top"
-            HorizontalAlignment="Right" Margin="0 2 3 0">Start/Stop</telerik:RadToggleButton>
+
+        <DockPanel VerticalAlignment="Top" HorizontalAlignment="Right" Margin="0 2 3 0">
+            <telerik:RadButton
+                Click="RadButton_Click"
+                >
+                <TextBlock Text="API"/>
+            </telerik:RadButton>
+            <telerik:RadToggleButton
+                DataContext="{Binding ElementName=tab, Path=SelectedItem}"
+                IsChecked="{Binding Path=IsActive, Mode=TwoWay}"
+                Command="{Binding Path=SetActiveCommand, Mode=OneWay}"
+                CommandParameter="{Binding RelativeSource={RelativeSource Self}, Path=IsChecked, Mode=OneWay}"
+            >Start/Stop</telerik:RadToggleButton>
+        </DockPanel>
 
         <!--<local:OrderBookView/>-->
 

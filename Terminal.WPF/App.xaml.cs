@@ -26,14 +26,15 @@ namespace Terminal.WPF
         private void Application_Startup(object sender, StartupEventArgs e)
         {
             SetIEFeature(IE_FEATURE_BROWSER_EMULATION, 0x2AF8);
-            CrystalPalette.Palette.AccentPressedColor = Colors.Bisque;
-            CrystalPalette.Palette.MouseOverHighColor = Colors.Bisque;
+            //CrystalPalette.Palette.AccentPressedColor = Colors.Bisque;
+            //CrystalPalette.Palette.MouseOverHighColor = Colors.Bisque;
             //CrystalPalette.Palette.FontFamily = Application.Current.Resources["RobotoCondensed"] as FontFamily;
             //CrystalPalette.Palette.FontSize = 15;
-            CrystalPalette.Palette.CornerRadius = new CornerRadius(0);
+            //CrystalPalette.Palette.CornerRadius = new CornerRadius(0);
 
             //FluentPalette.Palette.FontFamily = Application.Current.Resources["RobotoCondensed"] as FontFamily;
             //FluentPalette.Palette.FontSize = 13;
+            
             //Office2013Palette.Palette.FontSizeL = 12;
             //Office2013Palette.Palette.FontSizeXL = 12;
             //Office2013Palette.Palette.FontFamily = new FontFamily("Roboto");
@@ -46,6 +47,7 @@ namespace Terminal.WPF
             Locator.CurrentMutable.Register(() => new ExchangeView(), typeof(IViewFor<HitBtcViewModel>));
             Locator.CurrentMutable.Register(() => new ExchangeView(), typeof(IViewFor<OKexViewModel>));
             Locator.CurrentMutable.Register(() => new CreateTrade(), typeof(IViewFor<TradeTaskViewModel>));
+            Locator.CurrentMutable.Register(() => new CreateExchangeAccount(), typeof(IViewFor<CreateExchangeAccountViewModel>));
 
             ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls11 | SecurityProtocolType.Tls12;
         }
@@ -295,6 +297,24 @@ namespace Terminal.WPF
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            throw new NotSupportedException();
+        }
+    }
+
+    public class PercentToPointConverter : IMultiValueConverter
+    {
+        public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+        {
+            var width = values[0];
+            var prcnt = values[1];
+            var shift = values[2];
+            if (width.GetType() != typeof(double) && prcnt.GetType() != typeof(double))
+                return 0.0;
+            return (double)width * (double)prcnt - (double)shift;
+        }
+
+        public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
         {
             throw new NotSupportedException();
         }

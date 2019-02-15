@@ -167,6 +167,16 @@ namespace Exchange.Net
         }
     }
 
+    public class BaseQueryOrderRequest : SignedRequest
+    {
+        public string symbol { get; set; }
+
+        public override bool Validate()
+        {
+            return !string.IsNullOrWhiteSpace(symbol);
+        }
+    }
+
     public class QueryOrderRequest : SignedRequest
     {
         public string symbol { get; set; }
@@ -369,6 +379,8 @@ namespace Exchange.Net
         private const int CancelOrderWeight = 1;
         private const string GetOpenOrdersEndpoint = "/api/v3/openOrders";
         private const int GetOpenOrdersWeight = 40;
+        private const string GetAllOrdersEndpoint = "/api/v3/allOrders";
+        private const int GetAllOrdersWeight = 5;
 
         private const string GetAccountInfoEndpoint = "/api/v3/account";
         private const int GetAccountInfoWeight = 5;
@@ -399,6 +411,12 @@ namespace Exchange.Net
         {
             var requestMessage = CreateRequestMessage(new BlankSignedRequest(), GetOpenOrdersEndpoint, HttpMethod.Get);
             return ExecuteRequestAsync<Binance.Order[]>(requestMessage, symbol != null ? 1 : GetOpenOrdersWeight, contentPath: "openOrders");
+        }
+
+        public Task<ApiResult<Binance.Order[]>> GetOrdersHistoryAsync(string symbol)
+        {
+            var requestMessage = CreateRequestMessage(new BaseQueryOrderRequest() { symbol = symbol }, GetAllOrdersEndpoint, HttpMethod.Get);
+            return ExecuteRequestAsync<Binance.Order[]>(requestMessage, symbol != null ? 1 : GetAllOrdersWeight, contentPath: $"allOrders-{symbol}");
         }
 
         public Task<ApiResult<Binance.NewOrderResponseResult>> PlaceOrderAsync(string symbol, Binance.TradeSide side, Binance.OrderType type, decimal amount, decimal? price = null, decimal? stopPrice = null, Binance.TimeInForce? tif = null, string newClientOrderId = null)

@@ -1,4 +1,6 @@
 ﻿using ReactiveUI;
+using ReactiveUI.Fody.Helpers;
+using ReactiveUI.Legacy;
 using System;
 using System.Collections;
 using System.Collections.Concurrent;
@@ -29,40 +31,28 @@ namespace Exchange.Net
         public string PriceTickerFilter { get; set; }
         public TimeSpan PriceTickerRetrieveInterval => TimeSpan.FromSeconds(1);
 
-        public bool IsActive
-        {
-            get => isActive;
-            set => this.RaiseAndSetIfChanged(ref isActive, value);
-        }
+        [Reactive]
+        public bool IsActive { get; set; }
 
-        public bool IsInitializing
-        {
-            get => isInitializing;
-            set => this.RaiseAndSetIfChanged(ref isInitializing, value);
-        }
+        [Reactive]
+        public bool IsInitializing { get; set; }
 
-        public bool IsLoadingOrderBook
-        {
-            get => isLoadingOrderBook;
-            set => this.RaiseAndSetIfChanged(ref isLoadingOrderBook, value);
-        }
+        [Reactive]
+        public bool IsLoadingOrderBook { get; set; }
 
-        public bool IsLoadingTrades
-        {
-            get => isLoadingTrades;
-            set => this.RaiseAndSetIfChanged(ref isLoadingTrades, value);
-        }
+        [Reactive]
+        public bool IsLoadingTrades { get; set; }
 
-        public string Status
-        {
-            get { return this.status; }
-            set { this.RaiseAndSetIfChanged(ref this.status, value); }
-        }
+        [Reactive]
+        public string Status { get; set; }
 
         public bool IsBusy
         {
             get { return Interlocked.Read(ref this.busyCounter) > 0L; }
         }
+
+        [Reactive]
+        public string CurrentMarket { get; set; }
 
         public string CurrentSymbol
         {
@@ -70,17 +60,8 @@ namespace Exchange.Net
             set { if (value != null) this.RaiseAndSetIfChanged(ref this.currentSymbol, value); }
         }
 
-        public string CurrentMarketSummariesPeriod
-        {
-            get => this.currentMarketSummariesPeriod;
-            set => this.RaiseAndSetIfChanged(ref this.currentMarketSummariesPeriod, value);
-        }
-
-        public SymbolInformation CurrentSymbolInformation
-        {
-            get { return this.currentSymbolInformation; }
-            set { this.RaiseAndSetIfChanged(ref this.currentSymbolInformation, value); }
-        }
+        [Reactive]
+        public SymbolInformation CurrentSymbolInformation { get; set; }
 
         public PriceTicker CurrentSymbolTickerPrice
         {
@@ -88,41 +69,23 @@ namespace Exchange.Net
             set { if (value != null) this.RaiseAndSetIfChanged(ref this.currentSymboTickerPrice, value); }
         }
 
-        public string CurrentMarket
-        {
-            get { return this.currentMarket; }
-            set { this.RaiseAndSetIfChanged(ref this.currentMarket, value); }
-        }
+        [Reactive]
+        public string CurrentMarketSummariesPeriod { get; set; }
 
-        public string MarketFilter
-        {
-            get { return this.marketFilter; }
-            set { this.RaiseAndSetIfChanged(ref this.marketFilter, value); }
-        }
+        [Reactive]
+        public string MarketFilter { get; set; }
 
-        public TimeSpan RefreshMarketSummariesElapsed
-        {
-            get { return refreshMarketSummariesElapsed; }
-            set { this.RaiseAndSetIfChanged(ref this.refreshMarketSummariesElapsed, value); }
-        }
+        [Reactive]
+        public TimeSpan RefreshMarketSummariesElapsed { get; set; }
 
-        public TimeSpan RefreshTradesElapsed
-        {
-            get { return refreshTradesElapsed; }
-            set { this.RaiseAndSetIfChanged(ref this.refreshTradesElapsed, value); }
-        }
+        [Reactive]
+        public TimeSpan RefreshTradesElapsed { get; set; }
 
-        public TimeSpan RefreshDepositsElapsed
-        {
-            get { return refreshDepositsElapsed; }
-            set { this.RaiseAndSetIfChanged(ref this.refreshDepositsElapsed, value); }
-        }
+        [Reactive]
+        public TimeSpan RefreshDepositsElapsed { get; set; }
 
-        public int OrderBookMergeDecimals
-        {
-            get { return orderBookMergeDecimals; }
-            set { this.RaiseAndSetIfChanged(ref this.orderBookMergeDecimals, value); }
-        }
+        [Reactive]
+        public int OrderBookMergeDecimals { get; set; }
 
         public virtual int[] OrderBookMergeDecimalsList => new int[] { 10, 0, 1, 2, 3, 4, 5, 6, 7, 8 };
         public virtual int[] OrderBookSizeList => new int[] { 5, 10, 25, 50, 100 };
@@ -137,7 +100,7 @@ namespace Exchange.Net
         public ReactiveList<Transfer> Deposits => deposits;
         public ReactiveList<Transfer> Withdrawals => withdrawals;
         public ReactiveList<Order> OpenOrders { get; }
-        public ReactiveList<Order> OrderHistory { get; }
+        public ReactiveList<Order> OrdersHistory { get; }
         public ReactiveList<TradingRuleProxy> TradingRuleProxies => tradingRuleProxies;
         public BalanceManager BalanceManager => balanceManager;
         public ReactiveList<TradeTaskViewModel> TradeTasks { get; }
@@ -161,105 +124,121 @@ namespace Exchange.Net
         ReactiveList<TradingRuleProxy> tradingRuleProxies = new ReactiveList<TradingRuleProxy>();
         BalanceManager balanceManager;
         string currentSymbol;
-        SymbolInformation currentSymbolInformation;
         PriceTicker currentSymboTickerPrice;
-        string currentMarketSummariesPeriod = "30m"; // NOTE: exchange dependable value!
-        string currentMarket;
-        string marketFilter;
-        string status;
-        private bool isInitializing, isLoadingOrderBook, isLoadingTrades;
         long busyCounter;
-        int orderBookMergeDecimals;
 
 #if !GTK
         readonly ViewModelActivator viewModelActivator = new ViewModelActivator();
 #endif
 
-        TimeSpan refreshMarketSummariesElapsed;
-        TimeSpan refreshTradesElapsed;
-        TimeSpan refreshDepositsElapsed;
-
         public ExchangeViewModel()
         {
-            currentMarket = DefaultMarket;
+            CurrentMarket = DefaultMarket;
+            CurrentMarketSummariesPeriod = "30m";
 
             marketAssets = new ReactiveList<string>();
             marketSummaries = new ReactiveList<PriceTicker>();
             recentTrades = new ReactiveList<PublicTrade>();
             OrderBook = new OrderBook(null);
             OpenOrders = new ReactiveList<Order>();
-            OrderHistory = new ReactiveList<Order>();
+            OrdersHistory = new ReactiveList<Order>();
             deposits = new ReactiveList<Transfer>();
             withdrawals = new ReactiveList<Transfer>();
             balanceManager = new BalanceManager();
             TradeTasks = new ReactiveList<TradeTaskViewModel>();
 
-            marketAssets.EnableThreadSafety();
-            marketSummaries.EnableThreadSafety();
+            MarketAssets.EnableThreadSafety();
+            MarketSummaries.EnableThreadSafety();
             TradeTasks.EnableThreadSafety();
+            OpenOrders.EnableThreadSafety();
+            OrdersHistory.EnableThreadSafety();
+            Withdrawals.EnableThreadSafety();
+            Deposits.EnableThreadSafety();
 
-            setCurrentMarketCommand = ReactiveCommand.Create<string>(x => CurrentMarket = x);
-            setCurrentSymbolCommand = ReactiveCommand.Create<string>(x => { CurrentSymbol = x; CurrentSymbolInformation = GetSymbolInformation(x); });
-            setActiveCommand = ReactiveCommand.Create<bool>(x => Run(x));
-            getMarketsCommand = ReactiveCommand.CreateFromTask<long, IEnumerable<SymbolInformation>>(x => GetMarketsAsync());
-            //getTickersCommand = ReactiveCommand.CreateFromTask<long, IEnumerable<PriceTicker>>(x => GetTickersAsync());
-            refreshCommand = ReactiveCommand.CreateFromTask<int>(x => RefreshCommandExecute(x));
-            refreshPrivateDataCommand = ReactiveCommand.CreateFromTask(RefreshPrivateDataExecute);
-            CancelOrderCommand = ReactiveCommand.CreateFromTask<string>(CancelOrder);
-            SubmitOrderCommand = ReactiveCommand.CreateFromTask<NewOrder>(SubmitOrder);
-            //CreateRuleCommand = ReactiveCommand.Create<object>(CreateRuleExecute);
-            CreateRuleCommand = ReactiveCommand.CreateFromTask<string>(CreateTradeTaskExecute);
-            SubmitRuleCommand = ReactiveCommand.Create<object>(SubmitRuleExecute);
-
-            var subSI = this.ObservableForProperty(vm => vm.CurrentSymbolInformation)
-                .Subscribe(x =>
-                {
-                    OrderBook.SymbolInformation = x.Value;
-                    OrderBookMergeDecimals = x.Value.PriceDecimals;
-                });
-            var subMD = this.ObservableForProperty(vm => vm.OrderBookMergeDecimals).Subscribe(x => OrderBook.MergeDecimals = x.Value);
-
-            this.WhenActivated(registerDisposable =>
+            this.WhenActivated(disposables =>
             {
-                registerDisposable(subSI);
-                registerDisposable(subMD);
-                registerDisposable(disposablesHandle);
-                registerDisposable(setCurrentMarketCommand);
-                registerDisposable(getMarketsCommand);
-                //registerDisposable(getTickersCommand);
-                registerDisposable(refreshCommand);
+                var getOrdersHistoryCanExecute = this.WhenAnyValue(x => x.CurrentSymbol, y => !string.IsNullOrWhiteSpace(y)).DistinctUntilChanged();
+                var tradeTaskCommandCanExecute = this.WhenAnyValue(x => x.SelectedTradeTask, (TradeTaskViewModel y) => y != null).DistinctUntilChanged();
+
+                SetCurrentMarketCommand = ReactiveCommand.Create<string>(x => CurrentMarket = x).DisposeWith(disposables);
+                SetCurrentSymbolCommand = ReactiveCommand.Create<string>(x => { CurrentSymbol = x; CurrentSymbolInformation = GetSymbolInformation(x); }).DisposeWith(disposables);
+                SetActiveCommand = ReactiveCommand.Create<bool>(x => Run(x)).DisposeWith(disposables);
+                GetMarketsCommand = ReactiveCommand.CreateFromTask<long, IEnumerable<SymbolInformation>>(x => GetMarketsAsync()).DisposeWith(disposables);
+                //getTickersCommand = ReactiveCommand.CreateFromTask<long, IEnumerable<PriceTicker>>(x => GetTickersAsync()).DisposeWith(disposables);
+                RefreshCommand = ReactiveCommand.CreateFromTask<int>(RefreshCommandExecute).DisposeWith(disposables);
+                // TODO: Make below as ReactiveCommand instead of ICommand
+                // and add DisposeWith to WhenActivated() section.
+                RefreshPrivateDataCommand = ReactiveCommand.CreateFromTask(RefreshPrivateDataExecute).DisposeWith(disposables);
+                CancelOrderCommand = ReactiveCommand.CreateFromTask<string>(CancelOrder).DisposeWith(disposables);
+                SubmitOrderCommand = ReactiveCommand.CreateFromTask<NewOrder>(SubmitOrder).DisposeWith(disposables);
+                CreateRule = ReactiveCommand.Create<object>(CreateRuleExecute).DisposeWith(disposables);
+                CreateTradeTask = ReactiveCommand.CreateFromTask(CreateTradeTaskImpl).DisposeWith(disposables);
+                SubmitRuleCommand = ReactiveCommand.Create<object>(SubmitRuleExecute).DisposeWith(disposables);
+                GetOpenOrders = ReactiveCommand.CreateFromTask(GetOpenOrdersImpl).DisposeWith(disposables);
+                GetOrdersHistory = ReactiveCommand.CreateFromTask(GetOrdersHistoryImpl, getOrdersHistoryCanExecute).DisposeWith(disposables);
+                GetDeposits = ReactiveCommand.CreateFromTask(GetDepositsImpl).DisposeWith(disposables);
+                GetWithdrawals = ReactiveCommand.CreateFromTask(GetWithdrawalsImpl).DisposeWith(disposables);
+                GetBalance = ReactiveCommand.CreateFromTask(GetBalanceImpl).DisposeWith(disposables);
+                GetExchangeInfo = ReactiveCommand.CreateFromTask(GetExchangeInfoImpl).DisposeWith(disposables);
+                GetTickers = ReactiveCommand.CreateFromTask(GetTickersImpl).DisposeWith(disposables);
+                GetTradesCommand = ReactiveCommand.CreateFromTask(GetTradesImpl).DisposeWith(disposables);
+                GetDepthCommand = ReactiveCommand.CreateFromTask(GetDepthImpl).DisposeWith(disposables);
+
+                EnableTradeTask = ReactiveCommand.Create(EnableTradeTaskImpl, tradeTaskCommandCanExecute).DisposeWith(disposables);
+                DeleteTradeTask = ReactiveCommand.Create(DeleteTradeTaskImpl, tradeTaskCommandCanExecute).DisposeWith(disposables);
+
+                isGetOpenOrdersExecuting = GetOpenOrders.IsExecuting.ToProperty(this, x => x.IsGetOpenOrdersExecuting).DisposeWith(disposables);
+
+                var subSI = this.ObservableForProperty(vm => vm.CurrentSymbolInformation)
+                    .Subscribe(x =>
+                    {
+                        OrderBook.SymbolInformation = x.Value;
+                        OrderBookMergeDecimals = x.Value.PriceDecimals;
+                    }).DisposeWith(disposables);
+                var subMD = this.ObservableForProperty(vm => vm.OrderBookMergeDecimals)
+                    .Subscribe(x => OrderBook.MergeDecimals = x.Value).DisposeWith(disposables);
+                subSI.DisposeWith(disposables);
+                subMD.DisposeWith(disposables);
+
+                RefreshCommand.ThrownExceptions.Subscribe(OnCommandException).DisposeWith(disposables);
+                GetOpenOrders.ThrownExceptions.Subscribe(OnCommandException).DisposeWith(disposables);
+
+                this.ObservableForProperty(x => x.TickersSubscribed).Subscribe(x => SetTickersSubscription(x.Value)).DisposeWith(disposables);
+                this.ObservableForProperty(x => x.TradesSubscribed).Subscribe(x => SetTradesSubscription(x.Value)).DisposeWith(disposables);
+                this.ObservableForProperty(x => x.DepthSubscribed).Subscribe(x => SetDepthSubscription(x.Value)).DisposeWith(disposables);
+                this.ObservableForProperty(x => x.PrivateDataSubscribed).Subscribe(x => SetPrivateDataSubscription(x.Value)).DisposeWith(disposables);
+
                 Activate();
             });
         }
 
-        public ICommand SetCurrentMarketCommand => setCurrentMarketCommand;
-        public ICommand SetCurrentSymbolCommand => setCurrentSymbolCommand;
-        public ICommand SetActiveCommand => setActiveCommand;
-        public ICommand CreateRuleCommand { get; }
-        public ICommand SubmitRuleCommand { get; }
+        public ReactiveCommand<string, Unit> SetCurrentMarketCommand { get; private set; }
+        public ReactiveCommand<string, Unit> SetCurrentSymbolCommand { get; private set; }
+        public ReactiveCommand<bool, Unit> SetActiveCommand { get; private set; }
         // Public functionality
-        public ICommand GetMarketsCommand => getMarketsCommand;
+        public ReactiveCommand<long, IEnumerable<SymbolInformation>> GetMarketsCommand { get; private set; }
         //public ICommand GetTickersCommand => getTickersCommand;
         //public ICommand GetTradesCommand { get; }
-        public ICommand GetOrderBookCommand { get; }
+        public ICommand GetOrderBookCommand { get; private set; }
         // Signed functionality
-        public ICommand GetOpenOrdersCommand { get; }
-        public ICommand GetDepositsCommand { get; }
-        public ICommand GetWithdrawalsCommand { get; }
-        public ICommand GetOrderHistoryCommand { get; }
-        public ICommand CancelOrderCommand { get; }
-        public ICommand SubmitOrderCommand { get; }
-        public ICommand RefreshCommand => refreshCommand;
-        public ICommand RefreshPrivateDataCommand => refreshPrivateDataCommand;
+        public ReactiveCommand<Unit, Unit> GetOpenOrders { get; private set; }
+        public ReactiveCommand<Unit, Unit> GetDeposits { get; private set; }
+        public ReactiveCommand<Unit, Unit> GetWithdrawals { get; private set; }
+        public ReactiveCommand<Unit, Unit> GetOrdersHistory { get; private set; }
+        public ReactiveCommand<Unit, Unit> GetBalance { get; private set; }
+        public ReactiveCommand<string, Unit> CancelOrderCommand { get; private set; }
+        public ReactiveCommand<NewOrder, Unit> SubmitOrderCommand { get; private set; }
+        public ReactiveCommand<int, Unit> RefreshCommand { get; private set; }
+        public ReactiveCommand<Unit, Unit> RefreshPrivateDataCommand { get; private set; }
 
-        private readonly ReactiveCommand<string, Unit> setCurrentMarketCommand;
-        private readonly ReactiveCommand<string, Unit> setCurrentSymbolCommand;
-        private readonly ReactiveCommand<bool, Unit> setActiveCommand;
-        private readonly ReactiveCommand<long, IEnumerable<SymbolInformation>> getMarketsCommand;
-        //private readonly ReactiveCommand<long, IEnumerable<PriceTicker>> getTickersCommand;
-        private readonly ReactiveCommand<int, Unit> refreshCommand;
-        private readonly ICommand refreshPrivateDataCommand;
+        private ObservableAsPropertyHelper<bool> isGetOpenOrdersExecuting;
+        public bool IsGetOpenOrdersExecuting => isGetOpenOrdersExecuting.Value;
 
+
+        private async void OnCommandException(Exception ex)
+        {
+            await ShowException.Handle(ex);
+        }
 
         bool isActive = false;
         public void Activate()
@@ -595,7 +574,7 @@ namespace Exchange.Net
             {
                 Status = "Starting...";
                 Subscribe();
-                GetExchangeInfoCommand.Execute(null);
+                GetExchangeInfo.Execute();
 
                 //SubscribeMarketData();
             }
@@ -607,12 +586,12 @@ namespace Exchange.Net
             subCurrentSymbol.Subscribe(SubscribeMarketData).DisposeWith(Disposables);
         }
 
-        protected void SubscribeCommandIsExecuting(ReactiveCommand cmd)
+        protected void SubscribeCommandIsExecuting(ReactiveCommand<long, DateTime> cmd)
         {
             Disposables.Add(cmd.IsExecuting.Skip(1).Subscribe(x => UpdateBusyCount(x)));
         }
 
-        internal void ProcessExchangeInfo(IEnumerable<SymbolInformation> markets)
+        protected void ProcessExchangeInfo(IEnumerable<SymbolInformation> markets)
         {
             if (this.marketsMapping.Count == 0)
             {
@@ -641,9 +620,10 @@ namespace Exchange.Net
                 }
             }
             marketAssets.AddRange(markets.Where(IsValidMarket).Select(x => x.QuoteAsset).Distinct().Except(marketAssets));
+            UsdAssets = markets.Where(m => m.QuoteAsset == Balance.USD || m.QuoteAsset == Balance.USDT).Select(m => m.BaseAsset).ToList();
         }
 
-        internal void ProcessPriceTicker(IEnumerable<PriceTicker> priceTicker)
+        protected void ProcessPriceTicker(IEnumerable<PriceTicker> priceTicker)
         {
             var sw = Stopwatch.StartNew();
             if (MarketSummaries.IsEmpty)
@@ -667,7 +647,7 @@ namespace Exchange.Net
             Debug.Print($"ProcessPriceTicker took {sw.ElapsedMilliseconds}ms.");
         }
 
-        internal void ProcessPublicTrades(IEnumerable<PublicTrade> trades)
+        protected void ProcessPublicTrades(IEnumerable<PublicTrade> trades)
         {
             var tradesList = trades as List<PublicTrade> ?? trades.ToList();
             if (RecentTrades.All(x => x.SymbolInformation.Symbol != CurrentSymbol))
@@ -689,7 +669,7 @@ namespace Exchange.Net
             }
         }
 
-        internal void ProcessPublicTradesPush(IEnumerable<PublicTrade> trades)
+        protected void ProcessPublicTradesPush(IEnumerable<PublicTrade> trades)
         {
             IsLoadingTrades = false;
             var tradesList = trades as List<PublicTrade> ?? trades.ToList();
@@ -723,7 +703,7 @@ namespace Exchange.Net
             }
         }
 
-        internal void ProcessOrderBook(IEnumerable<OrderBookEntry> depth)
+        protected void ProcessOrderBook(IEnumerable<OrderBookEntry> depth)
         {
             //var tmp = depth.ToList();
             //CalcCumulativeTotal(tmp);
@@ -736,14 +716,14 @@ namespace Exchange.Net
             OrderBook.Update(depth.ToList());
         }
 
-        internal void ProcessOrderBookPush(IEnumerable<OrderBookEntry> depth)
+        private void ProcessOrderBookPush(IEnumerable<OrderBookEntry> depth)
         {
             IsLoadingOrderBook = false;
             OrderBook.MergeDecimals = OrderBookMergeDecimals;
             OrderBook.UpdateIncremental(depth.ToList());
         }
 
-        internal static void CalcCumulativeTotal(IList<OrderBookEntry> entries)
+        private static void CalcCumulativeTotal(IList<OrderBookEntry> entries)
         {
             if (entries.Count == 0)
                 return;
@@ -765,7 +745,7 @@ namespace Exchange.Net
             }
         }
 
-        internal static decimal CalcFactor(int num)
+        private static decimal CalcFactor(int num)
         {
             decimal result = 1m;
             if (num == 10)
@@ -847,12 +827,16 @@ namespace Exchange.Net
 
         protected void UpdateWithTicker(PriceTicker ticker)
         {
-            foreach (var order in OrderHistory.Where(x => x.SymbolInformation.Symbol == ticker.Symbol))
+            foreach (var order in OrdersHistory.Where(x => x.SymbolInformation.Symbol == ticker.Symbol))
             {
                 if (order.Side == TradeSide.Buy)
                     order.LastPrice = ticker.Bid.GetValueOrDefault();
                 else
                     order.LastPrice = ticker.Ask.GetValueOrDefault();
+            }
+            foreach (var task in TradeTasks.Where(x => x.SymbolInformation.Symbol == ticker.Symbol))
+            {
+                task.LastPrice = ticker.LastPrice.GetValueOrDefault();
             }
         }
 
@@ -960,8 +944,28 @@ namespace Exchange.Net
         }
 
         public Interaction<TradeTaskViewModel, bool> CreateTask { get; } = new Interaction<TradeTaskViewModel, bool>();
+        public Interaction<Exception, Unit> ShowException { get; } = new Interaction<Exception, Unit>();
 
-        private async Task CreateTradeTaskExecute(string param)
+        [Reactive]
+        public TradeTaskViewModel SelectedTradeTask { get; set; }
+
+        public ReactiveCommand<Unit, Unit> CreateTradeTask { get; private set; }
+        public ReactiveCommand<Unit, Unit> EnableTradeTask { get; private set; }
+        public ReactiveCommand<Unit, Unit> DeleteTradeTask { get; private set; }
+        public ICommand CreateRule { get; private set; }
+        public ICommand SubmitRuleCommand { get; private set; }
+
+        private void EnableTradeTaskImpl()
+        {
+            SelectedTradeTask.IsEnabled = !SelectedTradeTask.IsEnabled;
+        }
+
+        private void DeleteTradeTaskImpl()
+        {
+            TradeTasks.Remove(SelectedTradeTask);
+        }
+
+        private async Task CreateTradeTaskImpl()
         {
             var si = await GetFullSymbolInformation();
             var viewModel = new TradeTaskViewModel(si, ExchangeName);
@@ -994,7 +998,7 @@ namespace Exchange.Net
             //(disposablesHandle.Disposable as CompositeDisposable)?.Dispose();
         }
 
-        internal void AddMarketSummary(PriceTicker ticker)
+        private void AddMarketSummary(PriceTicker ticker)
         {
             if (tickersMapping.TryAdd(ticker.Symbol, MarketSummaries.Count))
                 MarketSummaries.Add(ticker);
@@ -1063,70 +1067,29 @@ namespace Exchange.Net
         // *************************
         // V3
 
-        public double GetExchangeInfoElapsed
-        {
-            get { return _GetExchangeInfoElapsed; }
-            set { this.RaiseAndSetIfChanged(ref _GetExchangeInfoElapsed, value); }
-        }
+        [Reactive] public double GetExchangeInfoElapsed { get; set; }
 
-        public double GetTickersElapsed
-        {
-            get { return _GetTickersElapsed; }
-            set { this.RaiseAndSetIfChanged(ref _GetTickersElapsed, value); }
-        }
+        [Reactive] public double GetTickersElapsed { get; set; }
 
-        public double GetTradesElapsed
-        {
-            get { return _GetTradesElapsed; }
-            set { this.RaiseAndSetIfChanged(ref _GetTradesElapsed, value); }
-        }
+        [Reactive] public double GetTradesElapsed { get; set; }
 
-        public double GetDepthElapsed
-        {
-            get { return _GetDepthElapsed; }
-            set { this.RaiseAndSetIfChanged(ref _GetDepthElapsed, value); }
-        }
+        [Reactive] public double GetDepthElapsed { get; set; }
 
-        public ICommand GetExchangeInfoCommand { get; private set; }
-        public ICommand GetTickersCommand { get; private set; }
-        public ICommand GetTradesCommand { get; private set; }
-        public ICommand GetDepthCommand { get; private set; }
+        public ReactiveCommand<Unit, Unit> GetExchangeInfo { get; private set; }
+        public ReactiveCommand<Unit, Unit> GetTickers { get; private set; }
+        public ReactiveCommand<Unit, Unit> GetTradesCommand { get; private set; }
+        public ReactiveCommand<Unit, Unit> GetDepthCommand { get; private set; }
 
-        public bool TickersSubscribed
-        {
-            get { return tickersSubscribed; }
-            set { this.RaiseAndSetIfChanged(ref tickersSubscribed, value); }
-        }
+        [Reactive] public bool TickersSubscribed { get; set; }
 
-        public bool TradesSubscribed
-        {
-            get { return tradesSubscribed; }
-            set { this.RaiseAndSetIfChanged(ref tradesSubscribed, value); }
-        }
+        [Reactive] public bool TradesSubscribed { get; set; }
 
-        public bool DepthSubscribed
-        {
-            get { return depthSubscribed; }
-            set { this.RaiseAndSetIfChanged(ref depthSubscribed, value); }
-        }
+        [Reactive] public bool DepthSubscribed { get; set; }
 
-        public bool PrivateDataSubscribed
-        {
-            get { return privateDataSubscribed; }
-            set { this.RaiseAndSetIfChanged(ref privateDataSubscribed, value); }
-        }
+        [Reactive] public bool PrivateDataSubscribed { get; set; }
 
         protected void Initialize()
         {
-            GetExchangeInfoCommand = ReactiveCommand.CreateFromTask(GetExchangeInfo);
-            GetTickersCommand = ReactiveCommand.CreateFromTask(GetTickers);
-            GetTradesCommand = ReactiveCommand.CreateFromTask(GetTrades);
-            GetDepthCommand = ReactiveCommand.CreateFromTask(GetDepth);
-
-            this.ObservableForProperty(x => x.TickersSubscribed).Subscribe(x => SetTickersSubscription(x.Value));
-            this.ObservableForProperty(x => x.TradesSubscribed).Subscribe(x => SetTradesSubscription(x.Value));
-            this.ObservableForProperty(x => x.DepthSubscribed).Subscribe(x => SetDepthSubscription(x.Value));
-            this.ObservableForProperty(x => x.PrivateDataSubscribed).Subscribe(x => SetPrivateDataSubscription(x.Value));
 
             InitializeAsync();
         }
@@ -1134,8 +1097,8 @@ namespace Exchange.Net
         private async void InitializeAsync()
         {
             IsInitializing = true;
-            await GetExchangeInfo().ConfigureAwait(false);
-            await GetTickers().ConfigureAwait(false);
+            await GetExchangeInfo.Execute();
+            await GetTickers.Execute();
             IsInitializing = false;
             //SetTickersSubscription(true);
 
@@ -1151,17 +1114,17 @@ namespace Exchange.Net
             }
         }
 
-        protected virtual Task GetExchangeInfo()
+        protected virtual Task GetExchangeInfoImpl()
         {
             return Task.CompletedTask;
         }
 
-        protected virtual Task GetTickers()
+        protected virtual Task GetTickersImpl()
         {
             return Task.CompletedTask;
         }
 
-        protected virtual Task GetTrades()
+        protected virtual Task GetTradesImpl()
         {
             return Task.CompletedTask;
         }
@@ -1171,7 +1134,28 @@ namespace Exchange.Net
             return Observable.Empty<PriceTicker>();
         }
 
-        protected virtual Task GetDepth()
+        protected virtual Task GetDepthImpl()
+        {
+            return Task.CompletedTask;
+        }
+
+        protected virtual Task GetOpenOrdersImpl()
+        {
+            return Task.CompletedTask;
+        }
+        protected virtual Task GetOrdersHistoryImpl()
+        {
+            return Task.CompletedTask;
+        }
+        protected virtual Task GetDepositsImpl()
+        {
+            return Task.CompletedTask;
+        }
+        protected virtual Task GetWithdrawalsImpl()
+        {
+            return Task.CompletedTask;
+        }
+        protected virtual Task GetBalanceImpl()
         {
             return Task.CompletedTask;
         }
@@ -1199,7 +1183,7 @@ namespace Exchange.Net
                     Observable.Timer(TimeSpan.Zero, TimeSpan.FromSeconds(2))
                               .Select(x => Unit.Default)
                               .ObserveOnDispatcher()
-                              .InvokeCommand(GetTickersCommand);
+                              .InvokeCommand(GetTickers);
             else if (getTickersSubscription != null)
                 getTickersSubscription.Dispose();
         }
@@ -1250,7 +1234,7 @@ namespace Exchange.Net
                 getPrivateDataSubscription.Dispose();
         }
 
-        protected virtual Task<Balance> GetBalance(string asset)
+        protected virtual Task<Balance> GetAssetBalance(string asset)
         {
             return Task.FromResult(new Balance(asset));
         }
@@ -1262,18 +1246,10 @@ namespace Exchange.Net
         protected IEnumerable<SymbolInformation> ValidPairs => marketsMapping.Values.Where(IsValidMarket);
 
 
-        private double _GetExchangeInfoElapsed;
-        private double _GetTickersElapsed;
-        private double _GetTradesElapsed;
-        private double _GetDepthElapsed;
         IDisposable getTickersSubscription;
         IDisposable getTradesSubscription;
         IDisposable getDepthSubscription;
         IDisposable getPrivateDataSubscription;
-        private bool tickersSubscribed;
-        private bool tradesSubscribed;
-        private bool depthSubscribed;
-        private bool privateDataSubscribed;
 
 #if !GTK
         public ViewModelActivator Activator => viewModelActivator;

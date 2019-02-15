@@ -22,7 +22,7 @@ namespace Exchange.Net
             ServerStatus = serverStatus;
         }
 
-        protected override async Task GetExchangeInfo()
+        protected override async Task GetExchangeInfoImpl()
         {
             var resultExchangeInfo = await client.GetMarketsAsync().ConfigureAwait(true);
             if (resultExchangeInfo.Success)
@@ -38,7 +38,7 @@ namespace Exchange.Net
             }
         }
 
-        protected override async Task GetTickers()
+        protected override async Task GetTickersImpl()
         {
             if (Markets.Count() < 1)
                 return;
@@ -56,7 +56,7 @@ namespace Exchange.Net
             }
         }
 
-        protected override async Task GetTrades()
+        protected override async Task GetTradesImpl()
         {
             if (CurrentSymbol == null)
                 return;
@@ -75,7 +75,7 @@ namespace Exchange.Net
             }
         }
 
-        protected override async Task GetDepth()
+        protected override async Task GetDepthImpl()
         {
             if (CurrentSymbol == null)
                 return;

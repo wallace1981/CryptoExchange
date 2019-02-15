@@ -37,7 +37,7 @@
             <TextBox Width="85" TextChanged="TextBox_TextChanged" Margin="1 3" x:Name="tb"/>
             <!--<telerik:RadToggleButton x:Name="collapse" IsChecked="True" Margin="1 3 0 3">-</telerik:RadToggleButton>-->
             <telerik:RadToggleButton IsChecked="{Binding Path=TickersSubscribed}" VerticalAlignment="Center" FontWeight="Bold">Tickers</telerik:RadToggleButton>
-            <Button Command="{Binding Path=GetTickersCommand}" VerticalAlignment="Center" Margin="2 0 0 0">></Button>
+            <Button Command="{Binding Path=GetTickers}" VerticalAlignment="Center" Margin="2 0 0 0">></Button>
             <Label HorizontalContentAlignment="Right" VerticalAlignment="Center" FontSize="11" Width="50">
                 <TextBlock Text="{Binding Path=GetTickersElapsed, Mode=OneWay, FallbackValue=9999, StringFormat='{}{0}ms.'}"/>
             </Label>
@@ -121,7 +121,7 @@
                     </telerik:GridViewColumn.CellTemplate>
                 </telerik:GridViewColumn>
 
-                <telerik:GridViewColumn Header="Измен." HeaderTextAlignment="Right" IsVisible="{Binding ElementName=collapse, Path=IsChecked}" Width="70" SortMemberPath="PriceChangePercent" CellStyle="{StaticResource cellStyle}">
+                <telerik:GridViewColumn Header="Измен." HeaderTextAlignment="Right" IsVisible="{Binding ElementName=collapse, Path=IsChecked}" Width="50" SortMemberPath="PriceChangePercent" CellStyle="{StaticResource cellStyle}">
                     <telerik:GridViewColumn.CellTemplate>
                         <DataTemplate>
                             <StackPanel HorizontalAlignment="Right">
@@ -133,7 +133,7 @@
                     </telerik:GridViewColumn.CellTemplate>
                 </telerik:GridViewColumn>
 
-                <telerik:GridViewColumn Header="Объем" HeaderTextAlignment="Right" IsVisible="{Binding ElementName=collapse, Path=IsChecked}" Width="90" SortMemberPath="QuoteVolume" FilterMemberPath="QuoteVolume" CellStyle="{StaticResource cellStyle}">
+                <telerik:GridViewColumn Header="Объем" HeaderTextAlignment="Right" IsVisible="{Binding ElementName=collapse, Path=IsChecked}" Width="70" SortMemberPath="QuoteVolume" FilterMemberPath="QuoteVolume" CellStyle="{StaticResource cellStyle}">
                     <telerik:GridViewColumn.CellTemplate>
                         <DataTemplate>
                             <TextBlock DockPanel.Dock="Right" HorizontalAlignment="Right" FontFamily="{StaticResource RobotoCondensed}" FontSize="12">

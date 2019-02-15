@@ -1,5 +1,6 @@
 ﻿using Exchange.Net;
 using ReactiveUI;
+using System.Reactive;
 using System.Windows;
 using System.Windows.Controls;
 
@@ -51,6 +52,15 @@ namespace Terminal.WPF
                             };
                             var result = wnd.ShowDialog();
                             interaction.SetOutput(result.GetValueOrDefault());
+                        }));
+                disposables(this
+                    .ViewModel
+                    .ShowException
+                    .RegisterHandler(
+                        interaction =>
+                        {
+                            MessageBox.Show(Application.Current.MainWindow, interaction.Input.Message, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                            interaction.SetOutput(Unit.Default);
                         }));
             });
         }

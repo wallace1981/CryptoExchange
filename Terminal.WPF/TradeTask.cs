@@ -1,6 +1,8 @@
 ﻿using Exchange.Net;
 using Newtonsoft.Json;
 using ReactiveUI;
+using ReactiveUI.Fody.Helpers;
+using ReactiveUI.Legacy;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -164,6 +166,7 @@ namespace Terminal.WPF
         public double QuantityPercent => Math.Round(QuantityPercentEnd - QuantityPercentStart, 2);
 
         public double ProfitPercent => (double)(Price / TradeTask.Buy.Price) - 1.0;
+        public double ProfitPercentRelative => ProfitPercent / TradeTask.ProfitPercent;
 
         public TakeProfitViewModel Previous { get; }
     }
@@ -180,19 +183,21 @@ namespace Terminal.WPF
         public SymbolInformation SymbolInformation { get; }
         public double LossPercent => (double)(StopLoss.Price / Buy.Price) - 1.0;
         public double ProfitPercent => TakeProfitCollection.Last().ProfitPercent;
+        public decimal ProfitPrice => TakeProfitCollection.Last().Price;
         public decimal QuoteBalance { get; }
         public double QuoteBalancePercent { get => qtyBalancePercent; set => this.RaiseAndSetIfChanged(ref qtyBalancePercent, value); }
         public decimal Total { get => buyTotal; set => this.RaiseAndSetIfChanged(ref buyTotal, value); }
         public bool IsMarketBuy { get; set; }
         public bool IsLimitStop { get; set; } = true; // NOTE: Only if Exchange supports stop-limit?
+        [Reactive] public decimal LastPrice { get; set; }
+        [Reactive] public bool IsEnabled { get; set; }
 
         public ICommand AddTakeProfitCommand { get; }
         public ICommand SubmitCommand { get; }
 
         public Interaction<string, bool> Confirm { get; } = new Interaction<string, bool>();
 
-        public ViewModelActivator Activator => viewModelActivator;
-        readonly ViewModelActivator viewModelActivator = new ViewModelActivator();
+        public ViewModelActivator Activator { get; } = new ViewModelActivator();
 
         public TradeTaskViewModel(SymbolInformation si, string exchangeName)
         {
@@ -212,6 +217,7 @@ namespace Terminal.WPF
                 var tp = new TakeProfitViewModel(this, DEF_TAKE_PRCNTS[ind-1], ind > 1 ? TakeProfit[ind - 2] : null) { Price = Math.Round(Buy.Price * (1.0m + 0.05m * ind), si.PriceDecimals), Caption = $"Тейк {ind}" };
                 TakeProfit.Add(tp);
             }
+            LastPrice = Buy.Price;
             AddTakeProfitCommand = ReactiveCommand.Create<object>(AddTakeProfitExecute);
             SubmitCommand = ReactiveCommand.CreateFromTask<string>(SubmitImpl);
             this.WhenAnyValue(x => x.QuoteBalancePercent).Subscribe(y => CalcQuantity());
@@ -228,6 +234,7 @@ namespace Terminal.WPF
                 var tp = new TakeProfitViewModel(this, model.TakeProfit[ind - 1], ind > 1 ? TakeProfit[ind - 2] : null);
                 TakeProfit.Add(tp);
             }
+            LastPrice = Buy.Price;
         }
 
         private async Task SubmitImpl(string param)

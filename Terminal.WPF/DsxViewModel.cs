@@ -19,7 +19,7 @@ namespace Exchange.Net
             ServerStatus = serverStatus;
         }
 
-        protected override async Task GetExchangeInfo()
+        protected override async Task GetExchangeInfoImpl()
         {
             var resultExchangeInfo = await client.GetExchangeInfoAsync().ConfigureAwait(true);
             if (client.IsSigned)
@@ -49,7 +49,7 @@ namespace Exchange.Net
             }
         }
 
-        protected override async Task GetTickers()
+        protected override async Task GetTickersImpl()
         {
             var pairs = string.Join("-", ValidPairs.Select(x => x.Symbol));
             if (pairs.Count() < 1)
@@ -101,7 +101,7 @@ namespace Exchange.Net
             return result;
         }
 
-        protected override async Task GetTrades()
+        protected override async Task GetTradesImpl()
         {
             if (CurrentSymbol == null)
                 return;
@@ -123,7 +123,7 @@ namespace Exchange.Net
             }
         }
 
-        protected override async Task GetDepth()
+        protected override async Task GetDepthImpl()
         {
             if (CurrentSymbol == null)
                 return;
@@ -382,6 +382,8 @@ namespace Exchange.Net
 
         protected override async Task<List<Order>> GetOpenOrdersAsync(IEnumerable<string> markets)
         {
+            if (!client.IsSigned)
+                throw new Exception("API keys not specified.");
             var orders = new List<Order>();
             foreach (var market in markets)
             {
@@ -457,7 +459,7 @@ namespace Exchange.Net
                     var order = Convert(data, si, deals);
                     orders.Add(order);
                 }
-                OrderHistory.AddRange(orders);
+                OrdersHistory.AddRange(orders);
             }
         }
 
@@ -481,26 +483,26 @@ namespace Exchange.Net
         {
             switch (x)
             {
-                case 1: // orders
+                case 2: // orders
                     OpenOrders.Clear();
                     OpenOrders.AddRange(await GetOpenOrdersAsync(new string[] { "btcusd", "btgusd", "ethusd", "ltcusd", "eurusd" }));
                     break;
-                case 2: // orders history
+                case 3: // orders history
                     await RefreshPrivateDataExecute();
                     break;
-                case 3: // trades history
+                case 4: // trades history
                     await RefreshPrivateDataExecute();
                     break;
-                case 4: // funds
+                case 5: // funds
                     var result = await GetBalancesAsync();
                     foreach (Balance b in result)
                         BalanceManager.AddUpdateBalance(b);
                     break;
-                case 5: // deposits
+                case 6: // deposits
                     Deposits.Clear();
                     Deposits.AddRange(await GetDepositsAsync());
                     break;
-                case 6: // withdrawals
+                case 7: // withdrawals
                     Withdrawals.Clear();
                     Withdrawals.AddRange(await GetWithdrawalsAsync());
                     break;

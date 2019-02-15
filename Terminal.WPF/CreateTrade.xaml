@@ -201,10 +201,10 @@
             </ItemsControl.ItemTemplate>
         </ItemsControl>
 
-        <telerik:RadButton
+        <Button
             Grid.Column="1" Grid.Row="9" Command="{Binding Path=AddTakeProfitCommand, Mode=OneTime}">
             <TextBlock Text="Добавить тейк" FontWeight="Bold"/>
-        </telerik:RadButton>
+        </Button>
 
         <Border
             Grid.Column="0" Grid.ColumnSpan="4" Grid.Row="10"

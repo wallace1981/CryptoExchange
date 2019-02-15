@@ -1,5 +1,6 @@
 ﻿using Exchange.Net;
 using ReactiveUI;
+using ReactiveUI.Legacy;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
