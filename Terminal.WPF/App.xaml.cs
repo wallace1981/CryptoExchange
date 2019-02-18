@@ -28,8 +28,9 @@ namespace Terminal.WPF
             SetIEFeature(IE_FEATURE_BROWSER_EMULATION, 0x2AF8);
             //CrystalPalette.Palette.AccentPressedColor = Colors.Bisque;
             //CrystalPalette.Palette.MouseOverHighColor = Colors.Bisque;
+            //CrystalPalette.Palette.FontFamily = new FontFamily("Segoe UI");
             //CrystalPalette.Palette.FontFamily = Application.Current.Resources["RobotoCondensed"] as FontFamily;
-            //CrystalPalette.Palette.FontSize = 15;
+            //CrystalPalette.Palette.FontSize = 12;
             //CrystalPalette.Palette.CornerRadius = new CornerRadius(0);
 
             //FluentPalette.Palette.FontFamily = Application.Current.Resources["RobotoCondensed"] as FontFamily;

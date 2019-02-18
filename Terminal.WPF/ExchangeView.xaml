@@ -24,7 +24,7 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <UniformGrid DockPanel.Dock="Top" Columns="5" HorizontalAlignment="Left">
+        <UniformGrid DockPanel.Dock="Top" Columns="5" HorizontalAlignment="Left" Visibility="Collapsed">
             <Button Command="{Binding Path=GetExchangeInfo}">Exchange Info</Button>
             <Label HorizontalContentAlignment="Right">
                 <TextBlock>
@@ -40,8 +40,9 @@
             </Label>
         </UniformGrid>
 
-        <telerik:RadBusyIndicator Grid.Row="1" Grid.RowSpan="2" Margin="0 4 0 0"
-                                  IsBusy="{Binding Path=IsInitializing, Mode=OneWay}">
+        <telerik:RadBusyIndicator Grid.Row="0" Grid.RowSpan="3" Margin="0 4 0 0"
+                                  IsBusy="{Binding Path=IsInitializing, Mode=OneWay}"
+                                  >
             <local:PriceTickerView x:Name="priceTicker" />
         </telerik:RadBusyIndicator>
 
@@ -126,7 +127,7 @@
                     Content=">"
                     />
             </UniformGrid>
-            <telerik:RadTabControl x:Name="tabAccountInfo">
+            <telerik:RadTabControl x:Name="tabAccountInfo" BorderThickness="1">
                 <telerik:RadTabItem Header="Rules" Visibility="Collapsed">
                     <DockPanel>
                         <telerik:RadToolBar DockPanel.Dock="Top">

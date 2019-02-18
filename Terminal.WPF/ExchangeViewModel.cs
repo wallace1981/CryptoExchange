@@ -187,7 +187,7 @@ namespace Exchange.Net
                 EnableTradeTask = ReactiveCommand.Create(EnableTradeTaskImpl, tradeTaskCommandCanExecute).DisposeWith(disposables);
                 DeleteTradeTask = ReactiveCommand.Create(DeleteTradeTaskImpl, tradeTaskCommandCanExecute).DisposeWith(disposables);
 
-                isGetOpenOrdersExecuting = GetOpenOrders.IsExecuting.ToProperty(this, x => x.IsGetOpenOrdersExecuting).DisposeWith(disposables);
+                GetOpenOrders.IsExecuting.ToPropertyEx(this, x => x.IsGetOpenOrdersExecuting).DisposeWith(disposables);
 
                 var subSI = this.ObservableForProperty(vm => vm.CurrentSymbolInformation)
                     .Subscribe(x =>
@@ -231,8 +231,8 @@ namespace Exchange.Net
         public ReactiveCommand<int, Unit> RefreshCommand { get; private set; }
         public ReactiveCommand<Unit, Unit> RefreshPrivateDataCommand { get; private set; }
 
-        private ObservableAsPropertyHelper<bool> isGetOpenOrdersExecuting;
-        public bool IsGetOpenOrdersExecuting => isGetOpenOrdersExecuting.Value;
+        [ObservableAsProperty]
+        public bool IsGetOpenOrdersExecuting { get; }
 
 
         private async void OnCommandException(Exception ex)

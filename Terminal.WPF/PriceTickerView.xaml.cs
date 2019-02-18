@@ -1,6 +1,7 @@
 ﻿using Exchange.Net;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -55,6 +56,9 @@ namespace Terminal.WPF
         private void TextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
             fdBase.Value = (sender as TextBox).Text;
+            MarketSummaries.Refresh();
+            var binding = grdMarketSummaries.GetBindingExpression(DataGrid.SelectedItemProperty);
+            binding.UpdateTarget();
         }
 
         private void RadioButton_Checked(object sender, RoutedEventArgs e)
@@ -70,7 +74,18 @@ namespace Terminal.WPF
         private void RadComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             fdQuote.Value = (sender as Telerik.Windows.Controls.RadComboBox).SelectedValue;
+            MarketSummaries.Refresh();
         }
+
+        private void CollectionViewSource_Filter(object sender, FilterEventArgs e)
+        {
+            e.Accepted =
+                (e.Item as PriceTicker).SymbolInformation.Status != "BREAK" &&
+                (e.Item as PriceTicker).SymbolInformation.QuoteAsset == cmbQuoteAsset.SelectedValue as string &&
+                (e.Item as PriceTicker).SymbolInformation.BaseAsset.StartsWith(tb.Text, StringComparison.CurrentCultureIgnoreCase);
+        }
+
+        private ICollectionView MarketSummaries => (Resources["csvMarketSummaries"] as CollectionViewSource).View;
     }
 
 }

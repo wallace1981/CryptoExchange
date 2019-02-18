@@ -1,0 +1,21 @@
+﻿<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:AvaloniaApplication1.ViewModels;assembly=AvaloniaApplication1"
+        Icon="resm:AvaloniaApplication1.Assets.avalonia-logo.ico"
+        Title="AvaloniaApplication1">
+
+  <Design.DataContext>
+    <vm:MainWindowViewModel/>
+  </Design.DataContext>
+
+  <Grid>
+    <!--<ProgressBar Maximum="100" Minimum="1" Background="Red" Foreground="LightPink" Value="50" Width="100"/>
+    <TextBlock Text="{Binding Greeting}" HorizontalAlignment="Center" VerticalAlignment="Center"/>-->
+    <TabControl>
+      <TabItem Header="Tab1"/>
+      <TabItem Header="Tab2"/>
+    </TabControl>
+  </Grid>
+  
+
+</Window>
