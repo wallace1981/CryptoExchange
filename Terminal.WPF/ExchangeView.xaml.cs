@@ -1,6 +1,7 @@
 ﻿using Exchange.Net;
 using ReactiveUI;
 using System.Reactive;
+using System.Reactive.Linq;
 using System.Windows;
 using System.Windows.Controls;
 
@@ -50,8 +51,11 @@ namespace Terminal.WPF
                                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
                                 WindowStyle = WindowStyle.ToolWindow
                             };
-                            var result = wnd.ShowDialog();
-                            interaction.SetOutput(result.GetValueOrDefault());
+                            return Observable.Start(() =>
+                            {
+                                var result = wnd.ShowDialog();
+                                interaction.SetOutput(result.GetValueOrDefault());
+                            }, RxApp.MainThreadScheduler);
                         }));
                 disposables(this
                     .ViewModel

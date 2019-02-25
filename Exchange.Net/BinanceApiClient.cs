@@ -177,6 +177,20 @@ namespace Exchange.Net
         }
     }
 
+    public class AdvancedQueryOrderRequest : SignedRequest
+    {
+        public string symbol { get; set; }
+        public long? startTime { get; set; }
+        public long? endTime { get; set; }
+        public long? fromId { get; set; }
+        public int? limit { get; set; }
+
+        public override bool Validate()
+        {
+            return !string.IsNullOrWhiteSpace(symbol);
+        }
+    }
+
     public class QueryOrderRequest : SignedRequest
     {
         public string symbol { get; set; }
@@ -381,6 +395,8 @@ namespace Exchange.Net
         private const int GetOpenOrdersWeight = 40;
         private const string GetAllOrdersEndpoint = "/api/v3/allOrders";
         private const int GetAllOrdersWeight = 5;
+        private const string GetTradeListEndpoint = "/api/v3/myTrades";
+        private const int GetTradeListWeight = 5;
 
         private const string GetAccountInfoEndpoint = "/api/v3/account";
         private const int GetAccountInfoWeight = 5;
@@ -417,6 +433,12 @@ namespace Exchange.Net
         {
             var requestMessage = CreateRequestMessage(new BaseQueryOrderRequest() { symbol = symbol }, GetAllOrdersEndpoint, HttpMethod.Get);
             return ExecuteRequestAsync<Binance.Order[]>(requestMessage, symbol != null ? 1 : GetAllOrdersWeight, contentPath: $"allOrders-{symbol}");
+        }
+
+        public Task<ApiResult<Binance.AccountTrade[]>> GetAccountTradesAsync(string symbol, long? start = null, long? end = null, long? fromId = null, int? limit = null)
+        {
+            var requestMessage = CreateRequestMessage(new AdvancedQueryOrderRequest() { symbol = symbol, startTime = start, endTime = end, fromId = fromId, limit = limit }, GetTradeListEndpoint, HttpMethod.Get);
+            return ExecuteRequestAsync<Binance.AccountTrade[]>(requestMessage, GetTradeListWeight, contentPath: $"accTrades-{symbol}");
         }
 
         public Task<ApiResult<Binance.NewOrderResponseResult>> PlaceOrderAsync(string symbol, Binance.TradeSide side, Binance.OrderType type, decimal amount, decimal? price = null, decimal? stopPrice = null, Binance.TimeInForce? tif = null, string newClientOrderId = null)
@@ -1016,6 +1038,7 @@ namespace Binance
         public long time { get; set; }
         public long updateTime { get; set; }
         public bool isWorking { get; set; }
+        public AccountTrade[] fills { get; set; }
     }
 
     public class NewOrderResponseResult
@@ -1050,6 +1073,7 @@ namespace Binance
 
     public class OrderFill
     {
+        public long tradeId { get; set; }
         public decimal price { get; set; }
         public decimal qty { get; set; }
         public decimal comission { get; set; }

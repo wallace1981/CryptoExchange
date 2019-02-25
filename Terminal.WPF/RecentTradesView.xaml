@@ -46,8 +46,8 @@
                             <GridViewColumn x:Name="clPrice" Width="85">
                             <GridViewColumn.Header>
                                 <TextBlock FontFamily="{StaticResource RobotoCondensed}" FontSize="12">
-                                            <Run Text="Price,"/>
-                                            <Run Text="{Binding Path=CurrentSymbolInformation.QuoteAsset, Mode=OneWay, FallbackValue=---}"/>
+                                    <Run Text="Price,"/>
+                                    <Run Text="{Binding Path=CurrentSymbolInformation.QuoteAsset, Mode=OneWay, FallbackValue=---}"/>
                                 </TextBlock>
                             </GridViewColumn.Header>
                             <GridViewColumn.CellTemplate>
@@ -56,7 +56,8 @@
                                             Content="{Binding Path=Price, Mode=OneWay}"
                                             ContentStringFormat="{Binding Path=PriceFmt, Mode=OneWay}"
                                             Foreground="{Binding Path=Side, Mode=OneWay, Converter={StaticResource ResourceKey=convOrderSide}}"
-                                            Style="{StaticResource ContentControlRightAligned}"/>
+                                            Style="{StaticResource ContentControlRightAligned}"
+                                            HorizontalAlignment="Left"/>
                                     </DataTemplate>
                                 </GridViewColumn.CellTemplate>
                             </GridViewColumn>

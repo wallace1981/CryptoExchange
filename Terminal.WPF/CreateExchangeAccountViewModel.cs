@@ -46,6 +46,8 @@ namespace Terminal.WPF
         {
             var path = $"{Exchange.ExchangeName}-{Name}.hash";
             ExchangeApiCore.SaveApiKeys(path, ApiKey, ApiSecret);
+            var reg = Microsoft.Win32.Registry.CurrentUser.CreateSubKey($@"Software\wallace\Terminal.WPF\{Exchange.ExchangeName}\Accounts", writable: true);
+            ExchangeApiCore.SaveApiKeys(reg, Name, ApiKey, ApiSecret);
             var ok = await CloseDialog.Handle(Unit.Default);
         }
     }

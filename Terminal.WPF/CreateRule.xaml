@@ -98,7 +98,7 @@
                                   SmallChange="0.25"
                                   LargeChange="1"
                                   Value="{Binding Path=NewOrder.QuantityPercentage, Mode=TwoWay, FallbackValue=1.5}"
-                                  Minimum="0.5"
+                                  Minimum="0.1"
                                   Maximum="100"
                                   UpdateValueEvent="PropertyChanged"
                                   x:Name="txtTPP"/>

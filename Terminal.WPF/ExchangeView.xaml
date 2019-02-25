@@ -128,13 +128,19 @@
                     />
             </UniformGrid>
             <telerik:RadTabControl x:Name="tabAccountInfo" BorderThickness="1">
-                <telerik:RadTabItem Header="Rules" Visibility="Collapsed">
+                <telerik:RadTabItem Header="Rules">
                     <DockPanel>
                         <telerik:RadToolBar DockPanel.Dock="Top">
                             <Button
-                                Command="{Binding Path=CreateRuleCommand}"
+                                Command="{Binding Path=CreateRule, Mode=OneWay}"
                                 CommandParameter="TakeProfit"
-                                Content="Create Rule"/>
+                                Content="Создать правило"/>
+                            <Button
+                                Command="{Binding Path=DeleteRule, Mode=OneWay}"
+                                CommandParameter="{Binding ElementName=lstRules, Path=SelectedItem}"
+                                >
+                                <TextBlock Text="Удалить правило"/>
+                            </Button>
                         </telerik:RadToolBar>
                         <!--<telerik:RadTileList ItemsSource="{Binding Path=TradingRuleProxies, Mode=OneWay}">
                         <telerik:RadTileList.ItemTemplate>
@@ -149,7 +155,9 @@
                             </DataTemplate>
                         </telerik:RadTileList.ItemTemplate>
                     </telerik:RadTileList>-->
-                        <ListView ItemsSource="{Binding Path=TradingRuleProxies, Mode=OneWay}">
+                        <!--<local:TestTradesView/>-->
+
+                        <ListView ItemsSource="{Binding Path=TradingRuleProxies, Mode=OneWay}" x:Name="lstRules">
                             <ListView.View>
                                 <GridView>
                                     <GridView.Columns>
@@ -179,6 +187,12 @@
                                 <TextBlock Text="Активировать"/>
                             </telerik:RadToggleButton>
                             <Button
+                                Command="{Binding Path=DoLifecycle, Mode=OneWay}"
+                                CommandParameter="{Binding Path=SelectedTradeTask.Model, Mode=OneWay}"
+                                >
+                                <TextBlock Text="Lifecycle"/>
+                            </Button>
+                            <Button
                                 Command="{Binding Path=DeleteTradeTask, Mode=OneWay}"
                                 >
                                 <TextBlock Text="Удалить задачу"/>
@@ -188,7 +202,7 @@
                             Background="White"
                             FontFamily="{StaticResource RobotoCondensed}"
                             FontSize="12"
-                            ItemsSource="{Binding Path=TradeTasks, Mode=OneWay}"
+                            ItemsSource="{Binding Path=TradeTasksList, Mode=OneWay}"
                             SelectedItem="{Binding Path=SelectedTradeTask, Mode=TwoWay}"
                             >
                             <telerik:RadListBox.ItemTemplate>
@@ -212,6 +226,11 @@
                                         <TextBlock Grid.Column="0" Grid.Row="1">
                                             <Run Text="{Binding Path=Buy.Total, Mode=OneWay}"/>
                                             <Run Text="{Binding Path=SymbolInformation.QuoteAsset, Mode=OneTime}"/>
+                                        </TextBlock>
+
+                                        <TextBlock Grid.Column="1" Grid.Row="0">
+                                            <Run Text="{Binding Path=Status, Mode=OneWay}"/>
+                                            <Run Text="{Binding Path=LastError, Mode=OneWay}" Foreground="Red"/>
                                         </TextBlock>
 
                                         <Grid Grid.Column="1" Grid.Row="2" Margin="3 20 3 0">
@@ -463,7 +482,15 @@
                     </DockPanel>
                 </telerik:RadTabItem>
                 <telerik:RadTabItem Header="История сделок">
-
+                    <DockPanel>
+                        <telerik:RadToolBar DockPanel.Dock="Top">
+                            <Button
+                                Command="{Binding Path=GetTradesHistory, Mode=OneWay}"
+                                Content="Refresh"
+                                />
+                        </telerik:RadToolBar>
+                        <DataGrid></DataGrid>
+                    </DockPanel>
                 </telerik:RadTabItem>
                 <telerik:RadTabItem Header="Баланс">
                     <DockPanel>

@@ -60,7 +60,10 @@
                 <RowDefinition/>
             </Grid.RowDefinitions>
 
-            <ListView x:Name="dgAsks" Grid.Row="0"
+            <ListView x:Name="dgAsks"
+                Grid.Row="0"
+                BorderThickness="0"
+                Margin="0 0 0 -20"
                 ItemsSource="{Binding Path=OrderBook.Asks, Mode=OneWay}"
                 ItemContainerStyle="{StaticResource ListViewItemStyleCustom}"
                 MouseDoubleClick="OrderBook_MouseDoubleClick"
@@ -71,8 +74,8 @@
                             <GridViewColumn x:Name="clOrderBookPrice" Width="85">
                                 <GridViewColumn.Header>
                                     <TextBlock FontFamily="{StaticResource RobotoCondensed}" FontSize="12">
-                                            <Run Text="Price,"/>
-                                            <Run Text="{Binding Path=CurrentSymbolInformation.QuoteAsset, Mode=OneWay, FallbackValue=---}"/>
+                                        <Run Text="Price,"/>
+                                        <Run Text="{Binding Path=CurrentSymbolInformation.QuoteAsset, Mode=OneWay, FallbackValue=---}"/>
                                     </TextBlock>
                                 </GridViewColumn.Header>
                                 <GridViewColumn.CellTemplate>
@@ -81,7 +84,8 @@
                                             Content="{Binding Path=Price, Mode=OneWay}"
                                             ContentStringFormat="{Binding Path=PriceFmt, Mode=OneWay}"
                                             Foreground="{Binding Path=Side, Mode=OneWay, Converter={StaticResource ResourceKey=convOrderSide}}"
-                                            Style="{StaticResource ContentControlRightAligned}"/>
+                                            Style="{StaticResource ContentControlRightAligned}"
+                                            HorizontalAlignment="Left"/>
                                     </DataTemplate>
                                 </GridViewColumn.CellTemplate>
                             </GridViewColumn>
@@ -95,9 +99,9 @@
                                 <GridViewColumn.CellTemplate>
                                     <DataTemplate>
                                         <ContentControl
-                                                Content="{Binding Path=Quantity, Mode=OneWay}"
-                                                ContentStringFormat="{Binding Path=QuantityFmt, Mode=OneWay}"
-                                                Style="{StaticResource ContentControlRightAligned}"/>
+                                            Content="{Binding Path=Quantity, Mode=OneWay}"
+                                            ContentStringFormat="{Binding Path=QuantityFmt, Mode=OneWay}"
+                                            Style="{StaticResource ContentControlRightAligned}"/>
                                     </DataTemplate>
                                 </GridViewColumn.CellTemplate>
                             </GridViewColumn>
@@ -116,10 +120,11 @@
                                                 <ColumnDefinition Width="{Binding Path=QuantityPercentage, Converter={StaticResource convPercentToGridLength}}"/>
                                             </Grid.ColumnDefinitions>
                                             <Rectangle Grid.Column="1" Fill="{StaticResource BearCandleBrush}" Opacity="0.2"/>
-                                            <ContentControl Grid.ColumnSpan="2"
-                                                    Content="{Binding Path=Total, Mode=OneWay}"
-                                                    ContentStringFormat="N2"
-                                                    Style="{StaticResource ContentControlRightAligned}" Margin="0"/>
+                                            <ContentControl
+                                                Grid.ColumnSpan="2"
+                                                Content="{Binding Path=Total, Mode=OneWay}"
+                                                ContentStringFormat="N2"
+                                                Style="{StaticResource ContentControlRightAligned}" Margin="0"/>
                                         </Grid>
                                     </DataTemplate>
                                 </GridViewColumn.CellTemplate>
@@ -127,16 +132,16 @@
                             <GridViewColumn x:Name="clOrderBookTotalCumulative" Width="85">
                                 <GridViewColumn.Header>
                                     <TextBlock FontFamily="{StaticResource RobotoCondensed}" FontSize="12">
-                                            <Run Text="Cumul.,"/>
-                                            <Run Text="{Binding Path=CurrentSymbolInformation.QuoteAsset, Mode=OneWay, FallbackValue=---}"/>
+                                        <Run Text="Cumul.,"/>
+                                        <Run Text="{Binding Path=CurrentSymbolInformation.QuoteAsset, Mode=OneWay, FallbackValue=---}"/>
                                     </TextBlock>
                                 </GridViewColumn.Header>
                                 <GridViewColumn.CellTemplate>
                                     <DataTemplate>
                                         <ContentControl
-                                                Content="{Binding Path=TotalCumulative, Mode=OneWay}"
-                                                ContentStringFormat="N2"
-                                                Style="{StaticResource ContentControlRightAligned}"/>
+                                            Content="{Binding Path=TotalCumulative, Mode=OneWay}"
+                                            ContentStringFormat="N2"
+                                            Style="{StaticResource ContentControlRightAligned}"/>
                                     </DataTemplate>
                                 </GridViewColumn.CellTemplate>
                             </GridViewColumn>
@@ -145,13 +150,15 @@
                 </ListView.View>
             </ListView>
 
-            <Border Grid.Row="1" BorderThickness="0 1" BorderBrush="LightGray" VerticalAlignment="Center">
-                <DockPanel>
+            <Border Grid.Row="1" BorderThickness="0 1" Margin="0 20 0 0" BorderBrush="LightGray" VerticalAlignment="Center"
+                    Canvas.ZIndex="10" Background="White">
+                <DockPanel VerticalAlignment="Center">
                     <DockPanel Width="{Binding ElementName=clOrderBookPrice, Path=ActualWidth, Mode=OneWay}">
                         <ContentControl
                             Content="{Binding Path=OrderBook.Spread, Mode=OneWay}"
                             ContentStringFormat="{Binding Path=CurrentSymbolInformation.PriceFmt, Mode=OneWay}"
-                            Style="{StaticResource ContentControlRightAligned}" Margin="0 0 -1 0"/>
+                            Style="{StaticResource ContentControlRightAligned}"
+                            HorizontalAlignment="Left" Margin="3 0 0 0"/>
                     </DockPanel>
                     <DockPanel Width="{Binding ElementName=clOrderBookQuantity, Path=ActualWidth, Mode=OneWay}" x:Name="lblPrice">
                         <TextBlock HorizontalAlignment="Right">
@@ -174,8 +181,9 @@
             </Border>
 
             <ListView x:Name="dgBids" Grid.Row="2" ItemsSource="{Binding Path=OrderBook.Bids, Mode=OneWay}"
-                      ItemContainerStyle="{StaticResource ListViewItemStyleCustom}"
-                      MouseDoubleClick="OrderBook_MouseDoubleClick">
+                BorderThickness="0" Margin="0 -2 0 0"
+                ItemContainerStyle="{StaticResource ListViewItemStyleCustom}"
+                MouseDoubleClick="OrderBook_MouseDoubleClick">
                 <ListView.View>
                     <GridView ScrollViewer.VerticalScrollBarVisibility="Visible">
                         <GridView.ColumnHeaderContainerStyle>
@@ -191,7 +199,8 @@
                                             Content="{Binding Path=Price, Mode=OneWay}"
                                             ContentStringFormat="{Binding Path=PriceFmt, Mode=OneWay}"
                                             Foreground="{Binding Path=Side, Mode=OneWay, Converter={StaticResource ResourceKey=convOrderSide}}"
-                                            Style="{StaticResource ContentControlRightAligned}"/>
+                                            Style="{StaticResource ContentControlRightAligned}"
+                                            HorizontalAlignment="Left"/>
                                     </DataTemplate>
                                 </GridViewColumn.CellTemplate>
                             </GridViewColumn>

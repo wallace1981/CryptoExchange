@@ -1,7 +1,9 @@
-﻿using ReactiveUI;
+﻿using Exchange.Net;
+using ReactiveUI;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reactive.Disposables;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
@@ -26,26 +28,35 @@ namespace Terminal.WPF
             InitializeComponent();
             this.WhenActivated(disposables =>
             {
-                disposables(this
-                    .ViewModel
+                ViewModel
                     .Confirm
                     .RegisterHandler(
                         interaction =>
                         {
-                            var deleteIt = MessageBox.Show(
+                            var result = MessageBox.Show(
                                 Window.GetWindow(this),
                                 interaction.Input,
                                 "Caption", MessageBoxButton.OKCancel);
 
-                            interaction.SetOutput(deleteIt == MessageBoxResult.OK);
-                        }));
+                            interaction.SetOutput(result == MessageBoxResult.OK);
+                        }).DisposeWith(disposables);
+                ViewModel.SubmitCommand.Subscribe(OnSubmitCommand).DisposeWith(disposables);
             });
+        }
+
+        private void OnSubmitCommand(bool x)
+        {
+            if (x)
+            {
+                var wnd = Window.GetWindow(this);
+                wnd.DialogResult = true;
+            }
         }
 
         private void Button_Click(object sender, RoutedEventArgs e)
         {
-            var wnd = Window.GetWindow(this);
-            wnd.DialogResult = true;
+            //var wnd = Window.GetWindow(this);
+            //wnd.DialogResult = true;
         }
     }
 }

@@ -784,10 +784,10 @@ namespace Exchange.Net
             this.entries = new List<OrderBookEntry>(entries);
         }
 
-        public override bool HasPrice(decimal price)
-        {
-            return entries.Any(x => x.HasPrice(price));
-        }
+        //public override bool HasPrice(decimal price)
+        //{
+        //    return entries.Any(x => x.HasPrice(price));
+        //}
 
         public override decimal RemoveQuantity(decimal price)
         {
@@ -838,6 +838,15 @@ namespace Exchange.Net
         }
     }
 
+    public enum OrderStatus
+    {
+        Active,
+        Filled,
+        PartiallyFilled,
+        Rejected,
+        Cancelled
+    }
+
     public class Order : OrderBookEntry
     {
         public Order(SymbolInformation si) : base(si.PriceDecimals, si.QuantityDecimals)
@@ -849,7 +858,8 @@ namespace Exchange.Net
         public SymbolInformation SymbolInformation { get; set; }
         public string Type { get; set; }
         public decimal StopPrice { get; set; }
-        public DateTime Timestamp { get; set; }
+        public DateTime Created { get; set; }
+        public DateTime Updated { get; set; }
         public string OrderId { get; set; }
         public decimal LastPrice
         {
@@ -862,9 +872,26 @@ namespace Exchange.Net
             set { this.RaiseAndSetIfChanged(ref executedQuantity, value); }
         }
         public decimal Profit => (LastPrice - Price) * Quantity * (Side == TradeSide.Sell ? -1m : 1m);
+        public OrderStatus Status { get; set; }
+        public OrderTrade[] Fills { get; set; }
 
         private decimal lastPrice;
         private decimal executedQuantity;
+    }
+
+    public class OrderTrade : OrderBookEntry
+    {
+        public SymbolInformation SymbolInformation { get; set; }
+        public string Id { get; set; }
+        public string OrderId { get; set; }
+        public DateTime Timestamp { get; set; }
+        public decimal Comission { get; set; }
+        public string ComissionAsset { get; set; }
+
+        public OrderTrade(SymbolInformation si) : base(si.PriceDecimals, si.QuantityDecimals)
+        {
+            this.SymbolInformation = si;
+        }
     }
 
     public class NewOrder : OrderBookEntry
@@ -882,6 +909,5 @@ namespace Exchange.Net
                 Side = (entry.Side == TradeSide.Buy) ? TradeSide.Sell : TradeSide.Buy;
             }
         }
-
     }
 }

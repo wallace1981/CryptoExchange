@@ -1,4 +1,5 @@
-﻿using ReactiveUI;
+﻿using DynamicData;
+using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
 using ReactiveUI.Legacy;
 using System;
@@ -20,7 +21,7 @@ using Terminal.WPF;
 
 namespace Exchange.Net
 {
-    public abstract class ExchangeViewModel : ReactiveObject, ISupportsActivation
+    public abstract partial class ExchangeViewModel : ReactiveObject, ISupportsActivation
     {
 
         // NOTE: below props should be NORMAL props since they has to be changed from UI.
@@ -103,7 +104,6 @@ namespace Exchange.Net
         public ReactiveList<Order> OrdersHistory { get; }
         public ReactiveList<TradingRuleProxy> TradingRuleProxies => tradingRuleProxies;
         public BalanceManager BalanceManager => balanceManager;
-        public ReactiveList<TradeTaskViewModel> TradeTasks { get; }
 
         protected abstract string DefaultMarket { get; }
         protected List<string> UsdAssets = new List<string>();
@@ -145,11 +145,11 @@ namespace Exchange.Net
             deposits = new ReactiveList<Transfer>();
             withdrawals = new ReactiveList<Transfer>();
             balanceManager = new BalanceManager();
-            TradeTasks = new ReactiveList<TradeTaskViewModel>();
+
+            InitializeTradeController();
 
             MarketAssets.EnableThreadSafety();
             MarketSummaries.EnableThreadSafety();
-            TradeTasks.EnableThreadSafety();
             OpenOrders.EnableThreadSafety();
             OrdersHistory.EnableThreadSafety();
             Withdrawals.EnableThreadSafety();
@@ -157,7 +157,7 @@ namespace Exchange.Net
 
             this.WhenActivated(disposables =>
             {
-                var getOrdersHistoryCanExecute = this.WhenAnyValue(x => x.CurrentSymbol, y => !string.IsNullOrWhiteSpace(y)).DistinctUntilChanged();
+                var symbolDependableCommandCanExecute = this.WhenAnyValue(x => x.CurrentSymbol, y => !string.IsNullOrWhiteSpace(y)).DistinctUntilChanged();
                 var tradeTaskCommandCanExecute = this.WhenAnyValue(x => x.SelectedTradeTask, (TradeTaskViewModel y) => y != null).DistinctUntilChanged();
 
                 SetCurrentMarketCommand = ReactiveCommand.Create<string>(x => CurrentMarket = x).DisposeWith(disposables);
@@ -169,13 +169,14 @@ namespace Exchange.Net
                 // TODO: Make below as ReactiveCommand instead of ICommand
                 // and add DisposeWith to WhenActivated() section.
                 RefreshPrivateDataCommand = ReactiveCommand.CreateFromTask(RefreshPrivateDataExecute).DisposeWith(disposables);
-                CancelOrderCommand = ReactiveCommand.CreateFromTask<string>(CancelOrder).DisposeWith(disposables);
+                //CancelOrderCommand = ReactiveCommand.CreateFromTask<string>(CancelOrder).DisposeWith(disposables);
                 SubmitOrderCommand = ReactiveCommand.CreateFromTask<NewOrder>(SubmitOrder).DisposeWith(disposables);
-                CreateRule = ReactiveCommand.Create<object>(CreateRuleExecute).DisposeWith(disposables);
-                CreateTradeTask = ReactiveCommand.CreateFromTask(CreateTradeTaskImpl).DisposeWith(disposables);
+                CreateRule = ReactiveCommand.CreateFromTask<string>(CreateRuleImpl, symbolDependableCommandCanExecute).DisposeWith(disposables);
+                CreateTradeTask = ReactiveCommand.CreateFromTask(CreateTradeTaskImpl, symbolDependableCommandCanExecute).DisposeWith(disposables);
                 SubmitRuleCommand = ReactiveCommand.Create<object>(SubmitRuleExecute).DisposeWith(disposables);
                 GetOpenOrders = ReactiveCommand.CreateFromTask(GetOpenOrdersImpl).DisposeWith(disposables);
-                GetOrdersHistory = ReactiveCommand.CreateFromTask(GetOrdersHistoryImpl, getOrdersHistoryCanExecute).DisposeWith(disposables);
+                GetOrdersHistory = ReactiveCommand.CreateFromTask(GetOrdersHistoryImpl, symbolDependableCommandCanExecute).DisposeWith(disposables);
+                GetTradesHistory = ReactiveCommand.CreateFromTask(GetTradesHistoryImpl, symbolDependableCommandCanExecute).DisposeWith(disposables);
                 GetDeposits = ReactiveCommand.CreateFromTask(GetDepositsImpl).DisposeWith(disposables);
                 GetWithdrawals = ReactiveCommand.CreateFromTask(GetWithdrawalsImpl).DisposeWith(disposables);
                 GetBalance = ReactiveCommand.CreateFromTask(GetBalanceImpl).DisposeWith(disposables);
@@ -186,6 +187,7 @@ namespace Exchange.Net
 
                 EnableTradeTask = ReactiveCommand.Create(EnableTradeTaskImpl, tradeTaskCommandCanExecute).DisposeWith(disposables);
                 DeleteTradeTask = ReactiveCommand.Create(DeleteTradeTaskImpl, tradeTaskCommandCanExecute).DisposeWith(disposables);
+                DeleteRule = ReactiveCommand.Create<TradingRuleProxy>(DeleteRuleImpl).DisposeWith(disposables);
 
                 GetOpenOrders.IsExecuting.ToPropertyEx(this, x => x.IsGetOpenOrdersExecuting).DisposeWith(disposables);
 
@@ -225,6 +227,7 @@ namespace Exchange.Net
         public ReactiveCommand<Unit, Unit> GetDeposits { get; private set; }
         public ReactiveCommand<Unit, Unit> GetWithdrawals { get; private set; }
         public ReactiveCommand<Unit, Unit> GetOrdersHistory { get; private set; }
+        public ReactiveCommand<Unit, Unit> GetTradesHistory { get; private set; }
         public ReactiveCommand<Unit, Unit> GetBalance { get; private set; }
         public ReactiveCommand<string, Unit> CancelOrderCommand { get; private set; }
         public ReactiveCommand<NewOrder, Unit> SubmitOrderCommand { get; private set; }
@@ -834,7 +837,7 @@ namespace Exchange.Net
                 else
                     order.LastPrice = ticker.Ask.GetValueOrDefault();
             }
-            foreach (var task in TradeTasks.Where(x => x.SymbolInformation.Symbol == ticker.Symbol))
+            foreach (var task in TradeTasksList.Where(x => x.SymbolInformation.Symbol == ticker.Symbol))
             {
                 task.LastPrice = ticker.LastPrice.GetValueOrDefault();
             }
@@ -880,22 +883,41 @@ namespace Exchange.Net
                     try
                     {
                         Debug.Print("{4} Placing {0} {3} {1} by {2}.", rule.OrderSide, ticker.Symbol, rule.OrderRate, rule.OrderVolume, DateTime.Now);
-                        rule.OrderId = await PlaceOrder(rule);
-                        if (rule.OrderId == null)
-                            rule.IsActive = false;
-                        else
-                            proxy.Status += $"; Placed order #{rule.OrderId}";
+                        rule.Order = await PlaceOrder(rule).ConfigureAwait(false);
+                        if (rule.Order != null)
+                        {
+                            switch (rule.Order.Status)
+                            {
+                                case OrderStatus.Filled:
+                                    var avgPrice = rule.Order.Fills.Sum(x => x.Total) / rule.Order.Fills.Sum(x => x.Quantity);
+                                    var si = GetSymbolInformation(rule.Market);
+                                    proxy.Status += $"; Order #{rule.Order.OrderId} filled with price {avgPrice.ToString(si.PriceFmt)}";
+                                    break;
+                                case OrderStatus.Cancelled:
+                                    proxy.Status += $"; Order cancelled";
+                                    break;
+                                case OrderStatus.Rejected:
+                                    proxy.Status += $"; Order rejected";
+                                    break;
+                                case OrderStatus.Active:
+                                case OrderStatus.PartiallyFilled:
+                                    proxy.Status += $"; Placed order #{rule.Order.OrderId}";
+                                    break;
+                            }
+                        }
+                        rule.IsActive = false;
                     }
-                    catch (Exception ex)
+                    catch (ApiException ex)
                     {
                         Debug.Print(ex.ToString());
                         rule.IsActive = false;
                         proxy.Status += $"; Order NOT placed: {ex.Message}";
                     }
                 }
-                else if (rule.IsActive && rule.OrderId == null)
+                else
                 {
-                    proxy.Status = rule.GetStatus();
+                    if (rule.IsActive && rule.Order == null)
+                        proxy.Status = rule.GetStatus();
                 }
             }
             finally
@@ -904,10 +926,9 @@ namespace Exchange.Net
             }
         }
 
-        protected virtual async Task<string> PlaceOrder(TradingRule rule)
+        protected virtual Task<Order> PlaceOrder(TradingRule rule)
         {
-            await Task.CompletedTask;
-            return null;
+            return Task.FromResult<Order>(null);
         }
 
         protected void AddRule(TradingRule rule)
@@ -925,8 +946,9 @@ namespace Exchange.Net
             return Task.CompletedTask;
         }
 
-        private void CreateRuleExecute(object param)
+        private async Task CreateRuleImpl(string param)
         {
+            var si = await GetFullSymbolInformation();
             var wnd = new System.Windows.Window
             {
                 Content = new Terminal.WPF.CreateRule() { Margin = new System.Windows.Thickness(6) },
@@ -937,10 +959,16 @@ namespace Exchange.Net
                 WindowStyle = System.Windows.WindowStyle.ToolWindow
             };
             var viewModel = this;
-            var order = new NewOrder(viewModel.CurrentSymbolInformation);
+            var order = new NewOrder(si) { QuantityPercentage = 0.5m };
             viewModel.NewOrder = order;
             wnd.DataContext = viewModel;
             wnd.ShowDialog();
+        }
+
+        private void DeleteRuleImpl(TradingRuleProxy proxy)
+        {
+            if (proxy != null)
+                TradingRuleProxies.Remove(proxy);
         }
 
         public Interaction<TradeTaskViewModel, bool> CreateTask { get; } = new Interaction<TradeTaskViewModel, bool>();
@@ -952,6 +980,7 @@ namespace Exchange.Net
         public ReactiveCommand<Unit, Unit> CreateTradeTask { get; private set; }
         public ReactiveCommand<Unit, Unit> EnableTradeTask { get; private set; }
         public ReactiveCommand<Unit, Unit> DeleteTradeTask { get; private set; }
+        public ReactiveCommand<TradingRuleProxy, Unit> DeleteRule { get; private set; }
         public ICommand CreateRule { get; private set; }
         public ICommand SubmitRuleCommand { get; private set; }
 
@@ -962,7 +991,7 @@ namespace Exchange.Net
 
         private void DeleteTradeTaskImpl()
         {
-            TradeTasks.Remove(SelectedTradeTask);
+            tradeTasks.Remove(SelectedTradeTask.Model);
         }
 
         private async Task CreateTradeTaskImpl()
@@ -972,7 +1001,7 @@ namespace Exchange.Net
 
             var ok = await CreateTask.Handle(viewModel);
             if (ok)
-                TradeTasks.Add(viewModel);
+                tradeTasks.Add(viewModel.Model);
         }
 
         private void SubmitRuleExecute(object param)
@@ -1108,8 +1137,9 @@ namespace Exchange.Net
                 var taskModel = TradeTaskViewModel.DeserializeModel(json);
                 if (taskModel.Exchange == ExchangeName)
                 {
-                    var si = GetSymbolInformation(taskModel.Symbol);
-                    TradeTasks.Add(new TradeTaskViewModel(si, taskModel));
+                    //var si = GetSymbolInformation(taskModel.Symbol);
+                    //TradeTasks.Add(new TradeTaskViewModel(si, taskModel));
+                    tradeTasks.Add(taskModel);
                 }
             }
         }
@@ -1147,6 +1177,10 @@ namespace Exchange.Net
         {
             return Task.CompletedTask;
         }
+        protected virtual Task GetTradesHistoryImpl()
+        {
+            return Task.CompletedTask;
+        }
         protected virtual Task GetDepositsImpl()
         {
             return Task.CompletedTask;
@@ -1160,14 +1194,14 @@ namespace Exchange.Net
             return Task.CompletedTask;
         }
 
-        protected virtual Task CancelOrder(string orderId)
+        protected virtual Task<bool> CancelOrder(string orderId)
         {
-            return Task.CompletedTask;
+            return Task.FromResult(false);
         }
 
-        protected virtual Task SubmitOrder(NewOrder order)
+        protected virtual Task<bool> SubmitOrder(NewOrder order)
         {
-            return Task.CompletedTask;
+            return Task.FromResult(false);
         }
 
         protected void SetTickersSubscription(bool isEnabled)
@@ -1268,7 +1302,7 @@ namespace Exchange.Net
         public decimal OrderVolume { get; set; }
         public decimal RemainingVolume { get; set; }
 
-        public string OrderId { get; set; } // <null> if not yet placed.
+        public Order Order { get; set; } // <null> if not yet placed.
         public bool IsActive { get; set; } = true;
 
         public virtual bool IsApplicable(PriceTicker ticker)
@@ -1277,7 +1311,7 @@ namespace Exchange.Net
                 return false;
             if (!IsActive)
                 return false;
-            if (OrderId != null)
+            if (Order != null)
                 return false;
             decimal? value = GetPropertyValue(ticker);
             if (value == null)
@@ -1440,15 +1474,6 @@ namespace Exchange.Net
         Equal,
         Greater,
         GreaterOrEqual
-    }
-
-    public enum OrderStatus
-    {
-        Active,
-        Filled,
-        PartiallyFilled,
-        Rejected,
-        Cancelled
     }
 
     public static class ReactiveListExtensions

@@ -11,7 +11,7 @@ using System.Windows.Input;
 
 namespace Exchange.Net
 {
-    public class BinanceViewModel : ExchangeViewModel
+    public partial class BinanceViewModel : ExchangeViewModel
     {
         protected string ServerStatus;
         protected string ClientStatus => $"Weight is {client.Weight}, expiration in {client.WeightReset.TotalSeconds} secs.";
@@ -197,13 +197,6 @@ namespace Exchange.Net
         {
             return client.SubscribeMarketSummariesAsync(null).Select(ToPriceTicker);
         }
-
-
-
-
-
-
-
 
 
         public override string ExchangeName => "Binance";
@@ -836,17 +829,49 @@ namespace Exchange.Net
         }
 
 
-        protected override async Task<string> PlaceOrder(TradingRule rule)
+        protected override async Task<Order> PlaceOrder(TradingRule rule)
         {
-            // The order type: limit, market, or fill-or-kill
             var result = await client.PlaceOrderAsync(
                 rule.Market,
                 rule.OrderSide == TradeSide.Buy ? Binance.TradeSide.BUY : Binance.TradeSide.SELL,
                 (Binance.OrderType)Enum.Parse(typeof (Binance.OrderType), rule.OrderType, ignoreCase:true),
                 rule.OrderVolume).ConfigureAwait(false);
-            if (!result.Success)
-                throw new Exception(result.Error.ToString());
-            return result.Success ? result.Data.orderId.ToString() : null;
+            // TODO: below is an EXACT COPY of ExecuteBuy(), so do home work and refactor.
+            if (result.Success)
+            {
+                var x = result.Data;
+                var si = GetSymbolInformation(x.symbol);
+                var order = new Order(si)
+                {
+                    OrderId = x.orderId.ToString(),
+                    Price = x.price,
+                    Quantity = x.origQty,
+                    ExecutedQuantity = x.executedQty,
+                    Side = x.side == Binance.TradeSide.BUY.ToString() ? TradeSide.Buy : TradeSide.Sell,
+                    Created = x.transactTime.FromUnixTimestamp(),
+                    Updated = x.transactTime.FromUnixTimestamp(),
+                    Status = Convert(x.status),
+                    Type = x.type
+                };
+                if (x.fills?.Length > 0)
+                {
+                    order.Fills = x.fills
+                        .Select(t => new OrderTrade(si)
+                        {
+                            Id = t.tradeId.ToString(),
+                            OrderId = x.orderId.ToString(),
+                            Comission = t.comission,
+                            ComissionAsset = t.comissionAsset,
+                            Price = t.price,
+                            Quantity = t.qty
+                        }).ToArray();
+                }
+                return order;
+            }
+            else
+            {
+                throw new ApiException(result.Error);
+            }
         }
 
         protected override async Task GetBalanceImpl()
@@ -885,9 +910,9 @@ namespace Exchange.Net
                     Quantity = arg.origQty,
                     Side = arg.side == "BUY" ? TradeSide.Buy : TradeSide.Sell,
                     StopPrice = arg.stopPrice,
-                    Timestamp = arg.time.FromUnixTimestamp(),
+                    Created = arg.time.FromUnixTimestamp(),
                     Type = arg.type
-                }).OrderByDescending(x => x.Timestamp);
+                }).OrderByDescending(x => x.Created);
                 OpenOrders.Reset();
                 OpenOrders.AddRange(orders);
             }
@@ -951,12 +976,21 @@ namespace Exchange.Net
                         Quantity = arg.origQty,
                         Side = arg.side == "BUY" ? TradeSide.Buy : TradeSide.Sell,
                         StopPrice = arg.stopPrice,
-                        Timestamp = arg.time.FromUnixTimestamp(),
+                        Created = arg.time.FromUnixTimestamp(),
                         Type = arg.type
                     })
-                    .OrderByDescending(x => x.Timestamp);
+                    .OrderByDescending(x => x.Created);
                 OrdersHistory.Reset();
                 OrdersHistory.AddRange(orders);
+            }
+        }
+
+        protected override async Task GetTradesHistoryImpl()
+        {
+            var ordersResult = await client.GetAccountTradesAsync(CurrentSymbol).ConfigureAwait(false);
+            UpdateStatus();
+            if (ordersResult.Success)
+            {
             }
         }
 

@@ -92,10 +92,18 @@ namespace Exchange.Net
                 next24hrBarsCall = timestamp.AddHours(1).AddMinutes(-timestamp.Minute);
                 foreach (var x in resultBars.Data)
                 {
-                    var bar = x.Value.First();
-                    bar.open = x.Value.Last().open;
-                    bar.pair = x.Key;
-                    result.Add(bar);
+                    if (x.Value.Count == 0)
+                    {
+                        var bar = new DSX.Bar() { pair = x.Key };
+                        result.Add(bar);
+                    }
+                    else
+                    {
+                        var bar = x.Value.First();
+                        bar.open = x.Value.Last().open;
+                        bar.pair = x.Key;
+                        result.Add(bar);
+                    }
                 }
             }
             return result;
@@ -150,7 +158,7 @@ namespace Exchange.Net
             }
         }
 
-        protected override async Task CancelOrder(string orderId)
+        protected override async Task<bool> CancelOrder(string orderId)
         {
             var result = await client.CancelOrderAsync(long.Parse(orderId));
             if (result.Success)
@@ -159,10 +167,12 @@ namespace Exchange.Net
                 var order = OpenOrders.SingleOrDefault(x => x.OrderId == orderId);
                 if (order != null)
                     OpenOrders.Remove(order);
+                return true;
             }
+            return false;
         }
 
-        protected override async Task SubmitOrder(NewOrder order)
+        protected override async Task<bool> SubmitOrder(NewOrder order)
         {
             var result = await client.NewOrderAsync(order.Side.ToString(), order.SymbolInformation.Symbol, order.Price, order.Quantity, order.OrderType);
             if (result.Success)
@@ -175,7 +185,9 @@ namespace Exchange.Net
                     orderResult.Data.id = orderId;
                     OpenOrders.Insert(0, Convert(orderResult.Data, order.SymbolInformation));
                 }
+                return true;
             }
+            return false;
         }
 
         private void UpdateFunds(Dictionary<string, DSX.Balance> funds)
@@ -362,13 +374,15 @@ namespace Exchange.Net
             }
         }
 
-        protected override async Task<string> PlaceOrder(TradingRule rule)
+        protected override async Task<Order> PlaceOrder(TradingRule rule)
         {
             // The order type: limit, market, or fill-or-kill
             var result = await client.NewOrderAsync(rule.OrderSide.ToString(), rule.Market, rule.OrderRate, rule.OrderVolume, rule.OrderType).ConfigureAwait(false);
             if (!result.Success)
-                throw new Exception(result.Error.ToString());
-            return result.Success ? result.Data.orderId.ToString() : null;
+                throw new ApiException(result.Error);
+            var si = GetSymbolInformation(rule.Market);
+            //return Convert(result.Data, si);
+            throw new NotImplementedException();
         }
 
         protected override async Task<List<Balance>> GetBalancesAsync()
@@ -590,7 +604,7 @@ namespace Exchange.Net
                 Quantity = x.volume,
                 ExecutedQuantity = x.volume - x.remainingVolume,
                 Side = x.type == "buy" ? TradeSide.Buy : TradeSide.Sell,
-                Timestamp = x.timestampCreated.FromUnixSeconds(),
+                Created = x.timestampCreated.FromUnixSeconds(),
                 Type = x.orderType,
                 OrderId = x.id.ToString()
             };

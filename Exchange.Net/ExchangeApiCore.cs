@@ -91,6 +91,19 @@ namespace Exchange.Net
             }
         }
 
+        public static void SaveApiKeys(Microsoft.Win32.RegistryKey reg, string account, SecureString apiKey, SecureString apiSecret)
+        {
+            var entropy = new byte[20];
+            using (var rng = new RNGCryptoServiceProvider())
+            {
+                rng.GetBytes(entropy);
+                var apiKeyProtected = ProtectedData.Protect(apiKey.ToByteArray(), entropy, DataProtectionScope.CurrentUser);
+                var secretKeyProtected = ProtectedData.Protect(apiSecret.ToByteArray(), entropy, DataProtectionScope.CurrentUser);
+                var plain = String.Join(Environment.NewLine, Convert.ToBase64String(entropy), Convert.ToBase64String(apiKeyProtected), Convert.ToBase64String(secretKeyProtected));
+                reg.SetValue(account, plain);
+            }
+        }
+
         protected byte[] SignString(string value)
         {
             return encryptor.ComputeHash(Encoding.UTF8.GetBytes(value));
@@ -222,11 +235,28 @@ namespace Exchange.Net
         }
     }
 
+    public class ApiException : Exception
+    {
+        public ApiError Error { get; }
+
+        public ApiException(int code, string message)
+        {
+            Error = new ApiError() { Code = code, Msg = message };
+        }
+
+        public ApiException(ApiError error)
+        {
+            Error = error;
+        }
+
+        public override string Message => Error.ToString();
+   }
+
     public static class DateTimeHelpers
     {
-        public static long ToUnixTimestamp(this DateTime time)
+        public static long ToUnixTimestamp(this DateTime time, bool convertFromLocalTime = true)
         {
-            return (long)(time - new DateTime(1970, 1, 1)).TotalMilliseconds;
+            return (long)((convertFromLocalTime ? time.ToUniversalTime() : time) - new DateTime(1970, 1, 1)).TotalMilliseconds;
         }
 
         public static DateTime FromUnixTimestamp(this long timestamp, bool convertToLocalTime = true)

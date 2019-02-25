@@ -62,7 +62,6 @@ namespace Terminal.WPF
 
         private void Application_Exit(object sender, ExitEventArgs e)
         {
-
         }
 
         static void SetIEFeature(string feature, uint value)

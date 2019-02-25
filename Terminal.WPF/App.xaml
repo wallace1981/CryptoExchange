@@ -27,6 +27,14 @@
             <FontFamily x:Key="Roboto">pack://application:,,,/Fonts/#Roboto</FontFamily>
             <FontFamily x:Key="RobotoCondensed">pack://application:,,,/Fonts/#Roboto Condensed</FontFamily>
 
+            <Color x:Key="BearCandleColor">#FFE26565</Color>
+            <Color x:Key="BullCandleColor">#FF52CC54</Color>
+            <Color x:Key="NeutralCandleColor">LightGray</Color>
+            <SolidColorBrush x:Key="BearCandleBrush" Color="{StaticResource BearCandleColor}"/>
+            <SolidColorBrush x:Key="BullCandleBrush" Color="{StaticResource BullCandleColor}"/>
+            <SolidColorBrush x:Key="NeutralCandleBrush" Color="{StaticResource NeutralCandleColor}"/>
+
+            <local:PercentToGridLengthConverter x:Key="convPercentToGridLength"/>
             <Style TargetType="{x:Type Label}">
                 <Setter Property="TextBlock.FontFamily" Value="{StaticResource Roboto}"/>
                 <Setter Property="TextBlock.FontSize" Value="12"/>
@@ -45,6 +53,21 @@
             <Style TargetType="{x:Type ListViewItem}" x:Key="ListViewItemStyleCustom">
                 <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
                 <Setter Property="Foreground" Value="Black"/>
+                <Setter Property="Margin" Value="0 -1 0 -2"/>
+                <!--<Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ListViewItem">
+                            <Grid Grid.ColumnSpan="4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="{Binding Path=QuantityPercentage, Converter={StaticResource convPercentToGridLength}, ConverterParameter='-'}"/>
+                                    <ColumnDefinition Width="{Binding Path=QuantityPercentage, Converter={StaticResource convPercentToGridLength}}"/>
+                                </Grid.ColumnDefinitions>
+                                <GridViewRowPresenter Grid.ColumnSpan="2"/>
+                                <Rectangle Grid.Column="1" Fill="{StaticResource BearCandleBrush}" Opacity="0.2"/>
+                            </Grid>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>-->
                 <Style.Triggers>
                     <Trigger Property="IsMouseOver" Value="True">
                         <Setter Property="Background" Value="#F0F0F0"/>
@@ -72,17 +95,10 @@
             
             <Style TargetType="{x:Type ContentControl}" x:Key="ContentControlRightAligned">
                 <Setter Property="FontFamily" Value="{StaticResource RobotoCondensed}"/>
-                <Setter Property="FontSize" Value="12"/>
+                <Setter Property="FontSize" Value="13"/>
                 <Setter Property="HorizontalAlignment" Value="Right"/>
-                <Setter Property="Margin" Value="1 0 -5 0"/>
+                <Setter Property="Margin" Value="-5 0 -5 0"/>
             </Style>
-
-            <Color x:Key="BearCandleColor">#FFE26565</Color>
-            <Color x:Key="BullCandleColor">#FF52CC54</Color>
-            <Color x:Key="NeutralCandleColor">LightGray</Color>
-            <SolidColorBrush x:Key="BearCandleBrush" Color="{StaticResource BearCandleColor}"/>
-            <SolidColorBrush x:Key="BullCandleBrush" Color="{StaticResource BullCandleColor}"/>
-            <SolidColorBrush x:Key="NeutralCandleBrush" Color="{StaticResource NeutralCandleColor}"/>
 
             <local:PriceDiffToBrushConverter x:Key="convPriceDiffToBrush" DefaultBrush="Black" NegativeDiffBrush="{StaticResource BearCandleBrush}" PositiveDiffBrush="{StaticResource BullCandleBrush}"/>
             <local:OrderSideToBrushConverter x:Key="convOrderSide" SellOrderBrush="{StaticResource BearCandleBrush}" BuyOrderBrush="{StaticResource BullCandleBrush}"/>
