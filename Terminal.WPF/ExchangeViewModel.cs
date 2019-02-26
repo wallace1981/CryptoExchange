@@ -6,6 +6,7 @@ using System;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -93,17 +94,20 @@ namespace Exchange.Net
         public virtual int[] RecentTradesSizeList => new int[] { 5, 10, 25, 50, 100 };
         public TradeSide[] TradeSides => new TradeSide[] { TradeSide.Buy, TradeSide.Sell };
 
+        // Public Data
         public IEnumerable<SymbolInformation> Markets => marketsMapping?.Values;
         public ReactiveList<string> MarketAssets => marketAssets;
         public ReactiveList<PriceTicker> MarketSummaries => marketSummaries;
         public ReactiveList<PublicTrade> RecentTrades => recentTrades;
         public OrderBook OrderBook { get; }
-        public ReactiveList<Transfer> Deposits => deposits;
-        public ReactiveList<Transfer> Withdrawals => withdrawals;
-        public ReactiveList<Order> OpenOrders { get; }
-        public ReactiveList<Order> OrdersHistory { get; }
+
         public ReactiveList<TradingRuleProxy> TradingRuleProxies => tradingRuleProxies;
-        public BalanceManager BalanceManager => balanceManager;
+        // Private Data
+        public SourceCache<ExchangeAccount, string> Accounts { get; }
+        public ReadOnlyObservableCollection<ExchangeAccountViewModel> AccountsViewModels => accViewModels;
+        private ReadOnlyObservableCollection<ExchangeAccountViewModel> accViewModels;
+        [Reactive] public ExchangeAccount CurrentAccount { get; set; }
+        [Reactive] public ExchangeAccountViewModel CurrentAccountViewModel { get; set; }
 
         protected abstract string DefaultMarket { get; }
         protected List<string> UsdAssets = new List<string>();
@@ -117,12 +121,9 @@ namespace Exchange.Net
         protected virtual bool HasOrderBookPush => false;
 
         ReactiveList<PublicTrade> recentTrades;
-        ReactiveList<Transfer> deposits;
-        ReactiveList<Transfer> withdrawals;
         ReactiveList<PriceTicker> marketSummaries;
         ReactiveList<string> marketAssets;
         ReactiveList<TradingRuleProxy> tradingRuleProxies = new ReactiveList<TradingRuleProxy>();
-        BalanceManager balanceManager;
         string currentSymbol;
         PriceTicker currentSymboTickerPrice;
         long busyCounter;
@@ -133,6 +134,8 @@ namespace Exchange.Net
 
         public ExchangeViewModel()
         {
+            Accounts = new SourceCache<ExchangeAccount, string>(x => x.Name);
+
             CurrentMarket = DefaultMarket;
             CurrentMarketSummariesPeriod = "30m";
 
@@ -140,23 +143,23 @@ namespace Exchange.Net
             marketSummaries = new ReactiveList<PriceTicker>();
             recentTrades = new ReactiveList<PublicTrade>();
             OrderBook = new OrderBook(null);
-            OpenOrders = new ReactiveList<Order>();
-            OrdersHistory = new ReactiveList<Order>();
-            deposits = new ReactiveList<Transfer>();
-            withdrawals = new ReactiveList<Transfer>();
-            balanceManager = new BalanceManager();
 
             InitializeTradeController();
 
             MarketAssets.EnableThreadSafety();
             MarketSummaries.EnableThreadSafety();
-            OpenOrders.EnableThreadSafety();
-            OrdersHistory.EnableThreadSafety();
-            Withdrawals.EnableThreadSafety();
-            Deposits.EnableThreadSafety();
 
             this.WhenActivated(disposables =>
             {
+                Accounts
+                    .Connect()
+                    .Transform(x => new ExchangeAccountViewModel(x))
+                    .Bind(out accViewModels)
+                    .Subscribe()
+                    .DisposeWith(disposables);
+
+                this.WhenAnyValue(vm => vm.CurrentAccount).Subscribe(x => CurrentAccountViewModel = AccountsViewModels.FirstOrDefault(y => y.Account == x));
+
                 var symbolDependableCommandCanExecute = this.WhenAnyValue(x => x.CurrentSymbol, y => !string.IsNullOrWhiteSpace(y)).DistinctUntilChanged();
                 var tradeTaskCommandCanExecute = this.WhenAnyValue(x => x.SelectedTradeTask, (TradeTaskViewModel y) => y != null).DistinctUntilChanged();
 
@@ -210,7 +213,7 @@ namespace Exchange.Net
                 this.ObservableForProperty(x => x.DepthSubscribed).Subscribe(x => SetDepthSubscription(x.Value)).DisposeWith(disposables);
                 this.ObservableForProperty(x => x.PrivateDataSubscribed).Subscribe(x => SetPrivateDataSubscription(x.Value)).DisposeWith(disposables);
 
-                Activate();
+                Activate(disposables);
             });
         }
 
@@ -244,9 +247,9 @@ namespace Exchange.Net
         }
 
         bool isActive = false;
-        public void Activate()
+        public void Activate(CompositeDisposable disposables)
         {
-            Initialize();
+            Initialize(disposables);
             //if (isActive)
             //    DoDispose();
             //else
@@ -337,7 +340,10 @@ namespace Exchange.Net
                 var ticker = MarketSummaries[idx];
                 if (ticker.LastPrice > decimal.Zero && ticker.IsPriceChanged)
                 {
-                    BalanceManager.UpdateWithLastPrice(ticker.SymbolInformation.ProperSymbol, (ticker.Bid ?? ticker.LastPrice).Value);
+                    foreach (var mngr in Accounts.Items.Select(x => x.BalanceManager))
+                    {
+                        mngr.UpdateWithLastPrice(ticker.SymbolInformation.ProperSymbol, (ticker.Bid ?? ticker.LastPrice).Value);
+                    }
                 }
             }
         }
@@ -496,17 +502,17 @@ namespace Exchange.Net
             }
         }
 
-        private async void InitializeSigned()
-        {
-            // balance
-            var balances = await GetBalancesAsync();
-            BalanceManager.Balances.AddRange(balances);
-            // open orders
-            var orders = await GetOpenOrdersAsync(marketsMapping.Keys);
-            OpenOrders.AddRange(orders);
-            // orders history
-            // trades history
-        }
+        //private async void InitializeSigned()
+        //{
+        //    // balance
+        //    var balances = await GetBalancesAsync();
+        //    BalanceManager.Balances.AddRange(balances);
+        //    // open orders
+        //    var orders = await GetOpenOrdersAsync(marketsMapping.Keys);
+        //    OpenOrders.AddRange(orders);
+        //    // orders history
+        //    // trades history
+        //}
 
         protected virtual void SubscribeMarketData()
         {
@@ -798,7 +804,10 @@ namespace Exchange.Net
                 Debug.Assert(marketsMapping.TryGetValue(ticker.Symbol, out SymbolInformation market));
                 if (tickerChanged)
                 {
-                    BalanceManager.UpdateWithLastPrice(market.ProperSymbol, ticker.Bid.GetValueOrDefault());
+                    foreach (var mngr in Accounts.Items.Select(x => x.BalanceManager))
+                    {
+                        mngr.UpdateWithLastPrice(market.ProperSymbol, ticker.Bid.GetValueOrDefault());
+                    }
                     UpdateWithTicker(ticker);
                     await ProcessTradingRules(ticker);
                 }
@@ -830,7 +839,7 @@ namespace Exchange.Net
 
         protected void UpdateWithTicker(PriceTicker ticker)
         {
-            foreach (var order in OrdersHistory.Where(x => x.SymbolInformation.Symbol == ticker.Symbol))
+            foreach (var order in CurrentAccount.OrdersHistory.Items.Where(x => x.SymbolInformation.Symbol == ticker.Symbol))
             {
                 if (order.Side == TradeSide.Buy)
                     order.LastPrice = ticker.Bid.GetValueOrDefault();
@@ -1117,13 +1126,13 @@ namespace Exchange.Net
 
         [Reactive] public bool PrivateDataSubscribed { get; set; }
 
-        protected void Initialize()
+        protected void Initialize(CompositeDisposable disposables)
         {
 
-            InitializeAsync();
+            InitializeAsync(disposables);
         }
 
-        private async void InitializeAsync()
+        private async void InitializeAsync(CompositeDisposable disposables)
         {
             IsInitializing = true;
             await GetExchangeInfo.Execute();
@@ -1142,6 +1151,14 @@ namespace Exchange.Net
                     tradeTasks.Add(taskModel);
                 }
             }
+
+            Observable
+                .Interval(TimeSpan.FromSeconds(1))
+                .SelectMany(x => TradeTasksList)
+                .Where(x => x.IsEnabled)
+                .Select(x => x.Model)
+                .InvokeCommand(DoLifecycle)
+                .DisposeWith(disposables);
         }
 
         protected virtual Task GetExchangeInfoImpl()

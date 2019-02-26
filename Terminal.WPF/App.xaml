@@ -90,7 +90,7 @@
                 <Setter Property="HorizontalGridLinesBrush" Value="{x:Null}"/>
                 <Setter Property="IsReadOnly" Value="True"/>
                 <Setter Property="VerticalGridLinesBrush" Value="{x:Null}"/>
-                <Setter Property="RowHeaderWidth" Value="0"/>
+                <Setter Property="HeadersVisibility" Value="Column"/>
             </Style>
             
             <Style TargetType="{x:Type ContentControl}" x:Key="ContentControlRightAligned">

@@ -43,10 +43,10 @@ namespace Terminal.WPF
             Locator.CurrentMutable.Register(() => new ExchangeView(), typeof(IViewFor<BinanceViewModel>));
             Locator.CurrentMutable.Register(() => new ExchangeView(), typeof(IViewFor<DsxViewModel>));
             Locator.CurrentMutable.Register(() => new ExchangeView(), typeof(IViewFor<BittrexViewModel>));
-            Locator.CurrentMutable.Register(() => new ExchangeView(), typeof(IViewFor<HuobiViewModel>));
-            Locator.CurrentMutable.Register(() => new ExchangeView(), typeof(IViewFor<CryptopiaViewModel>));
-            Locator.CurrentMutable.Register(() => new ExchangeView(), typeof(IViewFor<HitBtcViewModel>));
-            Locator.CurrentMutable.Register(() => new ExchangeView(), typeof(IViewFor<OKexViewModel>));
+            //Locator.CurrentMutable.Register(() => new ExchangeView(), typeof(IViewFor<HuobiViewModel>));
+            //Locator.CurrentMutable.Register(() => new ExchangeView(), typeof(IViewFor<CryptopiaViewModel>));
+            //Locator.CurrentMutable.Register(() => new ExchangeView(), typeof(IViewFor<HitBtcViewModel>));
+            //Locator.CurrentMutable.Register(() => new ExchangeView(), typeof(IViewFor<OKexViewModel>));
             Locator.CurrentMutable.Register(() => new CreateTrade(), typeof(IViewFor<TradeTaskViewModel>));
             Locator.CurrentMutable.Register(() => new CreateExchangeAccount(), typeof(IViewFor<CreateExchangeAccountViewModel>));
 

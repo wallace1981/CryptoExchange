@@ -5,6 +5,7 @@ using ReactiveUI.Fody.Helpers;
 using ReactiveUI.Legacy;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -15,9 +16,24 @@ using System.Windows.Input;
 
 namespace Exchange.Net
 {
+
+    //
+    //  BUY Cond:   SL > LastPrice < TP1
+    //  TP  Cond:   Bid >= TP && Bid Qty >= TP Qty
+    //
+
+    public enum OrderKind
+    {
+        Buy,
+        StopLoss,
+        TakeProfit,
+        StopLossOrTakeProfit
+    }
+
     public enum OrderType
     {
         LIMIT,      // could be STOP-LIMIT as well, if supported by exchange.
+        STOP_LIMIT,
         MARKET,
         TRAILING    // market order with moving target ;)
     }
@@ -25,8 +41,18 @@ namespace Exchange.Net
     [JsonObject(MemberSerialization.OptIn)]
     public class OrderTask
     {
+
+        [JsonProperty("SIDE")]
+        public TradeSide Side;
+
+        [JsonProperty("SYMBOL")]
+        public string Symbol;
+
         [JsonProperty("ORDER_TYPE")]
         public OrderType OrderType;
+
+        [JsonProperty("ORDER_KIND")]
+        public OrderKind OrderKind;
 
         [JsonProperty("PRICE")]
         public decimal Price;
@@ -40,7 +66,9 @@ namespace Exchange.Net
         [JsonProperty("TRAILING_PRCNT", DefaultValueHandling = DefaultValueHandling.IgnoreAndPopulate)]
         public double TrailingPercent;
 
-        [JsonProperty("ORDER", DefaultValueHandling = DefaultValueHandling.IgnoreAndPopulate)]
+        [JsonProperty("ORDERID")]
+        public string OrderId;
+
         public Order ExchangeOrder;
     }
 
@@ -71,6 +99,8 @@ namespace Exchange.Net
         [JsonProperty("TP")]
         public OrderTask[] TakeProfit;
 
+        public DateTime LastGetOrder = DateTime.MinValue;
+
         public bool IsInPosition => BuyQty > 0m;
         public bool IsBuyPlaced { get; }
 
@@ -79,7 +109,7 @@ namespace Exchange.Net
         public decimal Qty => BuyQty - SellQty;
         public decimal TotalQuoteBuy => BuyTrades.Sum(x => x.Total);
         public decimal TotalQuoteSell => SellTrades.Sum(x => x.Total);
-        public decimal Profit => TotalQuoteBuy > 0 ? TotalQuoteSell / TotalQuoteBuy : 0;
+        public decimal Profit => TotalQuoteBuy > 0 ? TotalQuoteSell / TotalQuoteBuy - 1 : 0;
 
         public IObservableCache<OrderTrade, string> TradesStream => Trades.AsObservableCache();
 
@@ -95,6 +125,8 @@ namespace Exchange.Net
             Trades = new SourceCache<OrderTrade, string>(x => x.Id);
             if (exchangeTrades != null)
                 Trades.Edit(innerList => innerList.AddOrUpdate(exchangeTrades));
+            Jobs = new Queue<OrderTask>();
+            FinishedJobs = new Queue<OrderTask>();
         }
 
         public void RegisterTrade(OrderTrade trade)
@@ -112,6 +144,12 @@ namespace Exchange.Net
                 Trades.Edit(innerList => innerList.AddOrUpdate(ot.ExchangeOrder.Fills));
             return tt;
         }
+
+        [JsonProperty("QUEUE")]
+        public Queue<OrderTask> Jobs { get; set; }
+
+        [JsonProperty("PROCESSED")]
+        public Queue<OrderTask> FinishedJobs { get; set; }
     }
 
     public class OrderTaskViewModel : ReactiveObject
@@ -221,11 +259,15 @@ namespace Exchange.Net
     {
         public OrderTaskViewModel Buy { get; }
         public OrderTaskViewModel StopLoss { get; }
-        public ReactiveList<TakeProfitViewModel> TakeProfit { get; }
+        public ObservableCollection<TakeProfitViewModel> TakeProfit { get; }
         public IEnumerable<TakeProfitViewModel> TakeProfitCollection => TakeProfit.Where(x => x.QuantityPercent > 0.01);
 
+        [Reactive] public decimal LastPrice { get; set; }
+        [Reactive] public bool IsEnabled { get; set; }
         [Reactive] public string Status { get; set; }
         [Reactive] public ApiError LastError { get; set; }
+        [ObservableAsProperty] public double Distance { get; }
+
         public SymbolInformation SymbolInformation { get; }
         public double LossPercent => (double)(StopLoss.Price / Buy.Price) - 1.0;
         public double ProfitPercent => TakeProfitCollection.Last().ProfitPercent;
@@ -235,8 +277,13 @@ namespace Exchange.Net
         public decimal Total { get => buyTotal; set => this.RaiseAndSetIfChanged(ref buyTotal, value); }
         public bool IsMarketBuy { get; set; }
         public bool IsLimitStop { get; set; } = true; // NOTE: Only if Exchange supports stop-limit?
-        [Reactive] public decimal LastPrice { get; set; }
-        [Reactive] public bool IsEnabled { get; set; }
+
+        public decimal AvgBuyPrice => Model.AvgBuyPrice;
+        public decimal AvgSellPrice => Model.AvgSellPrice;
+        public decimal Qty => Model.Qty;
+        public decimal TotalQuoteBuy => Model.TotalQuoteBuy;
+        public decimal TotalQuoteSell => Model.TotalQuoteSell;
+        public decimal Profit => Model.Profit;
 
         public ICommand AddTakeProfitCommand { get; }
         public ReactiveCommand<string, bool> SubmitCommand { get; }
@@ -256,7 +303,7 @@ namespace Exchange.Net
             QuoteBalancePercent = 0.05;
             Buy = new OrderTaskViewModel(this) { Price = si.PriceTicker.LastPrice.Value };
             StopLoss = new OrderTaskViewModel(this) { Price = si.ClampPrice(Buy.Price * 0.95m) };
-            TakeProfit = new ReactiveList<TakeProfitViewModel>();
+            TakeProfit = new ObservableCollection<TakeProfitViewModel>();
             var DEF_TAKE_PRCNTS = new double[] { 0.2, 0.2, 0.2, 0.15, 0.15, 0.1 };
             for (int ind = 1; ind <= 6; ++ind)
             {
@@ -267,6 +314,7 @@ namespace Exchange.Net
             AddTakeProfitCommand = ReactiveCommand.Create<object>(AddTakeProfitExecute);
             SubmitCommand = ReactiveCommand.CreateFromTask<string, bool>(SubmitImpl);
             this.WhenAnyValue(x => x.QuoteBalancePercent).Subscribe(y => CalcQuantity());
+            ConnectTrades();
         }
 
         public TradeTaskViewModel(SymbolInformation si, TradeTask model)
@@ -275,23 +323,58 @@ namespace Exchange.Net
             Model = model;
             Buy = new OrderTaskViewModel(this, model.Buy);
             StopLoss = new OrderTaskViewModel(this, model.StopLoss);
-            TakeProfit = new ReactiveList<TakeProfitViewModel>();
+            TakeProfit = new ObservableCollection<TakeProfitViewModel>();
             for (int ind = 1; ind <= model.TakeProfit.Length; ++ind)
             {
                 var tp = new TakeProfitViewModel(this, model.TakeProfit[ind - 1], ind > 1 ? TakeProfit[ind - 2] : null);
                 TakeProfit.Add(tp);
             }
             LastPrice = Buy.Price;
+            ConnectTrades();
+        }
+
+        private void ConnectTrades()
+        {
+            this.WhenAnyValue(x => x.LastPrice).Select(x => (double)x / (double)Buy.Price - 1.0).ToPropertyEx(this, x => x.Distance);
+
+            var connection = this.Model.TradesStream.Connect();
+            connection.Subscribe(
+                changeSet =>
+                {
+                    this.RaisePropertyChanged(nameof(AvgBuyPrice));
+                    this.RaisePropertyChanged(nameof(AvgSellPrice));
+                    this.RaisePropertyChanged(nameof(Qty));
+                    this.RaisePropertyChanged(nameof(TotalQuoteBuy));
+                    this.RaisePropertyChanged(nameof(TotalQuoteSell));
+                    this.RaisePropertyChanged(nameof(Profit));
+                });
+            //connection.DisposeWith(disposables);
+
         }
 
         private async Task<bool> SubmitImpl(string param)
         {
+            Buy.Model.Symbol = SymbolInformation.Symbol;
+            Buy.Model.Side = TradeSide.Buy;
+            Buy.Model.OrderKind = OrderKind.Buy;
             Buy.Model.OrderType = IsMarketBuy ? OrderType.MARKET : OrderType.LIMIT;
-            StopLoss.Model.OrderType = IsLimitStop ? OrderType.LIMIT : OrderType.MARKET;
+
+            StopLoss.Model.Symbol = SymbolInformation.Symbol;
+            StopLoss.Model.Side = TradeSide.Sell;
+            StopLoss.Model.OrderKind = OrderKind.StopLoss;
+            StopLoss.Model.OrderType = IsLimitStop ? OrderType.STOP_LIMIT : OrderType.MARKET;
             StopLoss.Quantity = Buy.Quantity;
+
+            Debug.Assert(Buy.Model.Quantity >= SymbolInformation.MinQuantity);
+            Debug.Assert((Buy.Model.Price * Buy.Model.Quantity) >= SymbolInformation.MinNotional);
+            Debug.Assert((StopLoss.Model.Price * StopLoss.Model.Quantity) >= SymbolInformation.MinNotional);
 
             foreach (var tp in TakeProfit)
             {
+                tp.Model.Symbol = SymbolInformation.Symbol;
+                tp.Model.Side = TradeSide.Sell;
+                tp.Model.OrderKind = OrderKind.TakeProfit;
+                tp.Model.OrderType = OrderType.MARKET;
                 if (tp.QuantityPercent > 0.01)
                 {
                     tp.Quantity = SymbolInformation.ClampQuantity(Buy.Quantity * (decimal)tp.QuantityPercent);
@@ -324,7 +407,7 @@ namespace Exchange.Net
 
             Debug.Assert(Buy.Quantity >= TakeProfit.Sum(tp => tp.Quantity));
 
-            if (tpQuantityLeft >= 0m)
+            if (tpQuantityLeft > 0m)
             {
                 //System.Windows.MessageBox.Show($"Остаток: {tpQuantityLeft} {SymbolInformation.BaseAsset}");
                 var ok = await Confirm.Handle($"Остаток: {tpQuantityLeft} {SymbolInformation.BaseAsset}");
@@ -335,6 +418,13 @@ namespace Exchange.Net
             Model.Buy = Buy.Model;
             Model.StopLoss = StopLoss.Model;
             Model.TakeProfit = TakeProfitCollection.Select(x => x.Model).ToArray();
+
+            Model.Jobs.Enqueue(Model.Buy);
+            Model.Jobs.Enqueue(Model.StopLoss);
+            TakeProfit.ToList().ForEach(tp => Model.Jobs.Enqueue(tp.Model));
+
+            Model.Created = DateTime.Now;
+            Model.Updated = DateTime.Now;
 
             SerializeModel(Model);
 
@@ -363,7 +453,7 @@ namespace Exchange.Net
 
         public static void SerializeModel(TradeTask model)
         {
-            var json = JsonConvert.SerializeObject(model);
+            var json = JsonConvert.SerializeObject(model, Formatting.Indented);
             File.WriteAllText(Path.ChangeExtension(model.Id.ToString(), ".json"), json);
         }
 

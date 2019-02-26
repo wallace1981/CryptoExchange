@@ -10,6 +10,10 @@
     <UserControl.Resources>
         <local:DoubleToGridLengthConverter x:Key="convDblToGridLength"/>
         <local:PercentToPointConverter x:Key="convPercentToPoint"/>
+        <SolidColorBrush Color="#ffdbd2" x:Key="brushBearBack"/>
+        <SolidColorBrush Color="#ff6262" x:Key="brushBearFore"/>
+        <SolidColorBrush Color="#c3eed7" x:Key="brushBullBack"/>
+        <SolidColorBrush Color="#2cd978" x:Key="brushBullFore"/>
     </UserControl.Resources>
     <Grid>
         <Grid.ColumnDefinitions>
@@ -200,53 +204,64 @@
                         </telerik:RadToolBar>
                         <telerik:RadListBox
                             Background="White"
-                            FontFamily="{StaticResource RobotoCondensed}"
+                            FontFamily="{StaticResource Roboto}"
                             FontSize="12"
                             ItemsSource="{Binding Path=TradeTasksList, Mode=OneWay}"
                             SelectedItem="{Binding Path=SelectedTradeTask, Mode=TwoWay}"
                             >
                             <telerik:RadListBox.ItemTemplate>
                                 <DataTemplate>
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="150"/>
-                                            <ColumnDefinition Width="*"/>
-                                        </Grid.ColumnDefinitions>
-                                        <Grid.RowDefinitions>
-                                            <RowDefinition Height="Auto"/>
-                                            <RowDefinition Height="Auto"/>
-                                            <RowDefinition Height="Auto"/>
-                                            <RowDefinition Height="Auto"/>
-                                        </Grid.RowDefinitions>
+                                    <Border BorderThickness="1" Padding="3" BorderBrush="LightGray">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="150"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
 
-                                        <TextBlock Grid.Column="0" Grid.Row="0">
+                                            <TextBlock Grid.Column="0" Grid.Row="0">
                                             <Run Text="{Binding Path=SymbolInformation.Caption, Mode=OneWay}"/>
                                             <Run Text="{Binding Path=Buy.Quantity, Mode=OneWay}"/>
-                                        </TextBlock>
-                                        <TextBlock Grid.Column="0" Grid.Row="1">
+                                            </TextBlock>
+                                            <TextBlock Grid.Column="0" Grid.Row="1">
                                             <Run Text="{Binding Path=Buy.Total, Mode=OneWay}"/>
                                             <Run Text="{Binding Path=SymbolInformation.QuoteAsset, Mode=OneTime}"/>
-                                        </TextBlock>
+                                            </TextBlock>
 
-                                        <TextBlock Grid.Column="1" Grid.Row="0">
+                                            <TextBlock Grid.Column="0" Grid.Row="2" Text="{Binding Path=AvgBuyPrice, StringFormat=N8}"/>
+                                            <TextBlock Grid.Column="0" Grid.Row="3" Text="{Binding Path=Qty, StringFormat=N8}"/>
+                                            <TextBlock Grid.Column="1" Grid.Row="1" Text="{Binding Path=Distance, StringFormat=P2}"
+                                                   HorizontalAlignment="Left"/>
+                                            <TextBlock Grid.Column="1" Grid.Row="1" HorizontalAlignment="Right">
+                                            <Run Text="Профит:"/>
+                                            <Run Text="{Binding Path=Profit, Mode=OneWay, StringFormat=P2}"/>
+                                            </TextBlock>
+
+                                            <TextBlock Grid.Column="1" Grid.Row="0">
                                             <Run Text="{Binding Path=Status, Mode=OneWay}"/>
                                             <Run Text="{Binding Path=LastError, Mode=OneWay}" Foreground="Red"/>
-                                        </TextBlock>
+                                            </TextBlock>
 
-                                        <Grid Grid.Column="1" Grid.Row="2" Margin="3 20 3 0">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="25*"/>
-                                                <ColumnDefinition Width="75*"/>
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Grid.Column="0">
+
+                                            <Grid Grid.Column="1" Grid.Row="2" Margin="3 20 3 0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="25*"/>
+                                                    <ColumnDefinition Width="75*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="0">
                                                 <Run Text="SL:"/>
                                                 <Run Text="{Binding Path=LossPercent, Mode=OneWay, StringFormat=P0}"/>
-                                            </TextBlock>
-                                            <DockPanel Grid.Column="1">
-                                                <TextBlock>
-                                                    <Run Text="TP: "/>
                                                 </TextBlock>
-                                                <!--<ItemsControl ItemsSource="{Binding Path=TakeProfitCollection, Mode=OneWay}">
+                                                <DockPanel Grid.Column="1">
+                                                    <TextBlock>
+                                                    <Run Text="TP: "/>
+                                                    </TextBlock>
+                                                    <!--<ItemsControl ItemsSource="{Binding Path=TakeProfitCollection, Mode=OneWay}">
                                                     <ItemsControl.ItemsPanel>
                                                         <ItemsPanelTemplate>
                                                             <StackPanel Orientation="Horizontal"/>
@@ -261,74 +276,75 @@
                                                         </DataTemplate>
                                                     </ItemsControl.ItemTemplate>
                                                 </ItemsControl>-->
-                                            </DockPanel>
-                                        </Grid>
+                                                </DockPanel>
+                                            </Grid>
 
-                                        <Grid Grid.Column="1" Grid.Row="2">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="25*" x:Name="clLoss"/>
-                                                <ColumnDefinition Width="75*" x:Name="clProfit"/>
-                                            </Grid.ColumnDefinitions>
-                                            <!--<Rectangle Grid.Column="0" Fill="LightPink" Height="6"/>
+                                            <Grid Grid.Column="1" Grid.Row="2">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="25*" x:Name="clLoss"/>
+                                                    <ColumnDefinition Width="75*" x:Name="clProfit"/>
+                                                </Grid.ColumnDefinitions>
+                                                <!--<Rectangle Grid.Column="0" Fill="LightPink" Height="6"/>
                                             <Rectangle Grid.Column="1" Fill="LightGreen" Height="6"/>-->
-                                            <ProgressBar
+                                                <ProgressBar
                                                 Grid.Column="0"
                                                 BorderThickness="0"
-                                                Background="Red"
-                                                Foreground="LightPink"
+                                                Background="{StaticResource brushBearFore}"
+                                                Foreground="{StaticResource brushBearBack}"
                                                 Minimum="{Binding Path=StopLoss.Price, Mode=OneWay}"
                                                 Maximum="{Binding Path=Buy.Price, Mode=OneWay}"
                                                 Value="{Binding Path=LastPrice, Mode=OneWay}"
                                                 MinHeight="6"
                                                 VerticalAlignment="Center"
                                                 />
-                                            <ProgressBar
+                                                <ProgressBar
                                                 Grid.Column="1"
                                                 BorderThickness="0"
-                                                Background="LightGreen"
-                                                Foreground="ForestGreen"
+                                                Background="{StaticResource brushBullBack}"
+                                                Foreground="{StaticResource brushBullFore}"
                                                 Minimum="{Binding Path=Buy.Price, Mode=OneWay}"
                                                 Maximum="{Binding Path=ProfitPrice, Mode=OneWay}"
                                                 Value="{Binding Path=LastPrice, Mode=OneWay}"
                                                 MinHeight="6"
                                                 VerticalAlignment="Center"
                                                 />
-                                            <ItemsControl Margin="0 5 0 0"
+                                                <ItemsControl Margin="0 5 0 0"
                                                 Grid.Column="1" VerticalAlignment="Center"
                                                 ItemsSource="{Binding Path=TakeProfitCollection, Mode=OneWay}">
-                                                <ItemsControl.ItemsPanel>
-                                                    <ItemsPanelTemplate>
-                                                        <Canvas Background="Transparent"/>
-                                                    </ItemsPanelTemplate>
-                                                </ItemsControl.ItemsPanel>
-                                                <ItemsControl.ItemTemplate>
-                                                    <DataTemplate>
-                                                        <TextBlock>
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate>
+                                                            <Canvas Background="Transparent"/>
+                                                        </ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <TextBlock>
                                                             <Run Text="{Binding Path=ProfitPercent, Mode=OneWay, StringFormat=P0}"/>
-                                                        </TextBlock>
-                                                    </DataTemplate>
-                                                </ItemsControl.ItemTemplate>
-                                                <ItemsControl.ItemContainerStyle>
-                                                    <Style TargetType="ContentPresenter">
-                                                        <Setter Property="Canvas.Left">
-                                                            <Setter.Value>
-                                                                <MultiBinding Mode="OneWay" Converter="{StaticResource convPercentToPoint}">
-                                                                    <Binding Path="ActualWidth" Mode="OneWay">
-                                                                        <Binding.RelativeSource>
-                                                                            <RelativeSource AncestorType="ItemsControl"/>
-                                                                        </Binding.RelativeSource>
-                                                                    </Binding>
-                                                                    <Binding Path="ProfitPercentRelative" Mode="OneWay"/>
-                                                                    <Binding Path="ActualWidth" RelativeSource="{RelativeSource Self}"/>
-                                                                </MultiBinding>
-                                                            </Setter.Value>
-                                                        </Setter>
-                                                    </Style>
-                                                </ItemsControl.ItemContainerStyle>
-                                            </ItemsControl>
-                                        </Grid>
+                                                            </TextBlock>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                    <ItemsControl.ItemContainerStyle>
+                                                        <Style TargetType="ContentPresenter">
+                                                            <Setter Property="Canvas.Left">
+                                                                <Setter.Value>
+                                                                    <MultiBinding Mode="OneWay" Converter="{StaticResource convPercentToPoint}">
+                                                                        <Binding Path="ActualWidth" Mode="OneWay">
+                                                                            <Binding.RelativeSource>
+                                                                                <RelativeSource AncestorType="ItemsControl"/>
+                                                                            </Binding.RelativeSource>
+                                                                        </Binding>
+                                                                        <Binding Path="ProfitPercentRelative" Mode="OneWay"/>
+                                                                        <Binding Path="ActualWidth" RelativeSource="{RelativeSource Self}"/>
+                                                                    </MultiBinding>
+                                                                </Setter.Value>
+                                                            </Setter>
+                                                        </Style>
+                                                    </ItemsControl.ItemContainerStyle>
+                                                </ItemsControl>
+                                            </Grid>
 
-                                    </Grid>
+                                        </Grid>
+                                    </Border>
                                 </DataTemplate>
                             </telerik:RadListBox.ItemTemplate>
                         </telerik:RadListBox>
@@ -345,13 +361,13 @@
                         <telerik:RadBusyIndicator
                             IsBusy="{Binding Path=IsGetOpenOrdersExecuting, Mode=OneWay}"
                             DisplayAfter="0">
-                            <DataGrid ItemsSource="{Binding Path=OpenOrders}">
+                            <DataGrid ItemsSource="{Binding Path=CurrentAccountViewModel.OpenOrders}">
                                 <DataGrid.Columns>
 
                                     <DataGridTemplateColumn Header="Time" x:Name="clTime">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
-                                                <TextBlock Text="{Binding Path=Timestamp, Mode=OneWay, StringFormat='dd.MM HH:mm:ss'}"
+                                                <TextBlock Text="{Binding Path=Updated, Mode=OneWay, StringFormat='dd.MM HH:mm:ss'}"
                                                                Padding="3 2"/>
                                             </DataTemplate>
                                         </DataGridTemplateColumn.CellTemplate>
@@ -557,7 +573,7 @@
                                 Content="Refresh"
                                 />
                         </telerik:RadToolBar>
-                        <DataGrid AutoGenerateColumns="True" ItemsSource="{Binding Path=Deposits, Mode=OneWay}"></DataGrid>
+                        <DataGrid AutoGenerateColumns="True" ItemsSource="{Binding Path=CurrentAccountViewModel.Deposits, Mode=OneWay}"></DataGrid>
                     </DockPanel>
                 </telerik:RadTabItem>
                 <telerik:RadTabItem Header="Выплаты">
@@ -568,7 +584,7 @@
                                 Content="Refresh"
                                 />
                         </telerik:RadToolBar>
-                        <DataGrid AutoGenerateColumns="True" ItemsSource="{Binding Path=Withdrawals, Mode=OneWay}"></DataGrid>
+                        <DataGrid AutoGenerateColumns="True" ItemsSource="{Binding Path=CurrentAccountViewModel.Withdrawals, Mode=OneWay}"></DataGrid>
                     </DockPanel>
                 </telerik:RadTabItem>
             </telerik:RadTabControl>

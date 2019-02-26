@@ -6,7 +6,7 @@ namespace Exchange.Net
 {
     public partial class BinanceViewModel
     {
-        protected async override Task<Order> GetOrder(Order order)
+       /* protected async override Task<Order> GetOrder(Order order)
         {
             // don't fuck the brain!
             if (order.Status == OrderStatus.Filled)
@@ -38,7 +38,42 @@ namespace Exchange.Net
             {
                 throw new ApiException(apiResult.Error);
             }
+        } */
+
+        protected async override Task<Order> GetOrder(OrderTask job)
+        {
+            // don't fuck the brain!
+            if (job.ExchangeOrder?.Status == OrderStatus.Filled)
+                return job.ExchangeOrder;
+
+            var apiResult = await client.QueryOrderAsync(job.Symbol, long.Parse(job.OrderId)).ConfigureAwait(false);
+            if (apiResult.Success)
+            {
+                var x = apiResult.Data;
+                var result = new Order(GetSymbolInformation(x.symbol))
+                {
+                    OrderId = x.orderId.ToString(),
+                    Price = x.price,
+                    Quantity = x.origQty,
+                    Side = x.side == Binance.TradeSide.BUY.ToString() ? TradeSide.Buy : TradeSide.Sell,
+                    StopPrice = x.stopPrice,
+                    Created = x.time.FromUnixTimestamp(),
+                    Updated = x.updateTime.FromUnixTimestamp(),
+                    Status = Convert(x.status),
+                    Type = x.type
+                };
+                if (job.ExchangeOrder == null || result.Updated > job.ExchangeOrder.Updated)
+                {
+                    result.Fills = await GetOrderTrades(result);
+                }
+                return result;
+            }
+            else
+            {
+                throw new ApiException(apiResult.Error);
+            }
         }
+
 
         protected async override Task<OrderTrade[]> GetOrderTrades(Order order)
         {
@@ -63,26 +98,27 @@ namespace Exchange.Net
             }
         }
 
-        protected override async Task<Order> ExecuteBuy(TradeTask tt)
+        protected override async Task<Order> ExecuteOrder(OrderTask job)
         {
             var result = await client.PlaceOrderAsync(
-                tt.Symbol,
-                Binance.TradeSide.BUY,
-                tt.Buy.OrderType == OrderType.LIMIT ? Binance.OrderType.LIMIT : Binance.OrderType.MARKET,
-                tt.Buy.Quantity,
-                tt.Buy.OrderType == OrderType.LIMIT ? tt.Buy.Price : default(decimal?)
+                job.Symbol,
+                job.Side == TradeSide.Buy ? Binance.TradeSide.BUY : Binance.TradeSide.SELL,
+                Convert(job.OrderType),
+                job.Quantity,
+                job.OrderType == OrderType.LIMIT || job.OrderType == OrderType.STOP_LIMIT ? job.Price : default(decimal?),
+                job.OrderType == OrderType.STOP_LIMIT ? job.Price : default(decimal?)
             );
             if (result.Success)
             {
                 var x = result.Data;
                 var si = GetSymbolInformation(x.symbol);
-                tt.Buy.ExchangeOrder = new Order(si)
+                var order = new Order(si)
                 {
                     OrderId = x.orderId.ToString(),
                     Price = x.price,
                     Quantity = x.origQty,
                     ExecutedQuantity = x.executedQty,
-                    Side = x.side == "BUY" ? TradeSide.Buy : TradeSide.Sell,
+                    Side = (x.side == Binance.TradeSide.BUY.ToString()) ? TradeSide.Buy : TradeSide.Sell,
                     Created = x.transactTime.FromUnixTimestamp(),
                     Updated = x.transactTime.FromUnixTimestamp(),
                     Status = Convert(x.status),
@@ -90,7 +126,7 @@ namespace Exchange.Net
                 };
                 if (x.fills?.Length > 0)
                 {
-                    tt.Buy.ExchangeOrder.Fills = x.fills
+                    order.Fills = x.fills
                         .Select(t => new OrderTrade(si)
                         {
                             Id = t.tradeId.ToString(),
@@ -101,11 +137,30 @@ namespace Exchange.Net
                             Quantity = t.qty
                         }).ToArray();
                 }
-                return tt.Buy.ExchangeOrder;
+                return order;
             }
             else
             {
                 throw new ApiException(result.Error);
+            }
+        }
+
+        protected async override Task<bool> CancelOrder(OrderTask order)
+        {
+            var result = await client.CancelOrderAsync(order.Symbol, long.Parse(order.ExchangeOrder.OrderId));
+            return result.Success;
+        }
+
+        private static Binance.OrderType Convert(OrderType x)
+        {
+            switch (x)
+            {
+                case OrderType.LIMIT:
+                    return Binance.OrderType.LIMIT;
+                case OrderType.STOP_LIMIT:
+                    return Binance.OrderType.STOP_LOSS_LIMIT;
+                default:
+                    return Binance.OrderType.MARKET;
             }
         }
 

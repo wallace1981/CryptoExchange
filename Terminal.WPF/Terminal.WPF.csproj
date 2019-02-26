@@ -57,6 +57,12 @@
     <Reference Include="DynamicData, Version=6.7.1.2534, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\DynamicData.6.7.1.2534\lib\net46\DynamicData.dll</HintPath>
     </Reference>
+    <Reference Include="MaterialDesignColors, Version=1.1.3.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\MaterialDesignColors.1.1.3\lib\net45\MaterialDesignColors.dll</HintPath>
+    </Reference>
+    <Reference Include="MaterialDesignThemes.Wpf, Version=2.5.0.1205, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\MaterialDesignThemes.2.5.0.1205\lib\net45\MaterialDesignThemes.Wpf.dll</HintPath>
+    </Reference>
     <Reference Include="Newtonsoft.Json, Version=12.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
       <HintPath>..\packages\Newtonsoft.Json.12.0.1\lib\net45\Newtonsoft.Json.dll</HintPath>
     </Reference>
@@ -163,7 +169,7 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
-    <Compile Include="BinanceTradeController.cs" />
+    <Compile Include="ViewModels\BinanceTradeController.cs" />
     <Compile Include="CreateExchangeAccount.xaml.cs">
       <DependentUpon>CreateExchangeAccount.xaml</DependentUpon>
     </Compile>
@@ -178,8 +184,6 @@
       <DependentUpon>DsxTerminalView.xaml</DependentUpon>
     </Compile>
     <Compile Include="DsxTerminalViewModel.cs" />
-    <Compile Include="GateIoViewModel.cs" />
-    <Compile Include="OKexViewModel.cs" />
     <Compile Include="RecentTradesView.xaml.cs">
       <DependentUpon>RecentTradesView.xaml</DependentUpon>
     </Compile>
@@ -223,17 +227,14 @@
       <DependentUpon>App.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="BinanceViewModel.cs" />
-    <Compile Include="BittrexViewModel.cs" />
-    <Compile Include="CryptopiaViewModel.cs" />
+    <Compile Include="ViewModels\BinanceViewModel.cs" />
+    <Compile Include="ViewModels\BittrexViewModel.cs" />
     <Compile Include="DataObjects.cs" />
     <Compile Include="DsxViewModel.cs" />
     <Compile Include="ExchangeView.xaml.cs">
       <DependentUpon>ExchangeView.xaml</DependentUpon>
     </Compile>
     <Compile Include="ExchangeViewModel.cs" />
-    <Compile Include="HitBtcViewModel.cs" />
-    <Compile Include="HuobiViewModel.cs" />
     <Compile Include="MainWindow.xaml.cs">
       <DependentUpon>MainWindow.xaml</DependentUpon>
       <SubType>Code</SubType>

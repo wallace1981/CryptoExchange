@@ -1,4 +1,5 @@
-﻿using ReactiveUI;
+﻿using DynamicData;
+using ReactiveUI;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -627,6 +628,10 @@ namespace Exchange.Net
 
         public BinanceViewModel()
         {
+            var defaultAccount = new ExchangeAccount("default", client);
+            Accounts.AddOrUpdate(defaultAccount);
+            CurrentAccount = defaultAccount;
+
             getServerTimeCommand = ReactiveCommand.CreateFromTask<long, DateTime>(x => GetServerTimeAsync());
 
             this.WhenActivated(registerDisposable =>
@@ -877,12 +882,13 @@ namespace Exchange.Net
         protected override async Task GetBalanceImpl()
         {
             var result = await GetBalancesAsync();
+            var mngr = CurrentAccount?.BalanceManager;
             foreach (Balance b in result)
             {
-                BalanceManager.AddUpdateBalance(b);
+                mngr.AddUpdateBalance(b);
             }
             foreach (var ticker in MarketSummaries)
-                BalanceManager.UpdateWithLastPrice(ticker.Symbol, ticker.LastPrice.GetValueOrDefault());
+                mngr.UpdateWithLastPrice(ticker.Symbol, ticker.LastPrice.GetValueOrDefault());
         }
 
         //var result = await client.PlaceOrderAsync("BNBBTC", Binance.TradeSide.SELL, Binance.OrderType.LIMIT, 1m, 0.0029m).ConfigureAwait(false);
@@ -906,6 +912,7 @@ namespace Exchange.Net
             {
                 var orders = ordersResult.Data.Select(arg => new Order(GetSymbolInformation(arg.symbol))
                 {
+                    OrderId = arg.id.ToString(),
                     Price = arg.price,
                     Quantity = arg.origQty,
                     Side = arg.side == "BUY" ? TradeSide.Buy : TradeSide.Sell,
@@ -913,8 +920,7 @@ namespace Exchange.Net
                     Created = arg.time.FromUnixTimestamp(),
                     Type = arg.type
                 }).OrderByDescending(x => x.Created);
-                OpenOrders.Reset();
-                OpenOrders.AddRange(orders);
+                CurrentAccount.OpenOrders.AddOrUpdate(orders);
             }
         }
 
@@ -927,6 +933,7 @@ namespace Exchange.Net
                 var deposits = result.Data.depositList.Select(
                     x => new Transfer()
                     {
+                        Id = x.txId,
                         Address = x.address,
                         //Comission = x.TxCost,
                         Asset = x.asset,
@@ -935,8 +942,7 @@ namespace Exchange.Net
                         Timestamp = x.insertTime.FromUnixTimestamp(),
                         Type = TransferType.Deposit
                     }).ToList();
-                Deposits.Reset();
-                Deposits.AddRange(deposits);
+                CurrentAccount.Deposits.AddOrUpdate(deposits);
             }
         }
 
@@ -949,6 +955,7 @@ namespace Exchange.Net
                 var withdrawals = result.Data.withdrawList.Select(
                     x => new Transfer()
                     {
+                        Id = x.txId,
                         Address = x.address,
                         //Comission = x.TxCost,
                         Asset = x.asset,
@@ -957,8 +964,7 @@ namespace Exchange.Net
                         Timestamp = x.applyTime.FromUnixTimestamp(),
                         Type = TransferType.Withdrawal
                     });
-                Withdrawals.Reset();
-                Withdrawals.AddRange(withdrawals);
+                CurrentAccount.Withdrawals.AddOrUpdate(withdrawals);
             }
         }
 
@@ -972,6 +978,7 @@ namespace Exchange.Net
                     .Where(x => x.status != Binance.OrderStatus.NEW.ToString())
                     .Select(arg => new Order(GetSymbolInformation(arg.symbol))
                     {
+                        OrderId = arg.id.ToString(),
                         Price = arg.price,
                         Quantity = arg.origQty,
                         Side = arg.side == "BUY" ? TradeSide.Buy : TradeSide.Sell,
@@ -980,8 +987,7 @@ namespace Exchange.Net
                         Type = arg.type
                     })
                     .OrderByDescending(x => x.Created);
-                OrdersHistory.Reset();
-                OrdersHistory.AddRange(orders);
+                CurrentAccount.OrdersHistory.AddOrUpdate(orders);
             }
         }
 

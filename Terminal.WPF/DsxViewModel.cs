@@ -1,4 +1,5 @@
-﻿using ReactiveUI;
+﻿using DynamicData;
+using ReactiveUI;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -164,9 +165,7 @@ namespace Exchange.Net
             if (result.Success)
             {
                 UpdateFunds(result.Data.funds);
-                var order = OpenOrders.SingleOrDefault(x => x.OrderId == orderId);
-                if (order != null)
-                    OpenOrders.Remove(order);
+                CurrentAccount.OpenOrders.Remove(orderId);
                 return true;
             }
             return false;
@@ -183,7 +182,7 @@ namespace Exchange.Net
                 if (orderResult.Success)
                 {
                     orderResult.Data.id = orderId;
-                    OpenOrders.Insert(0, Convert(orderResult.Data, order.SymbolInformation));
+                    CurrentAccount.OpenOrders.AddOrUpdate(Convert(orderResult.Data, order.SymbolInformation));
                 }
                 return true;
             }
@@ -194,7 +193,7 @@ namespace Exchange.Net
         {
             var balances = funds.Select(x => new Balance(x.Key, true) { Free = x.Value.available, Locked = x.Value.total - x.Value.available }).ToList();
             foreach (var b in balances)
-                BalanceManager.AddUpdateBalance(b);
+                CurrentAccount.BalanceManager.AddUpdateBalance(b);
         }
 
         private long? lastHistoryTradeId;
@@ -247,6 +246,9 @@ namespace Exchange.Net
 
         public DsxViewModel()
         {
+            var defaultAccount = new ExchangeAccount("default", client);
+            Accounts.AddOrUpdate(defaultAccount);
+            CurrentAccount = defaultAccount;
             //AddRule(CreateStopLoss("ltcusd", 28.49m, 28.2m, 9.98m));
             //AddRule(CreateStopLoss("ltcusd", 31.39m, 31.0m, 35.837m));
             //AddRule(CreateStopLoss("ltceur", 25.59m, 25.29m, 10.08m));
@@ -445,9 +447,9 @@ namespace Exchange.Net
                     // notify about new trades.
                     foreach (var trade in tradesResult.Data)
                     {
-                        var order = OpenOrders.FirstOrDefault(x => x.OrderId == trade.orderId.ToString());
-                        if (order != null)
-                            order.ExecutedQuantity += trade.volume;
+                        var order = CurrentAccount.OpenOrders.Lookup(trade.orderId.ToString());
+                        if (order.HasValue)
+                            order.Value.ExecutedQuantity += trade.volume;
                     }
                 }
                 lastHistoryTradeId = tradesResult.Data.Max(x => x.id) + 1;
@@ -473,7 +475,7 @@ namespace Exchange.Net
                     var order = Convert(data, si, deals);
                     orders.Add(order);
                 }
-                OrdersHistory.AddRange(orders);
+                CurrentAccount.OrdersHistory.AddOrUpdate(orders);
             }
         }
 
@@ -498,8 +500,8 @@ namespace Exchange.Net
             switch (x)
             {
                 case 2: // orders
-                    OpenOrders.Clear();
-                    OpenOrders.AddRange(await GetOpenOrdersAsync(new string[] { "btcusd", "btgusd", "ethusd", "ltcusd", "eurusd" }));
+                    CurrentAccount.OpenOrders.Clear();
+                    CurrentAccount.OpenOrders.AddOrUpdate(await GetOpenOrdersAsync(new string[] { "btcusd", "btgusd", "ethusd", "ltcusd", "eurusd" }));
                     break;
                 case 3: // orders history
                     await RefreshPrivateDataExecute();
@@ -510,15 +512,15 @@ namespace Exchange.Net
                 case 5: // funds
                     var result = await GetBalancesAsync();
                     foreach (Balance b in result)
-                        BalanceManager.AddUpdateBalance(b);
+                        CurrentAccount.BalanceManager.AddUpdateBalance(b);
                     break;
                 case 6: // deposits
-                    Deposits.Clear();
-                    Deposits.AddRange(await GetDepositsAsync());
+                    CurrentAccount.Deposits.Clear();
+                    CurrentAccount.Deposits.AddOrUpdate(await GetDepositsAsync());
                     break;
                 case 7: // withdrawals
-                    Withdrawals.Clear();
-                    Withdrawals.AddRange(await GetWithdrawalsAsync());
+                    CurrentAccount.Withdrawals.Clear();
+                    CurrentAccount.Withdrawals.AddOrUpdate(await GetWithdrawalsAsync());
                     break;
             }
         }

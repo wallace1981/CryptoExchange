@@ -441,7 +441,7 @@ namespace Exchange.Net
             return ExecuteRequestAsync<Binance.AccountTrade[]>(requestMessage, GetTradeListWeight, contentPath: $"accTrades-{symbol}");
         }
 
-        public Task<ApiResult<Binance.NewOrderResponseResult>> PlaceOrderAsync(string symbol, Binance.TradeSide side, Binance.OrderType type, decimal amount, decimal? price = null, decimal? stopPrice = null, Binance.TimeInForce? tif = null, string newClientOrderId = null)
+        public Task<ApiResult<Binance.NewOrderResponseResult>> PlaceOrderAsync(string symbol, Binance.TradeSide side, Binance.OrderType type, decimal amount, decimal? price = null, decimal? stopPrice = null, Binance.TimeInForce? tif = null, string newClientOrderId = null, Binance.OrderRespType? newOrderRespType = null)
         {
             if (type == Binance.OrderType.LIMIT || type == Binance.OrderType.STOP_LOSS_LIMIT || type == Binance.OrderType.TAKE_PROFIT_LIMIT)
             {
@@ -450,10 +450,18 @@ namespace Exchange.Net
                     tif = Binance.TimeInForce.GTC;
                 }
             }
+            if (type == Binance.OrderType.STOP_LOSS_LIMIT || type == Binance.OrderType.TAKE_PROFIT_LIMIT)
+            {
+                if (newOrderRespType == null)
+                {
+                    newOrderRespType = Binance.OrderRespType.FULL;
+                }
+            }
             var request = new NewOrderRequest()
             {
-                newOrderRespType = null,
+                newOrderRespType = newOrderRespType,
                 price = price,
+                stopPrice = stopPrice,
                 quantity = amount,
                 side = side,
                 symbol = symbol,

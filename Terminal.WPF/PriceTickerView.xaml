@@ -33,8 +33,8 @@
             IsLiveSortingRequested="True"
             >
             <CollectionViewSource.SortDescriptions>
-                <scm:SortDescription PropertyName="QuoteVolume" Direction="Descending"/>
-                <scm:SortDescription PropertyName="PriceChangePercent" Direction="Descending"/>
+                <!--<scm:SortDescription PropertyName="QuoteVolume" Direction="Descending"/>
+                <scm:SortDescription PropertyName="PriceChangePercent" Direction="Descending"/>-->
             </CollectionViewSource.SortDescriptions>
         </CollectionViewSource>
     </UserControl.Resources>
@@ -138,7 +138,7 @@
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
 
-                <DataGridTemplateColumn Header="Объем"  Width="70" SortMemberPath="QuoteVolume">
+                <DataGridTemplateColumn Header="Объем"  Width="70" SortMemberPath="QuoteVolume" SortDirection="Descending">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                             <TextBlock DockPanel.Dock="Right" HorizontalAlignment="Right" FontFamily="{StaticResource RobotoCondensed}" FontSize="12">

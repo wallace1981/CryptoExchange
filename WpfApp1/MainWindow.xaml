@@ -4,46 +4,43 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:WpfApp1"
+        xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
         mc:Ignorable="d"
-        Title="MainWindow" Height="100" Width="400">
+        Title="MainWindow" Height="200" Width="600"
+        TextElement.Foreground="{DynamicResource MaterialDesignBody}"
+        TextElement.FontWeight="Regular"
+        TextElement.FontSize="13"
+        TextOptions.TextFormattingMode="Ideal"
+        TextOptions.TextRenderingMode="Auto"
+        Background="{DynamicResource MaterialDesignPaper}"
+        FontFamily="{DynamicResource MaterialDesignFont}"        >
     <Grid>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="0.05*" x:Name="clLoss"/>
-            <ColumnDefinition Width="0.1*" x:Name="clProfit"/>
-        </Grid.ColumnDefinitions>
-        <Rectangle Grid.Column="0" Fill="LightPink" Height="6"/>
-        <Rectangle Grid.Column="1" Fill="LightGreen" Height="6"/>
 
-        <Canvas Grid.Column="1" VerticalAlignment="Center">
-            <Rectangle
-                Width="50"
-                Fill="Green" Height="6"/>
-        </Canvas>
-        <Canvas Grid.Column="0" VerticalAlignment="Center">
-            <Rectangle
-                Width="15" Canvas.Left="{Binding ElementName=clLoss, Path=ActualWidth}"
-                Fill="Red" Height="6">
-                <Rectangle.RenderTransform>
-                    <ScaleTransform ScaleX="-1"/>
-                </Rectangle.RenderTransform>
-            </Rectangle>
-        </Canvas>
+        <materialDesign:Card Padding="16" Margin="16">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition/>
+                    <RowDefinition/>
+                    <RowDefinition/>
+                    <RowDefinition/>
+                </Grid.RowDefinitions>
 
-        <!--<Rectangle HorizontalAlignment="Left" Width="100" Fill="LightPink" Height="4"/>
-        <Rectangle Margin="100 0 0 0" Fill="LightGreen" Height="4"/>
+                <TextBlock
+                    Style="{DynamicResource MaterialDesignTitleTextBlock}"
+                    Text="MTL/BTC"/>
 
-        <Rectangle HorizontalAlignment="Left" Stroke="LightPink" Fill="White" Width="15" Height="10"/>
-        <TextBlock HorizontalAlignment="Left" VerticalAlignment="Center" Text="SL"/>
 
-        <Rectangle HorizontalAlignment="Left" Margin="70 0 0 0" Fill="Red" Width="30" Height="4"/>
-        <Rectangle HorizontalAlignment="Left" Margin="100 0 0 0" Fill="Green" Width="50" Height="4"/>
-        <Rectangle HorizontalAlignment="Left" Margin="180 0 0 0" Stroke="LawnGreen" Fill="White" Width="15" Height="10"/>
-        <TextBlock HorizontalAlignment="Left" Margin="180 0 0 0" VerticalAlignment="Center" FontSize="10" Text="TP1"/>
-        <Rectangle HorizontalAlignment="Left" Margin="240 0 0 0" Stroke="LawnGreen" Fill="White" Width="15" Height="10"/>
-        <TextBlock HorizontalAlignment="Left" Margin="240 0 0 0" VerticalAlignment="Center" FontSize="10" Text="TP2"/>
-        <Rectangle HorizontalAlignment="Left" Margin="280 0 0 0" Stroke="LawnGreen" Fill="White" Width="15" Height="10"/>
-        <TextBlock HorizontalAlignment="Left" Margin="280 0 0 0" VerticalAlignment="Center" FontSize="10" Text="TP3"/>
-        <Rectangle HorizontalAlignment="Right" Stroke="LawnGreen" Fill="White" Width="15" Height="10"/>
-        <TextBlock HorizontalAlignment="Right" VerticalAlignment="Center" FontSize="10" Text="TP4"/>-->
+                <TextBlock Grid.Column="1"
+                    Text="LastPrice &lt;= 0.0000850"/>
+            </Grid>
+        </materialDesign:Card>
+        
+        
     </Grid>
 </Window>

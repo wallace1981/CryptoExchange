@@ -130,7 +130,7 @@ namespace Exchange.Net
         private ConcurrentQueue<string> sendQueue = new ConcurrentQueue<string>();
     }
 
-    public class HuobiWebSocketWrapper : WebSocketWrapper
+    /*public class HuobiWebSocketWrapper : WebSocketWrapper
     {
         public HuobiWebSocketWrapper(string url, string id = null, System.Security.Authentication.SslProtocols sslProtocols = System.Security.Authentication.SslProtocols.Default) : base(url, id, sslProtocols)
         {
@@ -184,5 +184,5 @@ namespace Exchange.Net
             return null;
         }
 
-    }
+    }*/
 }
