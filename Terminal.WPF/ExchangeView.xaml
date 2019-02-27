@@ -161,19 +161,18 @@
                     </telerik:RadTileList>-->
                         <!--<local:TestTradesView/>-->
 
-                        <ListView ItemsSource="{Binding Path=TradingRuleProxies, Mode=OneWay}" x:Name="lstRules">
-                            <ListView.View>
-                                <GridView>
-                                    <GridView.Columns>
-                                        <GridViewColumn Header="Symbol" DisplayMemberBinding="{Binding Path=Rule.Market}"/>
-                                        <GridViewColumn Header="Trigger" DisplayMemberBinding="{Binding Path=Condition}"/>
-                                        <GridViewColumn Header="Volume" DisplayMemberBinding="{Binding Path=Rule.OrderVolume}"/>
-                                        <GridViewColumn Header="Price" DisplayMemberBinding="{Binding Path=Rule.OrderRate}"/>
-                                        <GridViewColumn Header="Status" DisplayMemberBinding="{Binding Path=Status}"/>
-                                    </GridView.Columns>
-                                </GridView>
-                            </ListView.View>
-                        </ListView>
+                        <DataGrid
+                            FontFamily="{StaticResource Roboto}"
+                            ItemsSource="{Binding Path=TradingRuleProxies, Mode=OneWay}"
+                            x:Name="lstRules">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Symbol" Binding="{Binding Path=Rule.Market}"/>
+                                <DataGridTextColumn Header="Trigger" Binding="{Binding Path=Condition}"/>
+                                <DataGridTextColumn Header="Volume" Binding="{Binding Path=Rule.OrderVolume}"/>
+                                <DataGridTextColumn Header="Price" Binding="{Binding Path=Rule.OrderRate}"/>
+                                <DataGridTextColumn Header="Status" Width="*" Binding="{Binding Path=Status}"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
                     </DockPanel>
                 </telerik:RadTabItem>
                 <telerik:RadTabItem Header="Задачи">
@@ -191,7 +190,7 @@
                                 <TextBlock Text="Активировать"/>
                             </telerik:RadToggleButton>
                             <Button
-                                Command="{Binding Path=DoLifecycle, Mode=OneWay}"
+                                Command="{Binding Path=TradeTaskLifecycle, Mode=OneWay}"
                                 CommandParameter="{Binding Path=SelectedTradeTask.Model, Mode=OneWay}"
                                 >
                                 <TextBlock Text="Lifecycle"/>
@@ -200,6 +199,11 @@
                                 Command="{Binding Path=DeleteTradeTask, Mode=OneWay}"
                                 >
                                 <TextBlock Text="Удалить задачу"/>
+                            </Button>
+                            <Button
+                                Command="{Binding Path=PanicSellTradeTask, Mode=OneWay}"
+                                >
+                                <TextBlock Text="Panic Sell"/>
                             </Button>
                         </telerik:RadToolBar>
                         <telerik:RadListBox
@@ -238,8 +242,8 @@
                                             <TextBlock Grid.Column="1" Grid.Row="1" Text="{Binding Path=Distance, StringFormat=P2}"
                                                    HorizontalAlignment="Left"/>
                                             <TextBlock Grid.Column="1" Grid.Row="1" HorizontalAlignment="Right">
-                                            <Run Text="Профит:"/>
-                                            <Run Text="{Binding Path=Profit, Mode=OneWay, StringFormat=P2}"/>
+                                                <Run Text="Профит:"/>
+                                                <Run Text="{Binding Path=Profit, Mode=OneWay, StringFormat=P2}"/>
                                             </TextBlock>
 
                                             <TextBlock Grid.Column="1" Grid.Row="0">
@@ -361,128 +365,7 @@
                         <telerik:RadBusyIndicator
                             IsBusy="{Binding Path=IsGetOpenOrdersExecuting, Mode=OneWay}"
                             DisplayAfter="0">
-                            <DataGrid ItemsSource="{Binding Path=CurrentAccountViewModel.OpenOrders}">
-                                <DataGrid.Columns>
-
-                                    <DataGridTemplateColumn Header="Time" x:Name="clTime">
-                                        <DataGridTemplateColumn.CellTemplate>
-                                            <DataTemplate>
-                                                <TextBlock Text="{Binding Path=Updated, Mode=OneWay, StringFormat='dd.MM HH:mm:ss'}"
-                                                               Padding="3 2"/>
-                                            </DataTemplate>
-                                        </DataGridTemplateColumn.CellTemplate>
-                                    </DataGridTemplateColumn>
-
-                                    <DataGridTemplateColumn Header="Pair" x:Name="clSymbol">
-                                        <DataGridTemplateColumn.CellTemplate>
-                                            <DataTemplate>
-                                                <TextBlock Text="{Binding Path=SymbolInformation.Caption, Mode=OneWay}" Padding="3 2"/>
-                                            </DataTemplate>
-                                        </DataGridTemplateColumn.CellTemplate>
-                                    </DataGridTemplateColumn>
-
-                                    <DataGridTemplateColumn Header="Type" x:Name="clOrderType" Width="100">
-                                        <DataGridTemplateColumn.CellTemplate>
-                                            <DataTemplate>
-                                                <TextBlock Text="{Binding Path=Type, Mode=OneWay}" Padding="3 2"/>
-                                            </DataTemplate>
-                                        </DataGridTemplateColumn.CellTemplate>
-                                    </DataGridTemplateColumn>
-
-                                    <DataGridTemplateColumn Header="Side" x:Name="clOrderSide">
-                                        <DataGridTemplateColumn.CellTemplate>
-                                            <DataTemplate>
-                                                <TextBlock Text="{Binding Path=Side, Mode=OneWay}" Padding="3 2"
-                                               Foreground="{Binding Path=Side, Mode=OneWay, Converter={StaticResource convOrderSide}}"
-                                               />
-                                            </DataTemplate>
-                                        </DataGridTemplateColumn.CellTemplate>
-                                    </DataGridTemplateColumn>
-
-                                    <DataGridTemplateColumn Header="Price" x:Name="clPrice">
-                                        <DataGridTemplateColumn.CellTemplate>
-                                            <DataTemplate>
-                                                <TextBlock Text="{Binding Path=Price, Mode=OneWay}" Padding="3 2"/>
-                                            </DataTemplate>
-                                        </DataGridTemplateColumn.CellTemplate>
-                                    </DataGridTemplateColumn>
-
-                                    <DataGridTemplateColumn Header="Amount" Width="100" x:Name="clQuantity">
-                                        <DataGridTemplateColumn.CellTemplate>
-                                            <DataTemplate>
-                                                <Grid>
-                                                    <telerik:RadProgressBar
-                                                            Orientation="Horizontal" MinHeight="1"
-                                                            Minimum="0" Maximum="{Binding Path=Quantity, Mode=OneWay}"
-                                                            Value="{Binding Path=ExecutedQuantity, Mode=OneWay}"
-                                                            BorderBrush="{StaticResource NeutralCandleBrush}"
-                                                            Background="Transparent"
-                                                            >
-                                                    </telerik:RadProgressBar>
-                                                    <TextBlock Text="{Binding Path=Quantity, Mode=OneWay}" Padding="3 2"
-                                                   HorizontalAlignment="Right"/>
-                                                </Grid>
-                                            </DataTemplate>
-                                        </DataGridTemplateColumn.CellTemplate>
-                                    </DataGridTemplateColumn>
-
-                                    <DataGridTemplateColumn Header="Total" x:Name="clTotal">
-                                        <DataGridTemplateColumn.CellTemplate>
-                                            <DataTemplate>
-                                                <StackPanel Orientation="Horizontal"  HorizontalAlignment="Left">
-                                                    <ContentControl
-                                                            Content="{Binding Path=Total, Mode=OneWay}"
-                                                            ContentStringFormat="{Binding Path=SymbolInformation.PriceFmt}"/>
-                                                    <TextBlock Margin="3 0 0 0" Text="{Binding Path=SymbolInformation.QuoteAsset, Mode=OneWay}"/>
-                                                </StackPanel>
-                                            </DataTemplate>
-                                        </DataGridTemplateColumn.CellTemplate>
-                                    </DataGridTemplateColumn>
-                                    <!--<DataGridTextColumn Header="Условия" Binding="{Binding Path=Conditions, Mode=OneWay}"></DataGridTextColumn>-->
-
-                                    <DataGridTemplateColumn>
-                                        <DataGridTemplateColumn.HeaderTemplate>
-                                            <DataTemplate>
-                                                <TextBlock HorizontalAlignment="Right">
-                                                        <Hyperlink Command="{Binding Path=DataContext.CancelOrderCommand, Mode=OneWay, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}">Отменить Все</Hyperlink>
-                                                </TextBlock>
-                                            </DataTemplate>
-                                        </DataGridTemplateColumn.HeaderTemplate>
-                                        <DataGridTemplateColumn.CellTemplate>
-                                            <DataTemplate>
-                                                <TextBlock HorizontalAlignment="Right">
-                                                        <Hyperlink Command="{Binding Path=DataContext.CancelOrderCommand, Mode=OneWay, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}" CommandParameter="{Binding Path=OrderId, Mode=OneWay}">Отменить</Hyperlink>
-                                                </TextBlock>
-                                            </DataTemplate>
-                                        </DataGridTemplateColumn.CellTemplate>
-                                    </DataGridTemplateColumn>
-
-                                    <DataGridTemplateColumn Header="Last Price" x:Name="clLastPrice">
-                                        <DataGridTemplateColumn.CellTemplate>
-                                            <DataTemplate>
-                                                <TextBlock Text="{Binding Path=LastPrice, Mode=OneWay}" Padding="3 2"/>
-                                            </DataTemplate>
-                                        </DataGridTemplateColumn.CellTemplate>
-                                    </DataGridTemplateColumn>
-
-                                </DataGrid.Columns>
-                                <DataGrid.ItemContainerStyle>
-                                    <Style TargetType="DataGridRow">
-                                        <!--<Setter Property="Background" Value="{Binding Path=Status, Mode=OneWay, Converter={StaticResource convOrderStatusToBrush}}"/>-->
-                                        <Style.Triggers>
-                                            <!--<Trigger Property="IsSelected" Value="True">
-                                                    <Setter Property="Background" Value="#FDF1CF" />
-                                                    <Setter Property="Foreground" Value="Black" />
-                                                    <Setter Property="BorderBrush" Value="#FDF1CF"/>
-                                                </Trigger>-->
-                                            <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter Property="Background" Value="#F0F0F0"/>
-                                                <Setter Property="BorderBrush" Value="#F0F0F0"/>
-                                            </Trigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </DataGrid.ItemContainerStyle>
-                            </DataGrid>
+                            <local:OpenOrdersView/>
                         </telerik:RadBusyIndicator>
                     </DockPanel>
                 </telerik:RadTabItem>
@@ -610,7 +493,7 @@
 
             <telerik:RadBusyIndicator Grid.Row="1" IsBusy="{Binding Path=IsLoadingOrderBook, Mode=OneWay}" BusyContent="Loading Order Book...">
                 <Border BorderThickness="1" BorderBrush="LightGray">
-                    <local:OrderBookView Grid.Row="1"/>
+                    <local:OrderBookView/>
                 </Border>
             </telerik:RadBusyIndicator>
 

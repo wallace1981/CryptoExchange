@@ -1,4 +1,5 @@
 ﻿using DynamicData;
+using Newtonsoft.Json;
 using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
 using ReactiveUI.Legacy;
@@ -189,6 +190,7 @@ namespace Exchange.Net
                 GetDepthCommand = ReactiveCommand.CreateFromTask(GetDepthImpl).DisposeWith(disposables);
 
                 EnableTradeTask = ReactiveCommand.Create(EnableTradeTaskImpl, tradeTaskCommandCanExecute).DisposeWith(disposables);
+                PanicSellTradeTask = ReactiveCommand.CreateFromTask(PanicSellTradeTaskImpl, tradeTaskCommandCanExecute).DisposeWith(disposables);
                 DeleteTradeTask = ReactiveCommand.Create(DeleteTradeTaskImpl, tradeTaskCommandCanExecute).DisposeWith(disposables);
                 DeleteRule = ReactiveCommand.Create<TradingRuleProxy>(DeleteRuleImpl).DisposeWith(disposables);
 
@@ -988,6 +990,7 @@ namespace Exchange.Net
 
         public ReactiveCommand<Unit, Unit> CreateTradeTask { get; private set; }
         public ReactiveCommand<Unit, Unit> EnableTradeTask { get; private set; }
+        public ReactiveCommand<Unit, Unit> PanicSellTradeTask { get; private set; }
         public ReactiveCommand<Unit, Unit> DeleteTradeTask { get; private set; }
         public ReactiveCommand<TradingRuleProxy, Unit> DeleteRule { get; private set; }
         public ICommand CreateRule { get; private set; }
@@ -996,6 +999,11 @@ namespace Exchange.Net
         private void EnableTradeTaskImpl()
         {
             SelectedTradeTask.IsEnabled = !SelectedTradeTask.IsEnabled;
+        }
+
+        private Task PanicSellTradeTaskImpl()
+        {
+            return PanicSell(SelectedTradeTask.Model);
         }
 
         private void DeleteTradeTaskImpl()
@@ -1025,7 +1033,8 @@ namespace Exchange.Net
                 rule.OrderSide = NewOrder.Side;
                 rule.OrderType = NewOrder.OrderType;
                 AddRule(rule);
-
+                var json = JsonConvert.SerializeObject(rule);
+                File.WriteAllText(Path.ChangeExtension(DateTime.Now.Ticks.ToString(), ".rule"), json);
             }
         }
 #endregion
@@ -1140,6 +1149,20 @@ namespace Exchange.Net
             IsInitializing = false;
             //SetTickersSubscription(true);
 
+            LoadRules();
+            LoadTradeTasks();
+
+            Observable
+                .Interval(TimeSpan.FromSeconds(1))
+                .SelectMany(x => TradeTasksList)
+                .Where(x => x.IsEnabled)
+                .Select(x => x.Model)
+                .InvokeCommand(TradeTaskLifecycle)
+                .DisposeWith(disposables);
+        }
+
+        private void LoadTradeTasks()
+        {
             foreach (var file in Directory.EnumerateFiles(".", "????????-*.json"))
             {
                 var json = File.ReadAllText(file);
@@ -1151,14 +1174,16 @@ namespace Exchange.Net
                     tradeTasks.Add(taskModel);
                 }
             }
+        }
 
-            Observable
-                .Interval(TimeSpan.FromSeconds(1))
-                .SelectMany(x => TradeTasksList)
-                .Where(x => x.IsEnabled)
-                .Select(x => x.Model)
-                .InvokeCommand(DoLifecycle)
-                .DisposeWith(disposables);
+        private void LoadRules()
+        {
+            foreach (var file in Directory.EnumerateFiles(".", "*.rule"))
+            {
+                var json = File.ReadAllText(file);
+                var rule = JsonConvert.DeserializeObject<TrailingTakeProfit>(json);
+                AddRule(rule);
+            }
         }
 
         protected virtual Task GetExchangeInfoImpl()
@@ -1290,12 +1315,11 @@ namespace Exchange.Net
             return Task.FromResult(new Balance(asset));
         }
 
-        public virtual string[] OrderTypes => new string[] { "limit", "market", "fill-or-kill" };
+        public virtual string[] OrderTypes => new [] { "limit", "market", "fill-or-kill" };
 
         public NewOrder NewOrder { get; set; }
 
         protected IEnumerable<SymbolInformation> ValidPairs => marketsMapping.Values.Where(IsValidMarket);
-
 
         IDisposable getTickersSubscription;
         IDisposable getTradesSubscription;

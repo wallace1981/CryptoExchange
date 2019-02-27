@@ -912,12 +912,13 @@ namespace Exchange.Net
             {
                 var orders = ordersResult.Data.Select(arg => new Order(GetSymbolInformation(arg.symbol))
                 {
-                    OrderId = arg.id.ToString(),
+                    OrderId = arg.orderId.ToString(),
                     Price = arg.price,
                     Quantity = arg.origQty,
                     Side = arg.side == "BUY" ? TradeSide.Buy : TradeSide.Sell,
                     StopPrice = arg.stopPrice,
                     Created = arg.time.FromUnixTimestamp(),
+                    Updated = arg.updateTime.FromUnixTimestamp(),
                     Type = arg.type
                 }).OrderByDescending(x => x.Created);
                 CurrentAccount.OpenOrders.AddOrUpdate(orders);
@@ -978,7 +979,7 @@ namespace Exchange.Net
                     .Where(x => x.status != Binance.OrderStatus.NEW.ToString())
                     .Select(arg => new Order(GetSymbolInformation(arg.symbol))
                     {
-                        OrderId = arg.id.ToString(),
+                        OrderId = arg.orderId.ToString(),
                         Price = arg.price,
                         Quantity = arg.origQty,
                         Side = arg.side == "BUY" ? TradeSide.Buy : TradeSide.Sell,

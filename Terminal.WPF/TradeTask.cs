@@ -11,6 +11,7 @@ using System.IO;
 using System.Linq;
 using System.Reactive;
 using System.Reactive.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Input;
 
@@ -41,7 +42,6 @@ namespace Exchange.Net
     [JsonObject(MemberSerialization.OptIn)]
     public class OrderTask
     {
-
         [JsonProperty("SIDE")]
         public TradeSide Side;
 
@@ -66,7 +66,7 @@ namespace Exchange.Net
         [JsonProperty("TRAILING_PRCNT", DefaultValueHandling = DefaultValueHandling.IgnoreAndPopulate)]
         public double TrailingPercent;
 
-        [JsonProperty("ORDERID")]
+        [JsonProperty("ORDERID", DefaultValueHandling = DefaultValueHandling.IgnoreAndPopulate)]
         public string OrderId;
 
         public Order ExchangeOrder;
@@ -90,16 +90,22 @@ namespace Exchange.Net
         [JsonProperty("UPDATED")]
         public DateTime Updated;
 
-        [JsonProperty("BUY")]
-        public OrderTask Buy;
+        public OrderTask Buy => AllJobs.FirstOrDefault(x => x.OrderKind == OrderKind.Buy);
+        public OrderTask StopLoss => AllJobs.FirstOrDefault(x => x.OrderKind == OrderKind.StopLoss);
+        public IList<OrderTask> TakeProfit => AllJobs.Where(x => x.OrderKind == OrderKind.TakeProfit).ToList();
 
-        [JsonProperty("SL")]
-        public OrderTask StopLoss;
+        [JsonProperty("QUEUE")]
+        public Queue<OrderTask> Jobs { get; set; }
 
-        [JsonProperty("TP")]
-        public OrderTask[] TakeProfit;
+        [JsonProperty("PROCESSED")]
+        public Queue<OrderTask> FinishedJobs { get; set; }
+
+        [JsonProperty("CURRENT")]
+        public OrderTask Current { get; set; }
 
         public DateTime LastGetOrder = DateTime.MinValue;
+        public SemaphoreSlim locker = new SemaphoreSlim(1, 1);
+        public bool IsBusy => locker.CurrentCount == 0;
 
         public bool IsInPosition => BuyQty > 0m;
         public bool IsBuyPlaced { get; }
@@ -120,6 +126,8 @@ namespace Exchange.Net
         public decimal BuyQty => BuyTrades.Sum(x => x.Quantity);
         public decimal SellQty => SellTrades.Sum(x => x.Quantity);
 
+        protected IEnumerable<OrderTask> AllJobs => Jobs.Concat(FinishedJobs).Concat(new[] { Current }).Where(x => x != null);
+
         public TradeTask(IEnumerable<OrderTrade> exchangeTrades = null)
         {
             Trades = new SourceCache<OrderTrade, string>(x => x.Id);
@@ -138,53 +146,47 @@ namespace Exchange.Net
         {
             var tt = new TradeTask();
             JsonConvert.PopulateObject(json, tt);
-            Trades.Edit(innerList => innerList.AddOrUpdate(Buy.ExchangeOrder.Fills));
-            Trades.Edit(innerList => innerList.AddOrUpdate(StopLoss.ExchangeOrder.Fills));
-            foreach (var ot in TakeProfit)
-                Trades.Edit(innerList => innerList.AddOrUpdate(ot.ExchangeOrder.Fills));
+            //Trades.Edit(innerList => innerList.AddOrUpdate(Buy.ExchangeOrder.Fills));
+            //Trades.Edit(innerList => innerList.AddOrUpdate(StopLoss.ExchangeOrder.Fills));
+            //foreach (var ot in TakeProfit)
+            //    Trades.Edit(innerList => innerList.AddOrUpdate(ot.ExchangeOrder.Fills));
             return tt;
         }
-
-        [JsonProperty("QUEUE")]
-        public Queue<OrderTask> Jobs { get; set; }
-
-        [JsonProperty("PROCESSED")]
-        public Queue<OrderTask> FinishedJobs { get; set; }
     }
 
     public class OrderTaskViewModel : ReactiveObject
     {
         public OrderTask Model { get; }
 
-        public decimal Price
-        {
-            get { return Model.Price; }
-            set { this.RaiseAndSetIfChanged(ref Model.Price, value); }
-        }
-
-        public decimal Quantity
-        {
-            get { return Model.Quantity; }
-            set { this.RaiseAndSetIfChanged(ref Model.Quantity, value);  }
-        }
-
-        public decimal Total
-        {
-            get => Quantity * Price;
-        }
+        [Reactive] public decimal Price { get; set; }
+        [Reactive] public decimal Quantity { get; set; }
+        [ObservableAsProperty] public decimal Total { get; }
 
         public OrderTaskViewModel(TradeTaskViewModel tt)
         {
             Model = new OrderTask();
             TradeTask = tt;
-            this.WhenAnyValue(x => x.Price, y => y.Quantity).Subscribe(z => this.RaisePropertyChanged(nameof(Total)));
+            // TODO: OBPH
+            this.WhenAnyValue(x => x.Price, x => x.Quantity, (rate, qty) => rate * qty)
+                .ToPropertyEx(this, vm => vm.Total);
+            this.WhenAnyValue(x => x.Price)
+                .Subscribe(x => Model.Price = x);
+            this.WhenAnyValue(x => x.Quantity)
+                .Subscribe(x => Model.Quantity = x);
         }
 
         public OrderTaskViewModel(TradeTaskViewModel tt, OrderTask model)
         {
             Model = model;
             TradeTask = tt;
-            this.WhenAnyValue(x => x.Price, y => y.Quantity).Subscribe(z => this.RaisePropertyChanged(nameof(Total)));
+            Price = model.Price;
+            Quantity = model.Quantity;
+            this.WhenAnyValue(x => x.Price, x => x.Quantity, (rate, qty) => rate * qty)
+                .ToPropertyEx(this, vm => vm.Total);
+            this.WhenAnyValue(x => x.Price)
+                .Subscribe(x => Model.Price = x);
+            this.WhenAnyValue(x => x.Quantity)
+                .Subscribe(x => Model.Quantity = x);
         }
 
         public TradeTaskViewModel TradeTask { get; }
@@ -222,7 +224,7 @@ namespace Exchange.Net
         {
             get { return qtyPercentStart; }
             set
-            {
+            {   // UGLY SHIT
                 if (Previous != null)
                 {
                     this.RaiseAndSetIfChanged(ref qtyPercentStart, Math.Round(value, 2));
@@ -240,7 +242,7 @@ namespace Exchange.Net
         {
             get { return qtyPercentEnd; }
             set
-            {
+            {   // UGLY SHIT
                 this.RaiseAndSetIfChanged(ref qtyPercentEnd, Math.Round(value, 2));
                 //this.RaisePropertyChanged(nameof(QuantityPercent));
                 this.RaiseAndSetIfChanged(ref Model.QuantityPercent, QuantityPercent, nameof(QuantityPercent));
@@ -273,17 +275,17 @@ namespace Exchange.Net
         public double ProfitPercent => TakeProfitCollection.Last().ProfitPercent;
         public decimal ProfitPrice => TakeProfitCollection.Last().Price;
         public decimal QuoteBalance { get; }
-        public double QuoteBalancePercent { get => qtyBalancePercent; set => this.RaiseAndSetIfChanged(ref qtyBalancePercent, value); }
         public decimal Total { get => buyTotal; set => this.RaiseAndSetIfChanged(ref buyTotal, value); }
-        public bool IsMarketBuy { get; set; }
-        public bool IsLimitStop { get; set; } = true; // NOTE: Only if Exchange supports stop-limit?
+        [Reactive] public bool IsMarketBuy { get; set; }
+        [Reactive] public bool IsLimitStop { get; set; } = true; // NOTE: Only if Exchange supports stop-limit?
+        [Reactive] public double QuoteBalancePercent { get; set; }
 
         public decimal AvgBuyPrice => Model.AvgBuyPrice;
         public decimal AvgSellPrice => Model.AvgSellPrice;
         public decimal Qty => Model.Qty;
         public decimal TotalQuoteBuy => Model.TotalQuoteBuy;
         public decimal TotalQuoteSell => Model.TotalQuoteSell;
-        public decimal Profit => Model.Profit;
+        public decimal Profit => Model.TotalQuoteBuy > 0 ? (TotalQuoteSell + Qty * LastPrice) / TotalQuoteBuy - 1 : 0;
 
         public ICommand AddTakeProfitCommand { get; }
         public ReactiveCommand<string, bool> SubmitCommand { get; }
@@ -301,7 +303,7 @@ namespace Exchange.Net
             SymbolInformation = si;
             QuoteBalance = si.QuoteAssetBalance.Free;
             QuoteBalancePercent = 0.05;
-            Buy = new OrderTaskViewModel(this) { Price = si.PriceTicker.LastPrice.Value };
+            Buy = new OrderTaskViewModel(this) { Price = si.PriceTicker.Ask.Value };
             StopLoss = new OrderTaskViewModel(this) { Price = si.ClampPrice(Buy.Price * 0.95m) };
             TakeProfit = new ObservableCollection<TakeProfitViewModel>();
             var DEF_TAKE_PRCNTS = new double[] { 0.2, 0.2, 0.2, 0.15, 0.15, 0.1 };
@@ -324,7 +326,7 @@ namespace Exchange.Net
             Buy = new OrderTaskViewModel(this, model.Buy);
             StopLoss = new OrderTaskViewModel(this, model.StopLoss);
             TakeProfit = new ObservableCollection<TakeProfitViewModel>();
-            for (int ind = 1; ind <= model.TakeProfit.Length; ++ind)
+            for (int ind = 1; ind <= model.TakeProfit.Count(); ++ind)
             {
                 var tp = new TakeProfitViewModel(this, model.TakeProfit[ind - 1], ind > 1 ? TakeProfit[ind - 2] : null);
                 TakeProfit.Add(tp);
@@ -349,7 +351,9 @@ namespace Exchange.Net
                     this.RaisePropertyChanged(nameof(Profit));
                 });
             //connection.DisposeWith(disposables);
-
+            this.WhenAnyValue(vm => vm.LastPrice)
+                .Subscribe(x => this.RaisePropertyChanged(nameof(Profit)));
+            //.DisposeWith(disposables);
         }
 
         private async Task<bool> SubmitImpl(string param)
@@ -415,13 +419,15 @@ namespace Exchange.Net
                     return false;
             }
 
-            Model.Buy = Buy.Model;
-            Model.StopLoss = StopLoss.Model;
-            Model.TakeProfit = TakeProfitCollection.Select(x => x.Model).ToArray();
-
-            Model.Jobs.Enqueue(Model.Buy);
-            Model.Jobs.Enqueue(Model.StopLoss);
-            TakeProfit.ToList().ForEach(tp => Model.Jobs.Enqueue(tp.Model));
+            Model.Jobs.Enqueue(Buy.Model);
+            foreach (var tp in TakeProfitCollection)
+            {
+                // NOTE: if SL is TRAILING by STEPS,
+                // then create new object with corresponding price
+                // for every TP.
+                Model.Jobs.Enqueue(StopLoss.Model);
+                Model.Jobs.Enqueue(tp.Model);
+            }
 
             Model.Created = DateTime.Now;
             Model.Updated = DateTime.Now;

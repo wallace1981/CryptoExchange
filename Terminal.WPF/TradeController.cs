@@ -25,17 +25,17 @@ namespace Exchange.Net
 
     public partial class ExchangeViewModel
     {
-        public IObservableList<TradeTask> TradeTasks1 => tradeTasks.AsObservableList();
         public ReadOnlyObservableCollection<TradeTaskViewModel> TradeTasksList => _data;
 
-        public ReactiveCommand<TradeTask, Unit> DoLifecycle { get; private set; }
+        public ReactiveCommand<TradeTask, Unit> TradeTaskLifecycle { get; private set; }
 
         private async Task DoLifecycleImpl(TradeTask task)
         {
-            if (task == null) return;
+            if (task == null || task.IsBusy) return;
 
             try
             {
+                await task.locker.WaitAsync();
                 var pt = GetPriceTicker(task.Symbol);
                 var result = await GetOrders(task);
                 if (result)
@@ -52,6 +52,10 @@ namespace Exchange.Net
             catch (Exception)
             {
             }
+            finally
+            {
+                task.locker.Release();
+            }
         }
 
         // before running the lifecycle, update ALL task orders
@@ -59,40 +63,57 @@ namespace Exchange.Net
 
         private async Task Lifecycle(TradeTask tt, PriceTicker ticker)
         {
-            if (tt.StopLoss.ExchangeOrder != null)
-            {
-                if (tt.StopLoss.ExchangeOrder.Status == OrderStatus.Filled)
-                {
-                    tt.FinishedJobs.Enqueue(tt.StopLoss);
-                    // Shutdown the task.
-                    return;
-                }
-            }
-
-            if (!tt.Jobs.Any() && tt.StopLoss.ExchangeOrder == null)
+            if (!tt.Jobs.Any() && tt.Current == null)
             {
                 // Shutdown the task.
                 return;
             }
 
-            var job = tt.Jobs.Peek();
-            if (job.ExchangeOrder != null)
+            if (tt.Current != null)
             {
-                switch (job.ExchangeOrder.Status)
+                Debug.Assert(tt.Current.ExchangeOrder != null);
+                switch (tt.Current.ExchangeOrder.Status)
                 {
                     case OrderStatus.Cancelled:
-                        // Shutdown the task.
-                        return;
+                        if (tt.Current.OrderKind != OrderKind.StopLoss)
+                        {
+                            // Shutdown the task.
+                            return;
+                        }
+                        else
+                        {
+                            // Place stop order again
+                            tt.Current.OrderId = null;
+                            tt.Current.ExchangeOrder = null;
+                            tt.Jobs.Enqueue(tt.Current);
+                            tt.Current = null;
+                            TradeTaskViewModel.SerializeModel(tt);
+                            break;
+                        }
                     case OrderStatus.Filled:
-                        // Job is done, proceed to next.
-                        // Update status, save state.
-                        tt.Jobs.Dequeue();
-                        tt.FinishedJobs.Enqueue(job);
+                        if (tt.Current.OrderKind == OrderKind.StopLoss)
+                        {
+                            // Shutdown the task.
+                        }
+                        tt.FinishedJobs.Enqueue(tt.Current);
+                        tt.Current = null;
+                        TradeTaskViewModel.SerializeModel(tt);
+                        return;
+                    case OrderStatus.Active:
+                    case OrderStatus.PartiallyFilled:
+                        if (tt.Current.OrderKind != OrderKind.StopLoss)
+                        {
+                            // do not allow to procceed if any other than SL is placed.
+                            return;
+                        }
                         break;
                 }
             }
-            else
+
+            if (tt.Jobs.Any())
             {
+                var job = tt.Jobs.Peek();
+
                 bool applicable = false;
                 // check condition
                 if (job.Side == TradeSide.Buy)
@@ -102,13 +123,12 @@ namespace Exchange.Net
 
                 if (applicable)
                 {
-                    if (tt.StopLoss.ExchangeOrder != null)
+                    if (tt.Current?.ExchangeOrder != null)
                     {
-                        var result = await CancelOrder(tt.StopLoss);
+                        var result = await CancelOrder(tt.Current);
                         if (result)
                         {
-                            tt.StopLoss.ExchangeOrder = null;
-                            tt.StopLoss.OrderId = null;
+                            tt.Current = null;
                             tt.Updated = DateTime.Now;
                             TradeTaskViewModel.SerializeModel(tt);
                         }
@@ -116,23 +136,18 @@ namespace Exchange.Net
 
                     job.ExchangeOrder = await ExecuteOrder(job);
                     job.OrderId = job.ExchangeOrder.OrderId;
+                    tt.Current = job;
+                    tt.Jobs.Dequeue();
                     tt.Updated = DateTime.Now;
-
-                    if (job.OrderKind == OrderKind.StopLoss)
-                    {
-                        tt.StopLoss.ExchangeOrder = job.ExchangeOrder;
-                        tt.StopLoss.OrderId = job.ExchangeOrder.OrderId;
-                        tt.Jobs.Dequeue();
-                        var ttvm = TradeTasksList.SingleOrDefault(x => x.Model == tt);
-                        ttvm.Status = $"Стоп-лосс ордер {OrderStatusToDisplayStringRus(job.ExchangeOrder.Status)}";
-                    }
-                    else
-                    {
-                        var ttvm = TradeTasksList.SingleOrDefault(x => x.Model == tt);
-                        ttvm.Status = $"Ордер на {(job.Side == TradeSide.Buy ? "покупку" : "продажу")} {OrderStatusToDisplayStringRus(job.ExchangeOrder.Status)}";
-                    }
-
                     TradeTaskViewModel.SerializeModel(tt);
+                    job.ExchangeOrder.Fills.ToList().ForEach(x => tt.RegisterTrade(x));
+
+                    var ttvm = TradeTasksList.SingleOrDefault(x => x.Model == tt);
+                    if (job.OrderKind == OrderKind.StopLoss)
+                        ttvm.Status = $"Стоп-лосс ордер {OrderStatusToDisplayStringRus(job.ExchangeOrder.Status)}";
+                    else
+                        ttvm.Status = $"Ордер на {(job.Side == TradeSide.Buy ? "покупку" : "продажу")} {OrderStatusToDisplayStringRus(job.ExchangeOrder.Status)}";
+
                 }
             }
         }
@@ -158,19 +173,29 @@ namespace Exchange.Net
 
         protected async Task<bool> PanicSell(TradeTask tt)
         {
-            // there could be BUY or SL orders running. cancell all them first.
-            var result = await CancellAllOrders(tt);
-            var sellJob = new OrderTask()
+            try
             {
-                Symbol = tt.Symbol,
-                OrderType = OrderType.MARKET,
-                Side = TradeSide.Sell,
-                Quantity = tt.Qty
-            };
-            var order = await ExecuteOrder(sellJob);
-            tt.Jobs.Clear();
-            TradeTaskViewModel.SerializeModel(tt);
-            return result;
+                await tt.locker.WaitAsync();
+                // there could be BUY or SL orders running. cancell all them first.
+                var result = await CancellAllOrders(tt);
+                var sellJob = new OrderTask()
+                {
+                    Symbol = tt.Symbol,
+                    OrderType = OrderType.MARKET,
+                    OrderKind = OrderKind.TakeProfit,
+                    Side = TradeSide.Sell,
+                    Quantity = tt.Qty
+                };
+                //var order = await ExecuteOrder(sellJob);
+                tt.Jobs.Clear();
+                tt.Jobs.Enqueue(sellJob);
+                TradeTaskViewModel.SerializeModel(tt);
+                return result;
+            }
+            finally
+            {
+                tt.locker.Release();
+            }
         }
 
         private async Task<bool> GetOrders(TradeTask tt)
@@ -187,7 +212,7 @@ namespace Exchange.Net
 
             if (tt.LastGetOrder.AddSeconds(5) <= DateTime.Now)
             {
-                var job = tt.Jobs.Any() ? tt.Jobs.Peek() : null;
+                var job = tt.Current;
                 if (IsActiveJob(job))
                 {
                     var result = await GetOrder(job);
@@ -197,21 +222,10 @@ namespace Exchange.Net
                         tt.Updated = DateTime.Now;
                         TradeTaskViewModel.SerializeModel(tt);
                         var ttvm = TradeTasksList.SingleOrDefault(x => x.Model == tt);
-                        ttvm.Status = $"Ордер на {(job.Side == TradeSide.Buy ? "покупку" : "продажу")} {OrderStatusToDisplayStringRus(job.ExchangeOrder.Status)}";
-                        result.Fills.ToList().ForEach(x => tt.RegisterTrade(x));
-                    }
-                    tt.LastGetOrder = DateTime.Now;
-                }
-                if (IsActiveJob(tt.StopLoss))
-                {
-                    var result = await GetOrder(tt.StopLoss);
-                    if (tt.StopLoss.ExchangeOrder == null || result.Updated > tt.StopLoss.ExchangeOrder?.Updated)
-                    {
-                        tt.StopLoss.ExchangeOrder = result;
-                        tt.Updated = DateTime.Now;
-                        TradeTaskViewModel.SerializeModel(tt);
-                        var ttvm = TradeTasksList.SingleOrDefault(x => x.Model == tt);
-                        ttvm.Status = $"Стоп-лосс ордер {OrderStatusToDisplayStringRus(tt.StopLoss.ExchangeOrder.Status)}";
+                        if (job.OrderKind == OrderKind.StopLoss)
+                            ttvm.Status = $"Стоп-лосс ордер {OrderStatusToDisplayStringRus(job.ExchangeOrder.Status)}";
+                        else
+                            ttvm.Status = $"Ордер на {(job.Side == TradeSide.Buy ? "покупку" : "продажу")} {OrderStatusToDisplayStringRus(job.ExchangeOrder.Status)}";
                         result.Fills.ToList().ForEach(x => tt.RegisterTrade(x));
                     }
                     tt.LastGetOrder = DateTime.Now;
@@ -243,8 +257,10 @@ namespace Exchange.Net
 
         public void InitializeTradeController()
         {
-            DoLifecycle =  ReactiveCommand.CreateFromTask<TradeTask>(DoLifecycleImpl);
-            _cleanup = TradeTasks1.Connect().Transform(x => new TradeTaskViewModel(GetSymbolInformation(x.Symbol), x))
+            TradeTaskLifecycle =  ReactiveCommand.CreateFromTask<TradeTask>(DoLifecycleImpl);
+            _cleanup = tradeTasks
+                .Connect()
+                .Transform(x => new TradeTaskViewModel(GetSymbolInformation(x.Symbol), x))
                 .ObserveOnDispatcher()
                 .Bind(out _data)
                 .Subscribe();
@@ -264,17 +280,17 @@ namespace Exchange.Net
         protected async Task<bool> CancellAllOrders(TradeTask tt)
         {
             var result = false;
-            var job = tt.Jobs.Any() ? tt.Jobs.Peek() : null;
-            if (IsActiveJob(tt.StopLoss))
-            {
-                result = await CancelOrder(tt.StopLoss);
-                tt.StopLoss.ExchangeOrder = null;
-                tt.StopLoss.OrderId = null;
-            }
+            var job = tt.Current;
             if (IsActiveJob(job))
             {
-                result = await CancelOrder(job) && result;
-                job.ExchangeOrder = null;
+                result = await CancelOrder(job);
+                if (job.ExchangeOrder.Fills?.Length > 0)
+                {
+                    // NOTE: if this order HAS any fills, put it into history.
+                    tt.FinishedJobs.Enqueue(job);
+                }
+                tt.Current = null;
+                TradeTaskViewModel.SerializeModel(tt);
             }
             return result;
         }

@@ -169,6 +169,7 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
+    <Compile Include="Converters.cs" />
     <Compile Include="ViewModels\BinanceTradeController.cs" />
     <Compile Include="CreateExchangeAccount.xaml.cs">
       <DependentUpon>CreateExchangeAccount.xaml</DependentUpon>
@@ -196,6 +197,9 @@
       <DependentUpon>TradingViewChart.xaml</DependentUpon>
     </Compile>
     <Compile Include="ViewModels\ExchangePrivateDataViewModel.cs" />
+    <Compile Include="Views\OpenOrdersView.xaml.cs">
+      <DependentUpon>OpenOrdersView.xaml</DependentUpon>
+    </Compile>
     <Compile Include="Views\TestTradesView.xaml.cs">
       <DependentUpon>TestTradesView.xaml</DependentUpon>
     </Compile>
@@ -257,6 +261,9 @@
     </Page>
     <Page Include="TradingViewChart.xaml">
       <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Views\OpenOrdersView.xaml">
       <Generator>MSBuild:Compile</Generator>
     </Page>
     <Page Include="Views\TestTradesView.xaml">

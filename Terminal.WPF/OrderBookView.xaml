@@ -69,7 +69,7 @@
                 MouseDoubleClick="OrderBook_MouseDoubleClick"
                 >
                 <ListView.View>
-                    <GridView ScrollViewer.VerticalScrollBarVisibility="Hidden" ColumnHeaderContainerStyle="{StaticResource GridViewColumnHeaderRight}">
+                    <GridView ScrollViewer.VerticalScrollBarVisibility="Hidden" ColumnHeaderContainerStyle="{StaticResource GridViewColumnHeaderRight}" AllowsColumnReorder="False">
                         <GridView.Columns>
                             <GridViewColumn x:Name="clOrderBookPrice" Width="85">
                                 <GridViewColumn.Header>
