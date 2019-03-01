@@ -29,6 +29,16 @@
         </telerik:RadTabControl>
 
         <DockPanel VerticalAlignment="Top" HorizontalAlignment="Right" Margin="0 2 3 0">
+            <TextBlock
+                Foreground="White"
+                FontFamily="{StaticResource Roboto}"
+                FontSize="15"
+                Padding="12 0"
+                VerticalAlignment="Center">
+                <Run Text="Баланс:"/>
+                <Run Text="{Binding Path=SelectedItem.CurrentAccountViewModel.TotalBtc, Mode=OneWay, ElementName=tab}"/>
+                <Run Text="BTC"/>
+            </TextBlock>
             <telerik:RadButton
                 Click="RadButton_Click"
                 >

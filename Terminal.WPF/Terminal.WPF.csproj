@@ -196,6 +196,7 @@
     <Compile Include="TradingViewChart.xaml.cs">
       <DependentUpon>TradingViewChart.xaml</DependentUpon>
     </Compile>
+    <Compile Include="ViewModels\BinanceViewModelObsolete.cs" />
     <Compile Include="ViewModels\ExchangePrivateDataViewModel.cs" />
     <Compile Include="Views\OpenOrdersView.xaml.cs">
       <DependentUpon>OpenOrdersView.xaml</DependentUpon>

@@ -415,12 +415,12 @@
                                     </Hyperlink>
                                     </TextBlock>
                                     <TextBlock Grid.Column="3" FontWeight="Normal" HorizontalAlignment="Right" TextAlignment="Right" Padding="2 1 3 1">
-                                    <Run Text="{Binding Path=BalanceManager.TotalBtc, Mode=OneWay}"/>
+                                    <Run Text="{Binding Path=CurrentAccountViewModel.TotalBtc, Mode=OneWay}"/>
                                     <Run Text="BTC"/>
                                     </TextBlock>
-                                    <TextBlock Grid.Column="4" Text="{Binding Path=BalanceManager.TotalUsd, Mode=OneWay, StringFormat={StaticResource StringFormatPriceUsd}}" FontWeight="Normal" HorizontalAlignment="Right" TextAlignment="Right" Padding="2 1 3 1"/>
+                                    <TextBlock Grid.Column="4" Text="{Binding Path=CurrentAccountViewModel.TotalUsd, Mode=OneWay, StringFormat={StaticResource StringFormatPriceUsd}}" FontWeight="Normal" HorizontalAlignment="Right" TextAlignment="Right" Padding="2 1 3 1"/>
                                 </Grid>
-                                <ItemsControl ItemsSource="{Binding Path=BalanceManager.Balances, Mode=OneWay}"
+                                <ItemsControl ItemsSource="{Binding Path=CurrentAccountViewModel.Balances, Mode=OneWay}"
                                           FontWeight="Normal" ScrollViewer.VerticalScrollBarVisibility="Auto">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>

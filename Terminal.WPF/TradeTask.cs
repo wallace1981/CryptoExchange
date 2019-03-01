@@ -2,14 +2,12 @@
 using Newtonsoft.Json;
 using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
-using ReactiveUI.Legacy;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Reactive;
 using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -23,12 +21,21 @@ namespace Exchange.Net
     //  TP  Cond:   Bid >= TP && Bid Qty >= TP Qty
     //
 
+    public enum TradeTaskStatus
+    {
+        Running,
+        Finished,
+        Stopped,
+        PanicSell
+    }
+
     public enum OrderKind
     {
         Buy,
         StopLoss,
         TakeProfit,
-        StopLossOrTakeProfit
+        StopLossOrTakeProfit,
+        PanicSell
     }
 
     public enum OrderType
@@ -49,10 +56,10 @@ namespace Exchange.Net
         public string Symbol;
 
         [JsonProperty("ORDER_TYPE")]
-        public OrderType OrderType;
+        public OrderType Type;
 
         [JsonProperty("ORDER_KIND")]
-        public OrderKind OrderKind;
+        public OrderKind Kind;
 
         [JsonProperty("PRICE")]
         public decimal Price;
@@ -90,18 +97,23 @@ namespace Exchange.Net
         [JsonProperty("UPDATED")]
         public DateTime Updated;
 
-        public OrderTask Buy => AllJobs.FirstOrDefault(x => x.OrderKind == OrderKind.Buy);
-        public OrderTask StopLoss => AllJobs.FirstOrDefault(x => x.OrderKind == OrderKind.StopLoss);
-        public IList<OrderTask> TakeProfit => AllJobs.Where(x => x.OrderKind == OrderKind.TakeProfit).ToList();
+        [JsonProperty("STATUS")]
+        public TradeTaskStatus Status;
 
         [JsonProperty("QUEUE")]
-        public Queue<OrderTask> Jobs { get; set; }
+        public List<OrderTask> Jobs { get; set; }
 
         [JsonProperty("PROCESSED")]
         public Queue<OrderTask> FinishedJobs { get; set; }
 
-        [JsonProperty("CURRENT")]
-        public OrderTask Current { get; set; }
+        [JsonProperty("EVENTS")]
+        public IDictionary<DateTime, String> Events { get; set; }
+
+        public IEnumerable<OrderTask> ActiveJobs => Jobs.Where(x => !string.IsNullOrWhiteSpace(x.OrderId));
+
+        public OrderTask Buy => AllJobs.FirstOrDefault(x => x.Kind == OrderKind.Buy);
+        public OrderTask StopLoss => AllJobs.FirstOrDefault(x => x.Kind == OrderKind.StopLoss);
+        public IList<OrderTask> TakeProfit => AllJobs.Where(x => x.Kind == OrderKind.TakeProfit).ToList();
 
         public DateTime LastGetOrder = DateTime.MinValue;
         public SemaphoreSlim locker = new SemaphoreSlim(1, 1);
@@ -126,15 +138,17 @@ namespace Exchange.Net
         public decimal BuyQty => BuyTrades.Sum(x => x.Quantity);
         public decimal SellQty => SellTrades.Sum(x => x.Quantity);
 
-        protected IEnumerable<OrderTask> AllJobs => Jobs.Concat(FinishedJobs).Concat(new[] { Current }).Where(x => x != null);
+        protected IEnumerable<OrderTask> AllJobs => Jobs.Concat(FinishedJobs);
 
         public TradeTask(IEnumerable<OrderTrade> exchangeTrades = null)
         {
             Trades = new SourceCache<OrderTrade, string>(x => x.Id);
+            Events = new Dictionary<DateTime, string>();
             if (exchangeTrades != null)
                 Trades.Edit(innerList => innerList.AddOrUpdate(exchangeTrades));
-            Jobs = new Queue<OrderTask>();
+            Jobs = new List<OrderTask>();
             FinishedJobs = new Queue<OrderTask>();
+            Events = new Dictionary<DateTime, string>();
         }
 
         public void RegisterTrade(OrderTrade trade)
@@ -360,13 +374,13 @@ namespace Exchange.Net
         {
             Buy.Model.Symbol = SymbolInformation.Symbol;
             Buy.Model.Side = TradeSide.Buy;
-            Buy.Model.OrderKind = OrderKind.Buy;
-            Buy.Model.OrderType = IsMarketBuy ? OrderType.MARKET : OrderType.LIMIT;
+            Buy.Model.Kind = OrderKind.Buy;
+            Buy.Model.Type = IsMarketBuy ? OrderType.MARKET : OrderType.LIMIT;
 
             StopLoss.Model.Symbol = SymbolInformation.Symbol;
             StopLoss.Model.Side = TradeSide.Sell;
-            StopLoss.Model.OrderKind = OrderKind.StopLoss;
-            StopLoss.Model.OrderType = IsLimitStop ? OrderType.STOP_LIMIT : OrderType.MARKET;
+            StopLoss.Model.Kind = OrderKind.StopLoss;
+            StopLoss.Model.Type = IsLimitStop ? OrderType.STOP_LIMIT : OrderType.MARKET;
             StopLoss.Quantity = Buy.Quantity;
 
             Debug.Assert(Buy.Model.Quantity >= SymbolInformation.MinQuantity);
@@ -377,8 +391,8 @@ namespace Exchange.Net
             {
                 tp.Model.Symbol = SymbolInformation.Symbol;
                 tp.Model.Side = TradeSide.Sell;
-                tp.Model.OrderKind = OrderKind.TakeProfit;
-                tp.Model.OrderType = OrderType.MARKET;
+                tp.Model.Kind = OrderKind.TakeProfit;
+                tp.Model.Type = OrderType.MARKET;
                 if (tp.QuantityPercent > 0.01)
                 {
                     tp.Quantity = SymbolInformation.ClampQuantity(Buy.Quantity * (decimal)tp.QuantityPercent);
@@ -419,18 +433,19 @@ namespace Exchange.Net
                     return false;
             }
 
-            Model.Jobs.Enqueue(Buy.Model);
+            Model.Jobs.Add(Buy.Model);
             foreach (var tp in TakeProfitCollection)
             {
                 // NOTE: if SL is TRAILING by STEPS,
                 // then create new object with corresponding price
                 // for every TP.
-                Model.Jobs.Enqueue(StopLoss.Model);
-                Model.Jobs.Enqueue(tp.Model);
+                Model.Jobs.Add(StopLoss.Model);
+                Model.Jobs.Add(tp.Model);
             }
 
             Model.Created = DateTime.Now;
             Model.Updated = DateTime.Now;
+            Model.Events.Add(Model.Created, "Task created.");
 
             SerializeModel(Model);
 

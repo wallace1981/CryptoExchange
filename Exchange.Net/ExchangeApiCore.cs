@@ -13,6 +13,7 @@ namespace Exchange.Net
     {
         private SecureString apiKey;
         private SecureString apiSecret;
+        private object locker = new object();
 
         protected SecureString ApiKey
         {
@@ -106,7 +107,10 @@ namespace Exchange.Net
 
         protected byte[] SignString(string value)
         {
-            return encryptor.ComputeHash(Encoding.UTF8.GetBytes(value));
+            lock (locker)
+            {
+                return encryptor.ComputeHash(Encoding.UTF8.GetBytes(value));
+            }
         }
 
         protected static string ByteArrayToHexString(byte[] value)

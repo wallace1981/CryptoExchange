@@ -14,12 +14,10 @@ using System.Linq;
 using System.Reactive;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
-using System.Reactive.Subjects;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Data;
 using System.Windows.Input;
-using Terminal.WPF;
 
 namespace Exchange.Net
 {
@@ -27,6 +25,7 @@ namespace Exchange.Net
     {
 
         // NOTE: below props should be NORMAL props since they has to be changed from UI.
+        public abstract string ExchangeName { get; }
         public virtual int OrderBookMaxItemCount { get; set; } = 25;
         public TimeSpan OrderBookRetrieveInterval => TimeSpan.FromSeconds(3);
         public int TradesMaxItemCount { get; set; } = 50;
@@ -34,85 +33,60 @@ namespace Exchange.Net
         public string PriceTickerFilter { get; set; }
         public TimeSpan PriceTickerRetrieveInterval => TimeSpan.FromSeconds(1);
 
-        [Reactive]
-        public bool IsActive { get; set; }
-
-        [Reactive]
-        public bool IsInitializing { get; set; }
-
-        [Reactive]
-        public bool IsLoadingOrderBook { get; set; }
-
-        [Reactive]
-        public bool IsLoadingTrades { get; set; }
-
-        [Reactive]
-        public string Status { get; set; }
-
-        public bool IsBusy
-        {
-            get { return Interlocked.Read(ref this.busyCounter) > 0L; }
-        }
-
-        [Reactive]
-        public string CurrentMarket { get; set; }
-
-        public string CurrentSymbol
-        {
-            get { return this.currentSymbol; }
-            set { if (value != null) this.RaiseAndSetIfChanged(ref this.currentSymbol, value); }
-        }
-
-        [Reactive]
-        public SymbolInformation CurrentSymbolInformation { get; set; }
-
-        public PriceTicker CurrentSymbolTickerPrice
-        {
-            get { return this.currentSymboTickerPrice; }
-            set { if (value != null) this.RaiseAndSetIfChanged(ref this.currentSymboTickerPrice, value); }
-        }
-
-        [Reactive]
-        public string CurrentMarketSummariesPeriod { get; set; }
-
-        [Reactive]
-        public string MarketFilter { get; set; }
-
-        [Reactive]
-        public TimeSpan RefreshMarketSummariesElapsed { get; set; }
-
-        [Reactive]
-        public TimeSpan RefreshTradesElapsed { get; set; }
-
-        [Reactive]
-        public TimeSpan RefreshDepositsElapsed { get; set; }
-
-        [Reactive]
-        public int OrderBookMergeDecimals { get; set; }
-
         public virtual int[] OrderBookMergeDecimalsList => new int[] { 10, 0, 1, 2, 3, 4, 5, 6, 7, 8 };
         public virtual int[] OrderBookSizeList => new int[] { 5, 10, 25, 50, 100 };
         public virtual int[] RecentTradesSizeList => new int[] { 5, 10, 25, 50, 100 };
         public TradeSide[] TradeSides => new TradeSide[] { TradeSide.Buy, TradeSide.Sell };
-
         // Public Data
         public IEnumerable<SymbolInformation> Markets => marketsMapping?.Values;
         public ReactiveList<string> MarketAssets => marketAssets;
         public ReactiveList<PriceTicker> MarketSummaries => marketSummaries;
         public ReactiveList<PublicTrade> RecentTrades => recentTrades;
         public OrderBook OrderBook { get; }
-
+        public string CurrentSymbol
+        {
+            get { return this.currentSymbol; }
+            set { if (value != null) this.RaiseAndSetIfChanged(ref this.currentSymbol, value); }
+        }
+        public PriceTicker CurrentSymbolTickerPrice
+        {
+            get { return this.currentSymboTickerPrice; }
+            set { if (value != null) this.RaiseAndSetIfChanged(ref this.currentSymboTickerPrice, value); }
+        }
         public ReactiveList<TradingRuleProxy> TradingRuleProxies => tradingRuleProxies;
-        // Private Data
         public SourceCache<ExchangeAccount, string> Accounts { get; }
         public ReadOnlyObservableCollection<ExchangeAccountViewModel> AccountsViewModels => accViewModels;
-        private ReadOnlyObservableCollection<ExchangeAccountViewModel> accViewModels;
+
+        [Reactive] public bool IsActive { get; set; }
+        [Reactive] public bool IsInitializing { get; set; }
+        [Reactive] public bool IsLoadingOrderBook { get; set; }
+        [Reactive] public bool IsLoadingTrades { get; set; }
+        [Reactive] public bool TickersSubscribed { get; set; }
+        [Reactive] public bool TradesSubscribed { get; set; }
+        [Reactive] public bool DepthSubscribed { get; set; }
+        [Reactive] public bool PrivateDataSubscribed { get; set; }
+        [Reactive] public string Status { get; set; }
+        [Reactive] public string CurrentMarket { get; set; }
+        [Reactive] public string CurrentMarketSummariesPeriod { get; set; }
+        [Reactive] public string MarketFilter { get; set; }
+        [Reactive] public TimeSpan RefreshMarketSummariesElapsed { get; set; }
+        [Reactive] public TimeSpan RefreshTradesElapsed { get; set; }
+        [Reactive] public TimeSpan RefreshDepositsElapsed { get; set; }
+        [Reactive] public int OrderBookMergeDecimals { get; set; }
+        [Reactive] public double GetExchangeInfoElapsed { get; set; }
+        [Reactive] public double GetTickersElapsed { get; set; }
+        [Reactive] public double GetTradesElapsed { get; set; }
+        [Reactive] public double GetDepthElapsed { get; set; }
+        [Reactive] public SymbolInformation CurrentSymbolInformation { get; set; }
         [Reactive] public ExchangeAccount CurrentAccount { get; set; }
         [Reactive] public ExchangeAccountViewModel CurrentAccountViewModel { get; set; }
+        [ObservableAsProperty] public bool IsGetOpenOrdersExecuting { get; }
+
+
+
 
         protected abstract string DefaultMarket { get; }
         protected List<string> UsdAssets = new List<string>();
-        public abstract string ExchangeName { get; }
 
         protected virtual bool HasMarketSummariesPull => true;
         protected virtual bool HasMarketSummariesPush => false;
@@ -121,13 +95,34 @@ namespace Exchange.Net
         protected virtual bool HasOrderBookPull => true;
         protected virtual bool HasOrderBookPush => false;
 
+        public ReactiveCommand<string, Unit> SetCurrentMarketCommand { get; private set; }
+        public ReactiveCommand<string, Unit> SetCurrentSymbolCommand { get; private set; }
+        public ReactiveCommand<bool, Unit> SetActiveCommand { get; private set; }
+        public ReactiveCommand<long, IEnumerable<SymbolInformation>> GetMarketsCommand { get; private set; }
+        public ICommand GetOrderBookCommand { get; private set; }
+        public ReactiveCommand<Unit, Unit> GetOpenOrders { get; private set; }
+        public ReactiveCommand<Unit, Unit> GetDeposits { get; private set; }
+        public ReactiveCommand<Unit, Unit> GetWithdrawals { get; private set; }
+        public ReactiveCommand<Unit, Unit> GetOrdersHistory { get; private set; }
+        public ReactiveCommand<Unit, Unit> GetTradesHistory { get; private set; }
+        public ReactiveCommand<Unit, Unit> GetBalance { get; private set; }
+        public ReactiveCommand<string, Unit> CancelOrderCommand { get; private set; }
+        public ReactiveCommand<NewOrder, Unit> SubmitOrderCommand { get; private set; }
+        public ReactiveCommand<int, Unit> RefreshCommand { get; private set; }
+        public ReactiveCommand<Unit, Unit> RefreshPrivateDataCommand { get; private set; }
+        public ReactiveCommand<Unit, Unit> GetExchangeInfo { get; private set; }
+        public ReactiveCommand<Unit, Unit> GetTickers { get; private set; }
+        public ReactiveCommand<Unit, Unit> GetTradesCommand { get; private set; }
+        public ReactiveCommand<Unit, Unit> GetDepthCommand { get; private set; }
+
+
         ReactiveList<PublicTrade> recentTrades;
         ReactiveList<PriceTicker> marketSummaries;
         ReactiveList<string> marketAssets;
         ReactiveList<TradingRuleProxy> tradingRuleProxies = new ReactiveList<TradingRuleProxy>();
         string currentSymbol;
         PriceTicker currentSymboTickerPrice;
-        long busyCounter;
+        private ReadOnlyObservableCollection<ExchangeAccountViewModel> accViewModels;
 
 #if !GTK
         readonly ViewModelActivator viewModelActivator = new ViewModelActivator();
@@ -219,30 +214,6 @@ namespace Exchange.Net
             });
         }
 
-        public ReactiveCommand<string, Unit> SetCurrentMarketCommand { get; private set; }
-        public ReactiveCommand<string, Unit> SetCurrentSymbolCommand { get; private set; }
-        public ReactiveCommand<bool, Unit> SetActiveCommand { get; private set; }
-        // Public functionality
-        public ReactiveCommand<long, IEnumerable<SymbolInformation>> GetMarketsCommand { get; private set; }
-        //public ICommand GetTickersCommand => getTickersCommand;
-        //public ICommand GetTradesCommand { get; }
-        public ICommand GetOrderBookCommand { get; private set; }
-        // Signed functionality
-        public ReactiveCommand<Unit, Unit> GetOpenOrders { get; private set; }
-        public ReactiveCommand<Unit, Unit> GetDeposits { get; private set; }
-        public ReactiveCommand<Unit, Unit> GetWithdrawals { get; private set; }
-        public ReactiveCommand<Unit, Unit> GetOrdersHistory { get; private set; }
-        public ReactiveCommand<Unit, Unit> GetTradesHistory { get; private set; }
-        public ReactiveCommand<Unit, Unit> GetBalance { get; private set; }
-        public ReactiveCommand<string, Unit> CancelOrderCommand { get; private set; }
-        public ReactiveCommand<NewOrder, Unit> SubmitOrderCommand { get; private set; }
-        public ReactiveCommand<int, Unit> RefreshCommand { get; private set; }
-        public ReactiveCommand<Unit, Unit> RefreshPrivateDataCommand { get; private set; }
-
-        [ObservableAsProperty]
-        public bool IsGetOpenOrdersExecuting { get; }
-
-
         private async void OnCommandException(Exception ex)
         {
             await ShowException.Handle(ex);
@@ -257,15 +228,6 @@ namespace Exchange.Net
             //else
             //    ;// Run();
             //isActive = !isActive;
-        }
-
-        private void UpdateBusyCount(bool busy)
-        {
-            if (busy)
-                Interlocked.Increment(ref busyCounter);
-            else
-                Interlocked.Decrement(ref busyCounter);
-            this.RaisePropertyChanged(nameof(IsBusy));
         }
 
         public SymbolInformation GetSymbolInformation(string symbol)
@@ -599,7 +561,7 @@ namespace Exchange.Net
 
         protected void SubscribeCommandIsExecuting(ReactiveCommand<long, DateTime> cmd)
         {
-            Disposables.Add(cmd.IsExecuting.Skip(1).Subscribe(x => UpdateBusyCount(x)));
+            //Disposables.Add(cmd.IsExecuting.Skip(1).Subscribe(x => UpdateBusyCount(x)));
         }
 
         protected void ProcessExchangeInfo(IEnumerable<SymbolInformation> markets)
@@ -1114,30 +1076,9 @@ namespace Exchange.Net
         // *************************
         // V3
 
-        [Reactive] public double GetExchangeInfoElapsed { get; set; }
-
-        [Reactive] public double GetTickersElapsed { get; set; }
-
-        [Reactive] public double GetTradesElapsed { get; set; }
-
-        [Reactive] public double GetDepthElapsed { get; set; }
-
-        public ReactiveCommand<Unit, Unit> GetExchangeInfo { get; private set; }
-        public ReactiveCommand<Unit, Unit> GetTickers { get; private set; }
-        public ReactiveCommand<Unit, Unit> GetTradesCommand { get; private set; }
-        public ReactiveCommand<Unit, Unit> GetDepthCommand { get; private set; }
-
-        [Reactive] public bool TickersSubscribed { get; set; }
-
-        [Reactive] public bool TradesSubscribed { get; set; }
-
-        [Reactive] public bool DepthSubscribed { get; set; }
-
-        [Reactive] public bool PrivateDataSubscribed { get; set; }
 
         protected void Initialize(CompositeDisposable disposables)
         {
-
             InitializeAsync(disposables);
         }
 
@@ -1158,6 +1099,12 @@ namespace Exchange.Net
                 .Where(x => x.IsEnabled)
                 .Select(x => x.Model)
                 .InvokeCommand(TradeTaskLifecycle)
+                .DisposeWith(disposables);
+
+            Observable
+                .Timer(TimeSpan.Zero, TimeSpan.FromSeconds(6))
+                .Select(x => Unit.Default)
+                .InvokeCommand(GetBalance)
                 .DisposeWith(disposables);
         }
 

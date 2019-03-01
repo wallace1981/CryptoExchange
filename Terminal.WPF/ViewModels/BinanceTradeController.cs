@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -6,40 +7,6 @@ namespace Exchange.Net
 {
     public partial class BinanceViewModel
     {
-       /* protected async override Task<Order> GetOrder(Order order)
-        {
-            // don't fuck the brain!
-            if (order.Status == OrderStatus.Filled)
-                return order;
-
-            var apiResult = await client.QueryOrderAsync(order.SymbolInformation.Symbol, long.Parse(order.OrderId)).ConfigureAwait(false);
-            if (apiResult.Success)
-            {
-                var x = apiResult.Data;
-                var result = new Order(GetSymbolInformation(x.symbol))
-                {
-                    OrderId = x.orderId.ToString(),
-                    Price = x.price,
-                    Quantity = x.origQty,
-                    Side = x.side == Binance.TradeSide.BUY.ToString() ? TradeSide.Buy : TradeSide.Sell,
-                    StopPrice = x.stopPrice,
-                    Created = x.time.FromUnixTimestamp(),
-                    Updated = x.updateTime.FromUnixTimestamp(),
-                    Status = Convert(x.status),
-                    Type = x.type
-                };
-                if (result.Updated > order.Updated)
-                {
-                    result.Fills = await GetOrderTrades(result);
-                }
-                return result;
-            }
-            else
-            {
-                throw new ApiException(apiResult.Error);
-            }
-        } */
-
         protected async override Task<Order> GetOrder(OrderTask job)
         {
             // don't fuck the brain!
@@ -49,22 +16,10 @@ namespace Exchange.Net
             var apiResult = await client.QueryOrderAsync(job.Symbol, long.Parse(job.OrderId)).ConfigureAwait(false);
             if (apiResult.Success)
             {
-                var x = apiResult.Data;
-                var result = new Order(GetSymbolInformation(x.symbol))
-                {
-                    OrderId = x.orderId.ToString(),
-                    Price = x.price,
-                    Quantity = x.origQty,
-                    Side = x.side == Binance.TradeSide.BUY.ToString() ? TradeSide.Buy : TradeSide.Sell,
-                    StopPrice = x.stopPrice,
-                    Created = x.time.FromUnixTimestamp(),
-                    Updated = x.updateTime.FromUnixTimestamp(),
-                    Status = Convert(x.status),
-                    Type = x.type
-                };
+                var result = Convert(apiResult.Data);
                 if (job.ExchangeOrder == null || result.Updated > job.ExchangeOrder.Updated)
                 {
-                    result.Fills = await GetOrderTrades(result);
+                    result.Fills.AddRange(await GetOrderTrades(result));
                 }
                 return result;
             }
@@ -75,7 +30,7 @@ namespace Exchange.Net
         }
 
 
-        protected async override Task<OrderTrade[]> GetOrderTrades(Order order)
+        protected async override Task<IReadOnlyCollection<OrderTrade>> GetOrderTrades(Order order)
         {
             var result = await client.GetAccountTradesAsync(order.SymbolInformation.Symbol, start: order.Created.ToUnixTimestamp()).ConfigureAwait(false);
             if (result.Success)
@@ -90,7 +45,7 @@ namespace Exchange.Net
                     Quantity = x.qty,
                     Timestamp = x.time.FromUnixTimestamp(),
                     Side = x.isBuyer ? TradeSide.Buy : TradeSide.Sell
-                }).ToArray();
+                }).ToList();
             }
             else
             {
@@ -103,41 +58,14 @@ namespace Exchange.Net
             var result = await client.PlaceOrderAsync(
                 job.Symbol,
                 job.Side == TradeSide.Buy ? Binance.TradeSide.BUY : Binance.TradeSide.SELL,
-                Convert(job.OrderType),
+                Convert(job.Type),
                 job.Quantity,
-                job.OrderType == OrderType.LIMIT || job.OrderType == OrderType.STOP_LIMIT ? job.Price : default(decimal?),
-                job.OrderType == OrderType.STOP_LIMIT ? job.Price : default(decimal?)
-            );
+                job.Type == OrderType.LIMIT || job.Type == OrderType.STOP_LIMIT ? job.Price : default(decimal?),
+                job.Type == OrderType.STOP_LIMIT ? job.Price : default(decimal?)
+            ).ConfigureAwait(false);
             if (result.Success)
             {
-                var x = result.Data;
-                var si = GetSymbolInformation(x.symbol);
-                var order = new Order(si)
-                {
-                    OrderId = x.orderId.ToString(),
-                    Price = x.price,
-                    Quantity = x.origQty,
-                    ExecutedQuantity = x.executedQty,
-                    Side = (x.side == Binance.TradeSide.BUY.ToString()) ? TradeSide.Buy : TradeSide.Sell,
-                    Created = x.transactTime.FromUnixTimestamp(),
-                    Updated = x.transactTime.FromUnixTimestamp(),
-                    Status = Convert(x.status),
-                    Type = x.type
-                };
-                if (x.fills?.Length > 0)
-                {
-                    order.Fills = x.fills
-                        .Select(t => new OrderTrade(si)
-                        {
-                            Id = t.tradeId.ToString(),
-                            OrderId = x.orderId.ToString(),
-                            Comission = t.comission,
-                            ComissionAsset = t.comissionAsset,
-                            Price = t.price,
-                            Quantity = t.qty
-                        }).ToArray();
-                }
-                return order;
+                return Convert(result.Data);
             }
             else
             {

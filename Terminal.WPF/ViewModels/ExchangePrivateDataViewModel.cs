@@ -8,6 +8,8 @@ using System.Text;
 using System.Threading.Tasks;
 using DynamicData;
 using Exchange.Net;
+using ReactiveUI;
+using ReactiveUI.Fody.Helpers;
 
 namespace Exchange.Net
 {
@@ -36,7 +38,7 @@ namespace Exchange.Net
         public ExchangeApiCore Client { get; }
     }
 
-    public class ExchangeAccountViewModel : IDisposable
+    public class ExchangeAccountViewModel : ReactiveObject, IDisposable
     {
         public ExchangeAccount Account { get; }
 
@@ -45,6 +47,9 @@ namespace Exchange.Net
         public ReadOnlyObservableCollection<Order> OpenOrders => openOrders;
         public ReadOnlyObservableCollection<Order> OrdersHistory => ordersHistory;
         public ReadOnlyObservableCollection<Balance> Balances => balances;
+
+        [ObservableAsProperty] public decimal TotalBtc { get; }
+        [ObservableAsProperty] public decimal TotalUsd { get; }
 
         public ExchangeAccountViewModel(ExchangeAccount acc)
         {
@@ -73,12 +78,18 @@ namespace Exchange.Net
                 .Subscribe()
                 .DisposeWith(disposables);
 
-            //Account.BalanceManager.Balances.Connect()
-            //    .ObserveOnDispatcher()
-            //    .Bind(out balances)
-            //    .Subscribe()
-            //    .DisposeWith(diposables);
+            Account.BalanceManager.Balances.Connect()
+                .ObserveOnDispatcher()
+                .Bind(out balances)
+                .Subscribe()
+                .DisposeWith(disposables);
+
+            this.WhenAnyValue(x => x.Account.BalanceManager.TotalBtc)
+                .ToPropertyEx(this, vm => vm.TotalBtc);
+            this.WhenAnyValue(x => x.Account.BalanceManager.TotalUsd)
+                .ToPropertyEx(this, vm => vm.TotalUsd);
         }
+
         private ReadOnlyObservableCollection<Transfer> deposits;
         private ReadOnlyObservableCollection<Transfer> withdrawals;
         private ReadOnlyObservableCollection<Order> openOrders;

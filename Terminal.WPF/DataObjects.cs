@@ -1,8 +1,10 @@
-﻿using ReactiveUI;
+﻿using DynamicData;
+using ReactiveUI;
 using ReactiveUI.Legacy;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reactive.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -197,10 +199,12 @@ namespace Exchange.Net
 
     public class BalanceManager : ReactiveObject
     {
-        public ReactiveList<Balance> Balances { get; } = new ReactiveList<Balance>();
+        // TODO: expose only IObservableCache
+        public SourceCache<Balance, string> Balances { get; } = new SourceCache<Balance, string>(x => x.Asset);
+        //public IObservable<IChangeSet<Balance,string>> Stream { get; }
 
-        public decimal TotalBtc { get => Math.Round(Balances.Sum(b => b.TotalBtc), 8); }
-        public decimal TotalUsd { get => Math.Round(Balances.Sum(b => b.TotalUsd), 2); }
+        public decimal TotalBtc { get => Math.Round(Balances.Items.Sum(b => b.TotalBtc), 8); }
+        public decimal TotalUsd { get => Math.Round(Balances.Items.Sum(b => b.TotalUsd), 2); }
         public decimal BtcUsd
         {
             get => btcUsd;
@@ -209,27 +213,18 @@ namespace Exchange.Net
 
         public BalanceManager()
         {
+
+            //Stream = Balances.Connect();
             this.ObservableForProperty(m => m.BtcUsd).Subscribe(
                 x =>
                 {
-                    Balances.ToList().ForEach(b => { if (!b.HasUsdPair) b.BtcUsd = x.Value; });
+                    Balances.Items.ToList().ForEach(b => { if (!b.HasUsdPair) b.BtcUsd = x.Value; });
                 });
         }
 
         public void AddUpdateBalance(Balance balance)
         {
-            if (Balances.Any(b => b.Asset == balance.Asset))
-            {
-                // update
-                var current = Balances.SingleOrDefault(b => b.Asset == balance.Asset);
-                current.Free = balance.Free;
-                current.Locked = balance.Locked;
-            }
-            else
-            {
-                // add
-                Balances.Add(balance);
-            }
+            Balances.AddOrUpdate(balance);
             UpdatePercentages();
             this.RaisePropertyChanged(nameof(TotalBtc));
             this.RaisePropertyChanged(nameof(TotalUsd));
@@ -240,7 +235,7 @@ namespace Exchange.Net
             var copyTotalBtc = TotalBtc;
             if (copyTotalBtc > Decimal.Zero)
             {
-                foreach (var balance in Balances.Where(b => b.Total > decimal.Zero))
+                foreach (var balance in Balances.Items.Where(b => b.Total > decimal.Zero))
                 {
                     balance.UpdatePercentage(copyTotalBtc);
                 }
@@ -260,10 +255,10 @@ namespace Exchange.Net
             if (symbol.EndsWith(Balance.BTC, StringComparison.CurrentCultureIgnoreCase))
             {
                 var asset = symbol.Replace(Balance.BTC, String.Empty);
-                var balance = Balances.SingleOrDefault(b => b.Asset == asset);
-                if (balance != null)
+                var balance = Balances.Lookup(asset);
+                if (balance.HasValue)
                 {
-                    balance.PriceBtc = price;
+                    balance.Value.PriceBtc = price;
                     result = true;
                     UpdatePercentages();
                 }
@@ -271,10 +266,10 @@ namespace Exchange.Net
             if (symbol.EndsWith(Balance.ETH, StringComparison.CurrentCultureIgnoreCase))
             {
                 var asset = symbol.Replace(Balance.ETH, String.Empty);
-                var balance = Balances.SingleOrDefault(b => b.Asset == asset);
-                if (balance != null)
+                var balance = Balances.Lookup(asset);
+                if (balance.HasValue)
                 {
-                    balance.PriceEth = price;
+                    balance.Value.PriceEth = price;
                     result = true;
                 }
             }
@@ -282,18 +277,18 @@ namespace Exchange.Net
                 symbol.EndsWith(Balance.USDT, StringComparison.CurrentCultureIgnoreCase))
             {
                 var asset = symbol.Replace(Balance.USDT, String.Empty).Replace(Balance.USD, String.Empty);
-                var balance = Balances.SingleOrDefault(b => b.Asset == asset);
-                if (balance != null)
+                var balance = Balances.Lookup(asset);
+                if (balance.HasValue)
                 {
-                    balance.PriceUsd = price;
+                    balance.Value.PriceUsd = price;
                     result = true;
                 }
                 if (asset == Balance.BTC)
                 {
-                    balance = Balances.SingleOrDefault(b => b.Asset == "USD");
-                    if (balance != null) balance.PriceBtc = price;
-                    balance = Balances.SingleOrDefault(b => b.Asset == "USDT");
-                    if (balance != null) balance.PriceBtc = price;
+                    balance = Balances.Lookup("USD");
+                    if (balance.HasValue) balance.Value.PriceBtc = price;
+                    balance = Balances.Lookup("USDT");
+                    if (balance.HasValue) balance.Value.PriceBtc = price;
                 }
             }
             this.RaisePropertyChanged(nameof(TotalBtc));
@@ -852,6 +847,7 @@ namespace Exchange.Net
         public Order(SymbolInformation si) : base(si.PriceDecimals, si.QuantityDecimals)
         {
             this.SymbolInformation = si;
+            this.Fills = new List<OrderTrade>();
             this.ObservableForProperty(x => x.LastPrice).Subscribe(y => this.RaisePropertyChanged(nameof(Profit)));
         }
 
@@ -873,7 +869,7 @@ namespace Exchange.Net
         }
         public decimal Profit => (LastPrice - Price) * Quantity * (Side == TradeSide.Sell ? -1m : 1m);
         public OrderStatus Status { get; set; }
-        public OrderTrade[] Fills { get; set; }
+        public List<OrderTrade> Fills { get; }
 
         private decimal lastPrice;
         private decimal executedQuantity;

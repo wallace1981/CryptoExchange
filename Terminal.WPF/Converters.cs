@@ -182,9 +182,9 @@ namespace Terminal.WPF
             var v = values[0];
             var fmt = values[1] as string;
             return v.ToString();
-            if (v?.GetType() != typeof(decimal) && v?.GetType() != typeof(decimal?))
-                return v;
-            return ((decimal)v).ToString(fmt);
+            //if (v?.GetType() != typeof(decimal) && v?.GetType() != typeof(decimal?))
+            //    return v;
+            //return ((decimal)v).ToString(fmt);
         }
 
         public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
