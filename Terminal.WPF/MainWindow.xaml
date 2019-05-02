@@ -4,8 +4,8 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:Terminal.WPF"
-        xmlns:telerik="http://schemas.telerik.com/2008/xaml/presentation"
         xmlns:rxui="http://reactiveui.net"
+        xmlns:dragablz="http://dragablz.net/winfx/xaml/dragablz"
         mc:Ignorable="d"
         UseLayoutRounding="True"
         SnapsToDevicePixels="False"
@@ -14,24 +14,22 @@
         RenderOptions.ClearTypeHint="Auto"
         Title="Terminal.WPF" Height="800" Width="1280">
     <Grid>
-        
-        <telerik:RadTabControl
+
+        <dragablz:TabablzControl
             x:Name="tab"
-            IsContentPreserved="True"
             Visibility="Visible"
             ContentTemplate="{StaticResource rxuiViewModelHostTemplate}">
-            <telerik:RadTabControl.ItemTemplate>
+            <dragablz:TabablzControl.HeaderItemTemplate>
                 <DataTemplate>
                     <TextBlock Margin="8,0,0,0" Text="{Binding Path=ExchangeName, Mode=OneTime}" />
                 </DataTemplate>
-            </telerik:RadTabControl.ItemTemplate>
+            </dragablz:TabablzControl.HeaderItemTemplate>
             
-        </telerik:RadTabControl>
+        </dragablz:TabablzControl>
 
-        <DockPanel VerticalAlignment="Top" HorizontalAlignment="Right" Margin="0 2 3 0">
+        <DockPanel VerticalAlignment="Top" HorizontalAlignment="Right" Margin="0 0 0 0">
             <TextBlock
-                Foreground="White"
-                FontFamily="{StaticResource Roboto}"
+                FontFamily="{StaticResource RobotoCondensed}"
                 FontSize="15"
                 Padding="12 0"
                 VerticalAlignment="Center">
@@ -39,17 +37,17 @@
                 <Run Text="{Binding Path=SelectedItem.CurrentAccountViewModel.TotalBtc, Mode=OneWay, ElementName=tab}"/>
                 <Run Text="BTC"/>
             </TextBlock>
-            <telerik:RadButton
+            <Button
                 Click="RadButton_Click"
                 >
                 <TextBlock Text="API"/>
-            </telerik:RadButton>
-            <telerik:RadToggleButton
+            </Button>
+            <ToggleButton
                 DataContext="{Binding ElementName=tab, Path=SelectedItem}"
                 IsChecked="{Binding Path=IsActive, Mode=TwoWay}"
                 Command="{Binding Path=SetActiveCommand, Mode=OneWay}"
                 CommandParameter="{Binding RelativeSource={RelativeSource Self}, Path=IsChecked, Mode=OneWay}"
-            >Start/Stop</telerik:RadToggleButton>
+            >Start/Stop</ToggleButton>
         </DockPanel>
 
         <!--<local:OrderBookView/>-->

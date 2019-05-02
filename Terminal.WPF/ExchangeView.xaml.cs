@@ -1,9 +1,11 @@
 ﻿using Exchange.Net;
 using ReactiveUI;
 using System.Reactive;
+using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using Telerik.Windows.Controls;
 
 namespace Terminal.WPF
 {
@@ -32,9 +34,8 @@ namespace Terminal.WPF
                 //d(this.OneWayBind(this.ViewModel, vm => vm.Withdrawals, v => v.grdWithdrawals.ItemsSource));
                 //d(this.Bind(this.ViewModel, vm => vm.MarketFilter, v => v.txtMarketFilter.Text));
                 //d(this.OneWayBind(this.ViewModel, vm => vm, v => v.brdFunds.DataContext));
-                disposables(this.OneWayBind(this.ViewModel, x => x, x => x.priceTicker.DataContext));
-                disposables(this
-                    .ViewModel
+                this.OneWayBind(this.ViewModel, x => x, x => x.priceTicker.DataContext).DisposeWith(disposables);
+                this.ViewModel
                     .CreateTask
                     .RegisterHandler(
                         interaction =>
@@ -47,7 +48,7 @@ namespace Terminal.WPF
                                 ShowInTaskbar = false,
                                 ShowActivated = true,
                                 SizeToContent = SizeToContent.WidthAndHeight,
-                                Title = "Create Task",
+                                Title = "Новый трейд",
                                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
                                 WindowStyle = WindowStyle.ToolWindow
                             };
@@ -56,16 +57,23 @@ namespace Terminal.WPF
                                 var result = wnd.ShowDialog();
                                 interaction.SetOutput(result.GetValueOrDefault());
                             }, RxApp.MainThreadScheduler);
-                        }));
-                disposables(this
-                    .ViewModel
+                        }).DisposeWith(disposables);
+                this.ViewModel
+                    .Confirm
+                    .RegisterHandler(
+                        interaction =>
+                        {
+                            var result = MessageBox.Show(Application.Current.MainWindow, interaction.Input, "Подтверждение", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                            interaction.SetOutput(result == MessageBoxResult.Yes);
+                        }).DisposeWith(disposables);
+                this.ViewModel
                     .ShowException
                     .RegisterHandler(
                         interaction =>
                         {
                             MessageBox.Show(Application.Current.MainWindow, interaction.Input.Message, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                             interaction.SetOutput(Unit.Default);
-                        }));
+                        }).DisposeWith(disposables);
             });
         }
 
@@ -84,6 +92,10 @@ namespace Terminal.WPF
         public static readonly DependencyProperty ViewModelProperty =
             DependencyProperty.Register("ViewModel", typeof(ExchangeViewModel), typeof(ExchangeView));
 
+        private void OrderBookView_Loaded(object sender, RoutedEventArgs e)
+        {
+
+        }
     }
 }
 

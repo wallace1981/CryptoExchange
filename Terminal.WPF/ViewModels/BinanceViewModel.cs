@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Reactive;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Reactive.Threading.Tasks;
@@ -29,10 +30,11 @@ namespace Exchange.Net
         // NOTE: below is SYMBOL dependant.
         public override string[] OrderTypes => new string[] { "LIMIT", "LIMIT_MAKER", "MARKET", "STOP_LOSS_LIMIT", "TAKE_PROFIT_LIMIT" };
         //5, 10, 20, 50, 100, 500, 1000
-        protected override bool HasTradesPush => true;
-        protected override bool HasOrderBookPush => true;
+        protected override bool HasTradesPush => false;
+        protected override bool HasOrderBookPush => false;
         [Reactive] public DateTime ServerTime { get; set; }
-        public ICommand GetServerTimeCommand => getServerTimeCommand;
+        //public ICommand GetServerTimeCommand => getServerTimeCommand;
+        private ReactiveCommand<Unit, Unit> GetServerTime { get; }
 
         public BinanceViewModel()
         {
@@ -41,8 +43,9 @@ namespace Exchange.Net
             CurrentAccount = defaultAccount;
 
             //getServerTimeCommand = ReactiveCommand.CreateFromTask<long, DateTime>(x => GetServerTimeAsync());
+            GetServerTime = ReactiveCommand.CreateFromTask(GetServerTimeImpl);
 
-            //this.WhenActivated(registerDisposable =>
+            //this.WhenActivated(disposables =>
             //{
             //registerDisposable(getServerTimeCommand);
 
@@ -55,12 +58,43 @@ namespace Exchange.Net
             //var tickers = resultTickers.Data.Select(ToPriceTicker);
             //ProcessPriceTicker(tickers);
             //});
+            this.HasSignedAccount = client.IsSigned;
+        }
+
+        protected override void InitializeAsyncImpl(CompositeDisposable disposables)
+        {
+            Observable
+                .Interval(TimeSpan.FromSeconds(2))
+                .Select(x => Unit.Default)
+                .InvokeCommand(GetServerTime)
+                .DisposeWith(Disposables);
+
+            var pairs = Markets.Where(x => x.QuoteAsset == "BTC" || x.QuoteAsset == "USDT").Select(x => x.Symbol);
+            var kline1m = client.SubscribeKlinesAsync(pairs, "1m");
+            kline1m.ObserveOnDispatcher().Subscribe(OnKline).DisposeWith(disposables);
+            var kline5m = client.SubscribeKlinesAsync(pairs, "5m");
+            kline5m.ObserveOnDispatcher().Subscribe(OnKline).DisposeWith(disposables);
+            var kline15m = client.SubscribeKlinesAsync(pairs, "15m");
+            kline15m.ObserveOnDispatcher().Subscribe(OnKline).DisposeWith(disposables);
         }
 
         protected void UpdateStatus(string serverStatus, string clientMsg = null)
         {
             Status = string.Join("  ", serverStatus, clientMsg ?? ClientStatus);
             ServerStatus = serverStatus;
+        }
+
+        private async Task GetServerTimeImpl()
+        {
+            var result = await client.GetServerTimeAsync().ConfigureAwait(false);
+            if (result.Success)
+            {
+                client.SetServerTimeOffset(result.Data.serverTime, result.ElapsedMilliseconds);
+                ServerTime = result.Data.serverTime.FromUnixTimestamp(convertToLocalTime: false);
+            }
+            else
+                ServerTime = DateTime.UtcNow;
+            UpdateStatus($"Server Time: {ServerTime}");
         }
 
         protected override async Task GetExchangeInfoImpl()
@@ -102,7 +136,7 @@ namespace Exchange.Net
             {
                 ticker24hrLastRun = DateTime.Now.AddSeconds(6);
                 GetTickersElapsed = resultTickers.ElapsedMilliseconds;
-                var tickers = resultTickers.Data.Select(ToPriceTicker);
+                var tickers = resultTickers.Data.Select(Convert);
                 ProcessPriceTicker(tickers);
                 UpdateStatus(ServerStatus);
             }
@@ -122,7 +156,7 @@ namespace Exchange.Net
                 if (priceTickersTask.Result.Success && bookTickersTask.Result.Success)
                 {
                     GetTickersElapsed = Math.Max(priceTickersTask.Result.ElapsedMilliseconds, bookTickersTask.Result.ElapsedMilliseconds);
-                    var tickers = priceTickersTask.Result.Data.Select(ToPriceTicker);
+                    var tickers = priceTickersTask.Result.Data.Select(Convert).ToList();
                     foreach (var ticker in tickers)
                     {
                         var bookTicker = bookTickersTask.Result.Data.SingleOrDefault(x => x.symbol == ticker.Symbol);
@@ -152,7 +186,7 @@ namespace Exchange.Net
             if (resultTrades.Success)
             {
                 GetTradesElapsed = resultTrades.ElapsedMilliseconds;
-                var trades = resultTrades.Data.Select(x => ToPublicTrade(x, si)).Reverse().ToList();// pair is <symbol,trades>
+                var trades = resultTrades.Data.Select(x => Convert(x, si)).Reverse().ToList();// pair is <symbol,trades>
                 ProcessPublicTrades(trades);
                 UpdateStatus(ServerStatus);
             }
@@ -305,8 +339,11 @@ namespace Exchange.Net
         protected override async Task<SymbolInformation> GetFullSymbolInformation()
         {
             var si = CurrentSymbolInformation;
-            si.QuoteAssetBalance = await GetAssetBalance(si.QuoteAsset);
-            si.QuoteAssetBalance.Free = Math.Round(si.QuoteAssetBalance.Free, si.PriceDecimals);
+            var balances = await GetBalancesAsync();
+            //si.QuoteAssetBalance = await GetAssetBalance(si.QuoteAsset);
+            //si.QuoteAssetBalance.Free = Math.Round(si.QuoteAssetBalance.Free, si.PriceDecimals);
+            si.BaseAssetBalance = balances.SingleOrDefault(x => x.Asset == si.BaseAsset);
+            si.QuoteAssetBalance = balances.SingleOrDefault(x => x.Asset == si.QuoteAsset);
             si.PriceTicker = GetPriceTicker(si.Symbol);
             var filter = currentExchangeInfo.symbols.SingleOrDefault(x => x.symbol == si.Symbol).filters.SingleOrDefault(x => x.filterType == Binance.FilterType.PERCENT_PRICE.ToString());
             if (filter != null)
@@ -322,7 +359,12 @@ namespace Exchange.Net
 
         protected override IObservable<PriceTicker> ObserveTickers123()
         {
-            return client.SubscribeMarketSummariesAsync(null).Select(ToPriceTicker).Where(x => x != null);
+            return client.SubscribeMarketSummariesAsync(null).Select(Convert).Where(x => x != null);
+        }
+
+        protected override IObservable<PublicTrade> ObserveTrades(string market)
+        {
+            return client.SubscribePublicTradesAsync(market).Select(Convert).Where(x => x != null);
         }
 
         SymbolInformation CreateSymbolInformation(Binance.Market market)
@@ -352,39 +394,11 @@ namespace Exchange.Net
             };
         }
 
-        public static TransferStatus ToDepositStatus(int code)
+        private void UpdateStatus()
         {
-            switch (code)
-            {
-                case 0:
-                    return TransferStatus.Pending;
-                case 1:
-                    return TransferStatus.Completed;
-            }
-            return TransferStatus.Undefined;
+            Status = $"Binance: Weight is {client.Weight}, expiration in {client.WeightReset.TotalSeconds} secs.";
         }
 
-        public static TransferStatus ToWithdrawalStatus(int code)
-        {
-            switch (code)
-            {
-                case 0:
-                    return TransferStatus.EmailSent;
-                case 1:
-                    return TransferStatus.Cancelled;
-                case 2:
-                    return TransferStatus.AwaitingApproval;
-                case 3:
-                    return TransferStatus.Rejected;
-                case 4:
-                    return TransferStatus.Processing;
-                case 5:
-                    return TransferStatus.Failed;
-                case 6:
-                    return TransferStatus.Completed;
-            }
-            return TransferStatus.Undefined;
-        }
 
         public Order Convert(Binance.Order x)
         {
@@ -445,12 +459,7 @@ namespace Exchange.Net
             return result;
         }
 
-        private void UpdateStatus()
-        {
-            Status = $"Binance: Weight is {client.Weight}, expiration in {client.WeightReset.TotalSeconds} secs.";
-        }
-
-        public PriceTicker ToPriceTicker(Binance.PriceTicker ticker)
+        public PriceTicker Convert(Binance.PriceTicker ticker)
         {
             return new PriceTicker()
             {
@@ -460,9 +469,11 @@ namespace Exchange.Net
             };
         }
 
-        public PriceTicker ToPriceTicker(Binance.PriceTicker24hr ticker)
+        public PriceTicker Convert(Binance.PriceTicker24hr ticker)
         {
             var si = GetSymbolInformation(ticker.symbol);
+            if (si == null)
+                return null;
             if (si.Status != "BREAK") return new PriceTicker()
             {
                 Bid = ticker.bidPrice,
@@ -486,7 +497,16 @@ namespace Exchange.Net
             };
         }
 
-        public PriceTicker ToPriceTicker(Binance.WsPriceTicker24hr ticker)
+        public Balance Convert(Binance.Balance balance)
+        {
+            return new Balance(balance.asset, UsdAssets.Contains(balance.asset))
+            {
+                Free = balance.free,
+                Locked = balance.locked
+            };
+        }
+
+        public PriceTicker Convert(Binance.WsPriceTicker24hr ticker)
         {
             var si = GetSymbolInformation(ticker.symbol);
             return si != null ? new PriceTicker()
@@ -507,7 +527,7 @@ namespace Exchange.Net
             } : null;
         }
 
-        public PriceTicker ToPriceTicker(Binance.WsCandlestick ticker)
+        /*public PriceTicker ToPriceTicker(Binance.WsCandlestick ticker)
         {
             return new PriceTicker()
             {
@@ -517,9 +537,24 @@ namespace Exchange.Net
                 Volume = ticker.kline.quoteVolume,
                 BuyVolume = ticker.kline.takerBuyQuoteVolume
             };
+        }*/
+
+        public Candle Convert(Binance.WsCandlestick ticker)
+        {
+            return new Candle()
+            {
+                Open = ticker.kline.openPrice,
+                High = ticker.kline.highPrice,
+                Low = ticker.kline.lowPrice,
+                Close = ticker.kline.closePrice,
+                QuoteVolume = ticker.kline.quoteVolume,
+                BuyQuoteVolume = ticker.kline.takerBuyQuoteVolume,
+                Volume = ticker.kline.volume,
+                BuyVolume = ticker.kline.quoteVolume
+            };
         }
 
-        public PublicTrade ToPublicTrade(Binance.AggTrade x, SymbolInformation si)
+        public PublicTrade Convert(Binance.AggTrade x, SymbolInformation si)
         {
             return new PublicTrade(si)
             {
@@ -531,7 +566,7 @@ namespace Exchange.Net
             };
         }
 
-        public PublicTrade ToPublicTrade(Binance.Trade x, SymbolInformation si)
+        public PublicTrade Convert(Binance.Trade x, SymbolInformation si)
         {
             return new PublicTrade(si)
             {
@@ -543,9 +578,12 @@ namespace Exchange.Net
             };
         }
 
-        public PublicTrade ToPublicTrade(Binance.WsTrade x)
+        public PublicTrade Convert(Binance.WsTrade x)
         {
-            return new PublicTrade(GetSymbolInformation(x.symbol))
+            var si = GetSymbolInformation(x.symbol);
+            if (si == null)
+                return null;
+            return new PublicTrade(si)
             {
                 Id = x.tradeId,
                 Price = x.price,
@@ -555,6 +593,25 @@ namespace Exchange.Net
             };
         }
 
+        private void OnKline(Binance.WsCandlestick candlestick)
+        {
+            var ticker = GetPriceTicker(candlestick.symbol);
+            if (ticker != null)
+            {
+                switch (candlestick.kline.interval)
+                {
+                    case "1m":
+                        ticker.Candle1m = Convert(candlestick);
+                        break;
+                    case "5m":
+                        ticker.Candle5m = Convert(candlestick);
+                        break;
+                    case "15m":
+                        ticker.Candle15m = Convert(candlestick);
+                        break;
+                }
+            }
+        }
         // TODO: below FUNC is EXACT COPY of ExecuteOrder(), so do home work and refactor.
         protected override async Task<Order> PlaceOrder(TradingRule rule)
         {
@@ -611,6 +668,40 @@ namespace Exchange.Net
             return TransferStatus.Undefined;
         }
 
+        public static TransferStatus ToDepositStatus(int code)
+        {
+            switch (code)
+            {
+                case 0:
+                    return TransferStatus.Pending;
+                case 1:
+                    return TransferStatus.Completed;
+            }
+            return TransferStatus.Undefined;
+        }
+
+        public static TransferStatus ToWithdrawalStatus(int code)
+        {
+            switch (code)
+            {
+                case 0:
+                    return TransferStatus.EmailSent;
+                case 1:
+                    return TransferStatus.Cancelled;
+                case 2:
+                    return TransferStatus.AwaitingApproval;
+                case 3:
+                    return TransferStatus.Rejected;
+                case 4:
+                    return TransferStatus.Processing;
+                case 5:
+                    return TransferStatus.Failed;
+                case 6:
+                    return TransferStatus.Completed;
+            }
+            return TransferStatus.Undefined;
+        }
+
         public override bool FilterByMarket(string symbol, string market)
         {
             return symbol.EndsWith(market, StringComparison.CurrentCultureIgnoreCase);
@@ -619,6 +710,37 @@ namespace Exchange.Net
         {
             return symbol.StartsWith(asset, StringComparison.CurrentCultureIgnoreCase);
         }
+
+
+        #region Testing methods
+        public List<SymbolInformation> GetFullMarketInformationOffline()
+        {
+            var client = new BinanceApiClient();
+            var symbols = client.GetExchangeInfoOffline().Data.symbols.Where(x => x.status == Binance.MarketStatus.TRADING.ToString());
+            var markets = symbols.Select(CreateSymbolInformation).ToList();
+            ProcessExchangeInfo(markets);
+            var tickers = client.GetPriceTicker24hrOffline().Data.Select(Convert).Where(x => x != null).ToList();
+            ProcessPriceTicker(tickers);
+            var account = client.GetAccountInfoOffline().Data.balances.Select(Convert).ToList();
+            foreach (var m in markets)
+            {
+                m.PriceTicker = GetPriceTicker(m.Symbol);
+                var filter = symbols.SingleOrDefault(x => x.symbol == m.Symbol).filters.SingleOrDefault(x => x.filterType == Binance.FilterType.PERCENT_PRICE.ToString());
+                if (filter != null)
+                {
+                    if (filter != null)
+                    {
+                        m.MaxPrice = m.PriceTicker.WeightedAveragePrice * filter.multiplierUp;
+                        m.MinPrice = m.PriceTicker.WeightedAveragePrice * filter.multiplierDown;
+                    }
+                }
+                m.BaseAssetBalance = account.SingleOrDefault(x => x.Asset == m.BaseAsset);
+                m.QuoteAssetBalance = account.SingleOrDefault(x => x.Asset == m.QuoteAsset);
+            }
+            return markets;
+        }
+
+        #endregion
 
         private readonly ReactiveCommand<long, DateTime> getServerTimeCommand;
         private Binance.ExchangeInfo currentExchangeInfo;

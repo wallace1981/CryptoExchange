@@ -70,10 +70,10 @@ namespace Exchange.Net
                 return;
             }
 
-            bool isLimitAllowed = true;
+            bool isLimitOrdersAllowed = true;
 
             // NOTE: this routine relies on condition that
-            // LIMIT orders are always on TOP of MARKET order in list of jobs.
+            // LIMIT orders are always on TOP of MARKET orders in list of jobs.
             foreach (var job in tt.Jobs.ToList())
             {
                 if (job.ExchangeOrder != null)
@@ -108,14 +108,14 @@ namespace Exchange.Net
                         case OrderStatus.PartiallyFilled:
                             // THIS STATE IS ONLY POSSIBLE FOR LIMIT ORDERS OR PANIC SELL!
                             // so allow ONLY MARKET order to check conditions and execute
-                            isLimitAllowed = false;
+                            isLimitOrdersAllowed = false;
                             break;
                     }
                 }
                 else
                 {
                     bool applicable = false;
-                    bool isLimit = job.Type == OrderType.LIMIT || job.Type == OrderType.STOP_LIMIT;
+                    bool isLimitOrder = (job.Type == OrderType.LIMIT || job.Type == OrderType.STOP_LIMIT);
                     // check condition
                     if (job.Kind == OrderKind.Buy)
                     {
@@ -129,10 +129,10 @@ namespace Exchange.Net
                     else if (job.Kind == OrderKind.PanicSell)
                         applicable = true;
                     else
-                        applicable = (job.Type != OrderType.MARKET && job.Type != OrderType.TRAILING) || (ticker.Bid >= job.Price);
+                        applicable = (job.Type != OrderType.MARKET && job.Type != OrderType.TRAILING) || (ticker.Bid >= job.Price); // NOTE: last part is wrong -- could be market STOP_LOSS, so ticker.Bid <= job.Price is valid for this case
 
                     // !!!ALLOW ONLY 1 LIMIT ORDER AT A TIME FOR NOW!!!
-                    if (applicable && (isLimitAllowed || !isLimit) && (tt.Qty > 0 || job.Side == TradeSide.Buy))
+                    if (applicable && (isLimitOrdersAllowed || !isLimitOrder) && (tt.Qty > 0 || job.Side == TradeSide.Buy))
                     {
                         var result = await CancellAllOrders(tt);
                         if (job.Side == TradeSide.Sell)
@@ -306,10 +306,16 @@ namespace Exchange.Net
             TradeTaskLifecycle =  ReactiveCommand.CreateFromTask<TradeTask>(DoLifecycleImpl);
             _cleanup = tradeTasks
                 .Connect()
-                .Transform(x => new TradeTaskViewModel(GetSymbolInformation(x.Symbol), x))
+                .Transform(x => new TradeTaskViewModel(GetSIWithTicker(x.Symbol), x))
                 .ObserveOnDispatcher()
                 .Bind(out _data)
                 .Subscribe();
+        }
+        private SymbolInformation GetSIWithTicker(string symbol)
+        {
+            var result = GetSymbolInformation(symbol);
+            result.PriceTicker = GetPriceTicker(symbol);
+            return result;
         }
 
         protected virtual Task<bool> CancelOrder(OrderTask order)

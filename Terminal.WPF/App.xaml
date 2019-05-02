@@ -12,11 +12,11 @@
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="/Telerik.Windows.Themes.Windows8;component/Themes/System.Windows.xaml"/>
-                <ResourceDictionary Source="/Telerik.Windows.Themes.Windows8;component/Themes/Telerik.Windows.Controls.xaml"/>
-                <ResourceDictionary Source="/Telerik.Windows.Themes.Windows8;component/Themes/Telerik.Windows.Controls.GridView.xaml"/>
-                <ResourceDictionary Source="/Telerik.Windows.Themes.Windows8;component/Themes/Telerik.Windows.Controls.Input.xaml"/>
-                <ResourceDictionary Source="/Telerik.Windows.Themes.Windows8;component/Themes/Telerik.Windows.Controls.Navigation.xaml"/>
+                <!--<ResourceDictionary Source="/Telerik.Windows.Themes.Office_Black;component/Themes/System.Windows.xaml"/>
+                <ResourceDictionary Source="/Telerik.Windows.Themes.Office_Black;component/Themes/Telerik.Windows.Controls.xaml"/>
+                <ResourceDictionary Source="/Telerik.Windows.Themes.Office_Black;component/Themes/Telerik.Windows.Controls.GridView.xaml"/>
+                <ResourceDictionary Source="/Telerik.Windows.Themes.Office_Black;component/Themes/Telerik.Windows.Controls.Input.xaml"/>
+                <ResourceDictionary Source="/Telerik.Windows.Themes.Office_Black;component/Themes/Telerik.Windows.Controls.Navigation.xaml"/>-->
 
                 <!--<ResourceDictionary Source="pack://application:,,,/MaterialDesignThemes.Wpf;component/Themes/MaterialDesignTheme.Light.xaml" />
                 <ResourceDictionary Source="pack://application:,,,/MaterialDesignThemes.Wpf;component/Themes/MaterialDesignTheme.Defaults.xaml" />
@@ -26,6 +26,7 @@
 
             <FontFamily x:Key="Roboto">pack://application:,,,/Fonts/#Roboto</FontFamily>
             <FontFamily x:Key="RobotoCondensed">pack://application:,,,/Fonts/#Roboto Condensed</FontFamily>
+            <FontFamily x:Key="RobotoCondensedBold">pack://application:,,,/Fonts/#Roboto Condensed Bold</FontFamily>
 
             <Color x:Key="BearCandleColor">#FFE26565</Color>
             <Color x:Key="BullCandleColor">#FF52CC54</Color>
@@ -68,7 +69,7 @@
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate>
-                            <Border BorderBrush="LightGray" BorderThickness="0 0 1 0" Padding="3">
+                            <Border BorderBrush="LightGray" BorderThickness="0 1 1 1" Padding="3">
                                 <ContentPresenter Content="{Binding Path=Content, RelativeSource={RelativeSource TemplatedParent}}"/>
                             </Border>
                         </ControlTemplate>
@@ -117,7 +118,12 @@
                 <Setter Property="VerticalGridLinesBrush" Value="{x:Null}"/>
                 <Setter Property="HeadersVisibility" Value="Column"/>
             </Style>
-            
+            <Style TargetType="{x:Type DataGridRow}">
+                <Setter Property="BorderBrush" Value="LightGray"/>
+                <Setter Property="BorderThickness" Value="0 0 0 1"/>
+                <Setter Property="Padding" Value="6"/>
+            </Style>
+
             <Style TargetType="{x:Type ContentControl}" x:Key="ContentControlRightAligned">
                 <Setter Property="FontFamily" Value="{StaticResource RobotoCondensed}"/>
                 <Setter Property="FontSize" Value="13"/>

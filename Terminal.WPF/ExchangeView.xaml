@@ -4,20 +4,12 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
              xmlns:local="clr-namespace:Terminal.WPF"
-             xmlns:telerik="http://schemas.telerik.com/2008/xaml/presentation"
+             xmlns:xceed="http://schemas.xceed.com/wpf/xaml/toolkit"
              mc:Ignorable="d" 
              d:DesignHeight="450" d:DesignWidth="800">
-    <UserControl.Resources>
-        <local:DoubleToGridLengthConverter x:Key="convDblToGridLength"/>
-        <local:PercentToPointConverter x:Key="convPercentToPoint"/>
-        <SolidColorBrush Color="#ffdbd2" x:Key="brushBearBack"/>
-        <SolidColorBrush Color="#ff6262" x:Key="brushBearFore"/>
-        <SolidColorBrush Color="#c3eed7" x:Key="brushBullBack"/>
-        <SolidColorBrush Color="#2cd978" x:Key="brushBullFore"/>
-    </UserControl.Resources>
     <Grid>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="310"/>
+            <ColumnDefinition Width="410"/>
             <ColumnDefinition/>
             <ColumnDefinition Width="390"/>
         </Grid.ColumnDefinitions>
@@ -36,7 +28,7 @@
                 </TextBlock>
             </Label>
             <Button Command="{Binding Path=GetTickers}">Tickers</Button>
-            <telerik:RadToggleButton IsChecked="{Binding Path=TickersSubscribed}">Tickers!</telerik:RadToggleButton>
+            <ToggleButton IsChecked="{Binding Path=TickersSubscribed}">Tickers!</ToggleButton>
             <Label HorizontalContentAlignment="Right">
                 <TextBlock>
                     <Run Text="{Binding Path=GetTickersElapsed, Mode=OneWay}"/>ms.
@@ -44,11 +36,12 @@
             </Label>
         </UniformGrid>
 
-        <telerik:RadBusyIndicator Grid.Row="0" Grid.RowSpan="3" Margin="0 4 0 0"
+        <xceed:BusyIndicator Grid.Row="0" Grid.RowSpan="3" Margin="0 4 0 0"
                                   IsBusy="{Binding Path=IsInitializing, Mode=OneWay}"
                                   >
-            <local:PriceTickerView x:Name="priceTicker" />
-        </telerik:RadBusyIndicator>
+            <local:PriceTickerView
+                x:Name="priceTicker"/>
+        </xceed:BusyIndicator>
 
         <Border Grid.Column="1" Grid.Row="0" Grid.RowSpan="2" Margin="12 0 12 0" BorderThickness="0 0 0 1" BorderBrush="{StaticResource NeutralCandleBrush}">
             <Grid ShowGridLines="False">
@@ -120,21 +113,27 @@
         </Border>
 
         <Grid Grid.Column="1" Grid.Row="2" Margin="3 3 3 0">
+            <Grid.Resources>
+                <!--<Style TargetType="telerik:RadToolBar" BasedOn="{StaticResource RadToolBarStyle}">
+                    <Setter Property="GripVisibility" Value="Collapsed"/>
+                    <Setter Property="OverflowButtonVisibility" Value="Collapsed"/>
+                </Style>-->
+            </Grid.Resources>
             <UniformGrid HorizontalAlignment="Right" VerticalAlignment="Top" Columns="3" Margin="0 3 6 0" Visibility="Collapsed">
                 <Button
                     Command="{Binding Path=RefreshCommand}"
                     CommandParameter="{Binding ElementName=tabAccountInfo, Path=SelectedIndex, Mode=OneWay}"
                     Content="Refresh"
                     />
-                <telerik:RadToggleButton Margin="3 0 0 0"
+                <ToggleButton Margin="3 0 0 0"
                     IsChecked="{Binding Path=PrivateDataSubscribed}"
                     Content=">"
                     />
             </UniformGrid>
-            <telerik:RadTabControl x:Name="tabAccountInfo" BorderThickness="1">
-                <telerik:RadTabItem Header="Rules">
+            <TabControl x:Name="tabAccountInfo" BorderThickness="1">
+                <TabItem Header="Rules">
                     <DockPanel>
-                        <telerik:RadToolBar DockPanel.Dock="Top">
+                        <ToolBar DockPanel.Dock="Top">
                             <Button
                                 Command="{Binding Path=CreateRule, Mode=OneWay}"
                                 CommandParameter="TakeProfit"
@@ -145,7 +144,7 @@
                                 >
                                 <TextBlock Text="Удалить правило"/>
                             </Button>
-                        </telerik:RadToolBar>
+                        </ToolBar>
                         <!--<telerik:RadTileList ItemsSource="{Binding Path=TradingRuleProxies, Mode=OneWay}">
                         <telerik:RadTileList.ItemTemplate>
                             <DataTemplate>
@@ -174,231 +173,55 @@
                             </DataGrid.Columns>
                         </DataGrid>
                     </DockPanel>
-                </telerik:RadTabItem>
-                <telerik:RadTabItem Header="Задачи">
+                </TabItem>
+                <TabItem Header="Задачи">
+                    <local:TradeTasksListView/>
+                </TabItem>
+                <TabItem Header="Ордера">
                     <DockPanel>
-                        <telerik:RadToolBar DockPanel.Dock="Top">
-                            <Button
-                                Command="{Binding Path=CreateTradeTask}"
-                                >
-                                <TextBlock Text="Создать задачу"/>
-                            </Button>
-                            <telerik:RadToggleButton
-                                Command="{Binding Path=EnableTradeTask, Mode=OneWay}"
-                                IsChecked="{Binding Path=SelectedTradeTask.IsEnabled, Mode=OneWay}"
-                                >
-                                <TextBlock Text="Активировать"/>
-                            </telerik:RadToggleButton>
-                            <Button
-                                Command="{Binding Path=TradeTaskLifecycle, Mode=OneWay}"
-                                CommandParameter="{Binding Path=SelectedTradeTask.Model, Mode=OneWay}"
-                                >
-                                <TextBlock Text="Lifecycle"/>
-                            </Button>
-                            <Button
-                                Command="{Binding Path=DeleteTradeTask, Mode=OneWay}"
-                                >
-                                <TextBlock Text="Удалить задачу"/>
-                            </Button>
-                            <Button
-                                Command="{Binding Path=PanicSellTradeTask, Mode=OneWay}"
-                                >
-                                <TextBlock Text="Panic Sell"/>
-                            </Button>
-                        </telerik:RadToolBar>
-                        <telerik:RadListBox
-                            Background="White"
-                            FontFamily="{StaticResource Roboto}"
-                            FontSize="12"
-                            ItemsSource="{Binding Path=TradeTasksList, Mode=OneWay}"
-                            SelectedItem="{Binding Path=SelectedTradeTask, Mode=TwoWay}"
-                            >
-                            <telerik:RadListBox.ItemTemplate>
-                                <DataTemplate>
-                                    <Border BorderThickness="1" Padding="3" BorderBrush="LightGray">
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="150"/>
-                                                <ColumnDefinition Width="*"/>
-                                            </Grid.ColumnDefinitions>
-                                            <Grid.RowDefinitions>
-                                                <RowDefinition Height="Auto"/>
-                                                <RowDefinition Height="Auto"/>
-                                                <RowDefinition Height="Auto"/>
-                                                <RowDefinition Height="Auto"/>
-                                            </Grid.RowDefinitions>
-
-                                            <TextBlock Grid.Column="0" Grid.Row="0">
-                                            <Run Text="{Binding Path=SymbolInformation.Caption, Mode=OneWay}"/>
-                                            <Run Text="{Binding Path=Buy.Quantity, Mode=OneWay}"/>
-                                            </TextBlock>
-                                            <TextBlock Grid.Column="0" Grid.Row="1">
-                                            <Run Text="{Binding Path=Buy.Total, Mode=OneWay}"/>
-                                            <Run Text="{Binding Path=SymbolInformation.QuoteAsset, Mode=OneTime}"/>
-                                            </TextBlock>
-
-                                            <TextBlock Grid.Column="0" Grid.Row="2" Text="{Binding Path=AvgBuyPrice, StringFormat=N8}"/>
-                                            <TextBlock Grid.Column="0" Grid.Row="3" Text="{Binding Path=Qty, StringFormat=N8}"/>
-                                            <TextBlock Grid.Column="1" Grid.Row="1" Text="{Binding Path=Distance, StringFormat=P2}"
-                                                   HorizontalAlignment="Left"/>
-                                            <TextBlock Grid.Column="1" Grid.Row="1" HorizontalAlignment="Right">
-                                                <Run Text="Профит:"/>
-                                                <Run Text="{Binding Path=Profit, Mode=OneWay, StringFormat=P2}"/>
-                                            </TextBlock>
-
-                                            <TextBlock Grid.Column="1" Grid.Row="0">
-                                            <Run Text="{Binding Path=Status, Mode=OneWay}"/>
-                                            <Run Text="{Binding Path=LastError, Mode=OneWay}" Foreground="Red"/>
-                                            </TextBlock>
-
-
-                                            <Grid Grid.Column="1" Grid.Row="2" Margin="3 20 3 0">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="25*"/>
-                                                    <ColumnDefinition Width="75*"/>
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock Grid.Column="0">
-                                                <Run Text="SL:"/>
-                                                <Run Text="{Binding Path=LossPercent, Mode=OneWay, StringFormat=P0}"/>
-                                                </TextBlock>
-                                                <DockPanel Grid.Column="1">
-                                                    <TextBlock>
-                                                    <Run Text="TP: "/>
-                                                    </TextBlock>
-                                                    <!--<ItemsControl ItemsSource="{Binding Path=TakeProfitCollection, Mode=OneWay}">
-                                                    <ItemsControl.ItemsPanel>
-                                                        <ItemsPanelTemplate>
-                                                            <StackPanel Orientation="Horizontal"/>
-                                                        </ItemsPanelTemplate>
-                                                    </ItemsControl.ItemsPanel>
-                                                    <ItemsControl.ItemTemplate>
-                                                        <DataTemplate>
-                                                            <TextBlock Grid.Column="1" Grid.Row="3" Margin="6 0 0 0">
-                                                            <Run Text="{Binding Path=ProfitPercent, Mode=OneWay, StringFormat=P0}"/>
-                                                            <Run Text=" "/>
-                                                            </TextBlock>
-                                                        </DataTemplate>
-                                                    </ItemsControl.ItemTemplate>
-                                                </ItemsControl>-->
-                                                </DockPanel>
-                                            </Grid>
-
-                                            <Grid Grid.Column="1" Grid.Row="2">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="25*" x:Name="clLoss"/>
-                                                    <ColumnDefinition Width="75*" x:Name="clProfit"/>
-                                                </Grid.ColumnDefinitions>
-                                                <!--<Rectangle Grid.Column="0" Fill="LightPink" Height="6"/>
-                                            <Rectangle Grid.Column="1" Fill="LightGreen" Height="6"/>-->
-                                                <ProgressBar
-                                                Grid.Column="0"
-                                                BorderThickness="0"
-                                                Background="{StaticResource brushBearFore}"
-                                                Foreground="{StaticResource brushBearBack}"
-                                                Minimum="{Binding Path=StopLoss.Price, Mode=OneWay}"
-                                                Maximum="{Binding Path=Buy.Price, Mode=OneWay}"
-                                                Value="{Binding Path=LastPrice, Mode=OneWay}"
-                                                MinHeight="6"
-                                                VerticalAlignment="Center"
-                                                />
-                                                <ProgressBar
-                                                Grid.Column="1"
-                                                BorderThickness="0"
-                                                Background="{StaticResource brushBullBack}"
-                                                Foreground="{StaticResource brushBullFore}"
-                                                Minimum="{Binding Path=Buy.Price, Mode=OneWay}"
-                                                Maximum="{Binding Path=ProfitPrice, Mode=OneWay}"
-                                                Value="{Binding Path=LastPrice, Mode=OneWay}"
-                                                MinHeight="6"
-                                                VerticalAlignment="Center"
-                                                />
-                                                <ItemsControl Margin="0 5 0 0"
-                                                Grid.Column="1" VerticalAlignment="Center"
-                                                ItemsSource="{Binding Path=TakeProfitCollection, Mode=OneWay}">
-                                                    <ItemsControl.ItemsPanel>
-                                                        <ItemsPanelTemplate>
-                                                            <Canvas Background="Transparent"/>
-                                                        </ItemsPanelTemplate>
-                                                    </ItemsControl.ItemsPanel>
-                                                    <ItemsControl.ItemTemplate>
-                                                        <DataTemplate>
-                                                            <TextBlock>
-                                                            <Run Text="{Binding Path=ProfitPercent, Mode=OneWay, StringFormat=P0}"/>
-                                                            </TextBlock>
-                                                        </DataTemplate>
-                                                    </ItemsControl.ItemTemplate>
-                                                    <ItemsControl.ItemContainerStyle>
-                                                        <Style TargetType="ContentPresenter">
-                                                            <Setter Property="Canvas.Left">
-                                                                <Setter.Value>
-                                                                    <MultiBinding Mode="OneWay" Converter="{StaticResource convPercentToPoint}">
-                                                                        <Binding Path="ActualWidth" Mode="OneWay">
-                                                                            <Binding.RelativeSource>
-                                                                                <RelativeSource AncestorType="ItemsControl"/>
-                                                                            </Binding.RelativeSource>
-                                                                        </Binding>
-                                                                        <Binding Path="ProfitPercentRelative" Mode="OneWay"/>
-                                                                        <Binding Path="ActualWidth" RelativeSource="{RelativeSource Self}"/>
-                                                                    </MultiBinding>
-                                                                </Setter.Value>
-                                                            </Setter>
-                                                        </Style>
-                                                    </ItemsControl.ItemContainerStyle>
-                                                </ItemsControl>
-                                            </Grid>
-
-                                        </Grid>
-                                    </Border>
-                                </DataTemplate>
-                            </telerik:RadListBox.ItemTemplate>
-                        </telerik:RadListBox>
-                    </DockPanel>
-                </telerik:RadTabItem>
-                <telerik:RadTabItem Header="Ордера">
-                    <DockPanel>
-                        <telerik:RadToolBar DockPanel.Dock="Top">
+                        <ToolBar DockPanel.Dock="Top">
                             <Button
                                 Command="{Binding Path=GetOpenOrders, Mode=OneWay}">
                                 <TextBlock>Обновить</TextBlock>
                             </Button>
-                        </telerik:RadToolBar>
-                        <telerik:RadBusyIndicator
+                        </ToolBar>
+                        <xceed:BusyIndicator
                             IsBusy="{Binding Path=IsGetOpenOrdersExecuting, Mode=OneWay}"
                             DisplayAfter="0">
                             <local:OpenOrdersView/>
-                        </telerik:RadBusyIndicator>
+                        </xceed:BusyIndicator>
                     </DockPanel>
-                </telerik:RadTabItem>
-                <telerik:RadTabItem Header="История ордеров">
+                </TabItem>
+                <TabItem Header="История ордеров">
                     <DockPanel>
-                        <telerik:RadToolBar DockPanel.Dock="Top">
+                        <ToolBar DockPanel.Dock="Top">
                             <Button
                                 Command="{Binding Path=GetOrdersHistory, Mode=OneWay}"
                                 Content="Refresh"
                                 />
-                        </telerik:RadToolBar>
+                        </ToolBar>
                         <DataGrid AutoGenerateColumns="True" ItemsSource="{Binding Path=OrdersHistory, Mode=OneWay}"></DataGrid>
                     </DockPanel>
-                </telerik:RadTabItem>
-                <telerik:RadTabItem Header="История сделок">
+                </TabItem>
+                <TabItem Header="История сделок">
                     <DockPanel>
-                        <telerik:RadToolBar DockPanel.Dock="Top">
+                        <ToolBar DockPanel.Dock="Top">
                             <Button
                                 Command="{Binding Path=GetTradesHistory, Mode=OneWay}"
                                 Content="Refresh"
                                 />
-                        </telerik:RadToolBar>
+                        </ToolBar>
                         <DataGrid></DataGrid>
                     </DockPanel>
-                </telerik:RadTabItem>
-                <telerik:RadTabItem Header="Баланс">
+                </TabItem>
+                <TabItem Header="Баланс">
                     <DockPanel>
-                        <telerik:RadToolBar DockPanel.Dock="Top">
+                        <ToolBar DockPanel.Dock="Top">
                             <Button
                                 Command="{Binding Path=GetBalance, Mode=OneWay}"
                                 Content="Refresh"
                                 />
-                        </telerik:RadToolBar>
+                        </ToolBar>
                         <Border BorderBrush="LightGray" BorderThickness="1 1 1 1">
                             <StackPanel Grid.IsSharedSizeScope="True" VerticalAlignment="Top" Margin="3 2 3 2">
                                 <Grid >
@@ -447,30 +270,30 @@
                             </StackPanel>
                         </Border>
                     </DockPanel>
-                </telerik:RadTabItem>
-                <telerik:RadTabItem Header="Пополнения">
+                </TabItem>
+                <TabItem Header="Пополнения">
                     <DockPanel>
-                        <telerik:RadToolBar DockPanel.Dock="Top">
+                        <ToolBar DockPanel.Dock="Top">
                             <Button
                                 Command="{Binding Path=GetDeposits, Mode=OneWay}"
                                 Content="Refresh"
                                 />
-                        </telerik:RadToolBar>
+                        </ToolBar>
                         <DataGrid AutoGenerateColumns="True" ItemsSource="{Binding Path=CurrentAccountViewModel.Deposits, Mode=OneWay}"></DataGrid>
                     </DockPanel>
-                </telerik:RadTabItem>
-                <telerik:RadTabItem Header="Выплаты">
+                </TabItem>
+                <TabItem Header="Выплаты">
                     <DockPanel>
-                        <telerik:RadToolBar DockPanel.Dock="Top">
-                            <telerik:RadButton
+                        <ToolBar DockPanel.Dock="Top">
+                            <Button
                                 Command="{Binding Path=GetWithdrawals, Mode=OneWay}"
                                 Content="Refresh"
                                 />
-                        </telerik:RadToolBar>
+                        </ToolBar>
                         <DataGrid AutoGenerateColumns="True" ItemsSource="{Binding Path=CurrentAccountViewModel.Withdrawals, Mode=OneWay}"></DataGrid>
                     </DockPanel>
-                </telerik:RadTabItem>
-            </telerik:RadTabControl>
+                </TabItem>
+            </TabControl>
         </Grid>
         
         <Grid Grid.Column="2" Grid.Row="0" Grid.RowSpan="3">
@@ -491,11 +314,11 @@
                 </Label>
             </UniformGrid>-->
 
-            <telerik:RadBusyIndicator Grid.Row="1" IsBusy="{Binding Path=IsLoadingOrderBook, Mode=OneWay}" BusyContent="Loading Order Book...">
+            <xceed:BusyIndicator Grid.Row="1" IsBusy="{Binding Path=IsLoadingOrderBook, Mode=OneWay}" BusyContent="Loading Order Book...">
                 <Border BorderThickness="1" BorderBrush="LightGray">
-                    <local:OrderBookView/>
+                    <local:OrderBookView Loaded="OrderBookView_Loaded"/>
                 </Border>
-            </telerik:RadBusyIndicator>
+            </xceed:BusyIndicator>
 
             <!--<UniformGrid Grid.Row="2" Columns="3">
                 <Button Command="{Binding Path=GetTradesCommand}">Trades</Button>
@@ -507,21 +330,8 @@
                 </Label>
             </UniformGrid>-->
 
-            <telerik:RadBusyIndicator Grid.Row="3" Margin="0 4 0 0"  IsBusy="{Binding Path=IsLoadingTrades, Mode=OneWay}" BusyContent="Loading Trades...">
+            <xceed:BusyIndicator Grid.Row="3" Margin="0 4 0 0"  IsBusy="{Binding Path=IsLoadingTrades, Mode=OneWay}" BusyContent="Loading Trades...">
                 <Border BorderThickness="1" BorderBrush="LightGray">
-                    <Border.Resources>
-                        <Style TargetType="{x:Type telerik:GridViewRow}" BasedOn="{StaticResource GridViewRowStyle}" x:Key="rowStyle">
-                            <!--<Setter Property="SelectedBackground" Value="#FDF1CF"/>-->
-                            <Setter Property="Padding" Value="1"/>
-                            <Setter Property="MinHeight" Value="10"/>
-                        </Style>
-                        <Style TargetType="{x:Type DataGridRow}" x:Key="dgRowStyle">
-                        </Style>
-                        <Style TargetType="{x:Type telerik:GridViewCell}" BasedOn="{StaticResource GridViewCellStyle}" x:Key="cellStyle">
-                            <Setter Property="CurrentBorderBrush" Value="Transparent" />
-                            <Setter Property="Foreground" Value="Black"/>
-                        </Style>
-                    </Border.Resources>
 
                     <local:RecentTradesView/>
                 
@@ -585,7 +395,7 @@
                 
 
                 </Border>
-            </telerik:RadBusyIndicator>
+            </xceed:BusyIndicator>
         </Grid>
 
         <!--<local:TradingViewChart Grid.Column="1" Grid.Row="1" Grid.RowSpan="2"

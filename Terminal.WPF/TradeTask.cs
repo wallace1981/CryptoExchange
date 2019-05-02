@@ -1,5 +1,6 @@
 ﻿using DynamicData;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Converters;
 using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
 using System;
@@ -50,15 +51,18 @@ namespace Exchange.Net
     public class OrderTask
     {
         [JsonProperty("SIDE")]
+        [JsonConverter(typeof(StringEnumConverter))]
         public TradeSide Side;
 
         [JsonProperty("SYMBOL")]
         public string Symbol;
 
         [JsonProperty("ORDER_TYPE")]
+        [JsonConverter(typeof(StringEnumConverter))]
         public OrderType Type;
 
         [JsonProperty("ORDER_KIND")]
+        [JsonConverter(typeof(StringEnumConverter))]
         public OrderKind Kind;
 
         [JsonProperty("PRICE")]
@@ -75,6 +79,8 @@ namespace Exchange.Net
 
         [JsonProperty("ORDERID", DefaultValueHandling = DefaultValueHandling.IgnoreAndPopulate)]
         public string OrderId;
+
+        public bool IsCompleted { get; }
 
         public Order ExchangeOrder;
     }
@@ -107,7 +113,7 @@ namespace Exchange.Net
         public Queue<OrderTask> FinishedJobs { get; set; }
 
         [JsonProperty("EVENTS")]
-        public IDictionary<DateTime, String> Events { get; set; }
+        public IDictionary<DateTime, string> Events { get; set; }
 
         public IEnumerable<OrderTask> ActiveJobs => Jobs.Where(x => !string.IsNullOrWhiteSpace(x.OrderId));
 
@@ -220,6 +226,7 @@ namespace Exchange.Net
                 this.ObservableForProperty(x => x.Previous.QuantityPercentEnd).Subscribe(x => QuantityPercentStart = x.Value);
             }
             QuantityPercentEnd = QuantityPercentStart + initialQtyPrcnt;
+            ConnectProperties();
         }
 
         public TakeProfitViewModel(TradeTaskViewModel tt, OrderTask model, TakeProfitViewModel prev = null) : base(tt, model)
@@ -230,6 +237,7 @@ namespace Exchange.Net
                 qtyPercentStart = Previous.QuantityPercentEnd;
             }
             qtyPercentEnd = qtyPercentStart + model.QuantityPercent;
+            ConnectProperties();
         }
 
         public string Caption { get; set; }
@@ -265,10 +273,15 @@ namespace Exchange.Net
 
         public double QuantityPercent => Math.Round(QuantityPercentEnd - QuantityPercentStart, 2);
 
-        public double ProfitPercent => (double)(Price / TradeTask.Buy.Price) - 1.0;
+        [ObservableAsProperty] public double ProfitPercent { get; }
         public double ProfitPercentRelative => ProfitPercent / TradeTask.ProfitPercent;
 
         public TakeProfitViewModel Previous { get; }
+
+        private void ConnectProperties()
+        {
+            this.WhenAnyValue(x => x.Price, x => x.TradeTask.Buy.Price, (profit, buy) => (double)(profit / buy) - 1.0).DistinctUntilChanged().ToPropertyEx(this, x => x.ProfitPercent);
+        }
     }
 
     public class TradeTaskViewModel : ReactiveObject, ISupportsActivation
@@ -283,16 +296,19 @@ namespace Exchange.Net
         [Reactive] public string Status { get; set; }
         [Reactive] public ApiError LastError { get; set; }
         [ObservableAsProperty] public double Distance { get; }
+        [ObservableAsProperty] public decimal LastPriceLoss { get; }
+        [ObservableAsProperty] public decimal LastPriceProfit { get; }
 
         public SymbolInformation SymbolInformation { get; }
-        public double LossPercent => (double)(StopLoss.Price / Buy.Price) - 1.0;
+        [ObservableAsProperty] public double LossPercent { get; }
         public double ProfitPercent => TakeProfitCollection.Last().ProfitPercent;
         public decimal ProfitPrice => TakeProfitCollection.Last().Price;
         public decimal QuoteBalance { get; }
-        public decimal Total { get => buyTotal; set => this.RaiseAndSetIfChanged(ref buyTotal, value); }
+        [Reactive] public decimal Total { get; set; }
         [Reactive] public bool IsMarketBuy { get; set; }
         [Reactive] public bool IsLimitStop { get; set; } = true; // NOTE: Only if Exchange supports stop-limit?
         [Reactive] public double QuoteBalancePercent { get; set; }
+        [Reactive] public double TrailingPercent { get; set; } = 0.01;
 
         public decimal AvgBuyPrice => Model.AvgBuyPrice;
         public decimal AvgSellPrice => Model.AvgSellPrice;
@@ -317,20 +333,19 @@ namespace Exchange.Net
             SymbolInformation = si;
             QuoteBalance = si.QuoteAssetBalance.Free;
             QuoteBalancePercent = 0.05;
-            Buy = new OrderTaskViewModel(this) { Price = si.PriceTicker.Ask.Value };
+            Buy = new OrderTaskViewModel(this) { Price = si.PriceTicker.Ask.GetValueOrDefault() };
             StopLoss = new OrderTaskViewModel(this) { Price = si.ClampPrice(Buy.Price * 0.95m) };
             TakeProfit = new ObservableCollection<TakeProfitViewModel>();
-            var DEF_TAKE_PRCNTS = new double[] { 0.2, 0.2, 0.2, 0.15, 0.15, 0.1 };
-            for (int ind = 1; ind <= 6; ++ind)
+            var DEF_TAKE_PRCNTS = new double[] { 0.6, 0.4 };
+            for (int ind = 1; ind <= 2; ++ind)
             {
-                var tp = new TakeProfitViewModel(this, DEF_TAKE_PRCNTS[ind-1], ind > 1 ? TakeProfit[ind - 2] : null) { Price = Math.Round(Buy.Price * (1.0m + 0.05m * ind), si.PriceDecimals), Caption = $"Тейк {ind}" };
+                var tp = new TakeProfitViewModel(this, DEF_TAKE_PRCNTS[ind-1], ind > 1 ? TakeProfit[ind - 2] : null) { Price = Math.Round(Buy.Price * (1.05m + 0.05m * ind), si.PriceDecimals), Caption = $"Тейк {ind}" };
                 TakeProfit.Add(tp);
             }
             LastPrice = Buy.Price;
             AddTakeProfitCommand = ReactiveCommand.Create<object>(AddTakeProfitExecute);
             SubmitCommand = ReactiveCommand.CreateFromTask<string, bool>(SubmitImpl);
-            this.WhenAnyValue(x => x.QuoteBalancePercent).Subscribe(y => CalcQuantity());
-            ConnectTrades();
+            ConnectTrades(edit: true);
         }
 
         public TradeTaskViewModel(SymbolInformation si, TradeTask model)
@@ -345,13 +360,19 @@ namespace Exchange.Net
                 var tp = new TakeProfitViewModel(this, model.TakeProfit[ind - 1], ind > 1 ? TakeProfit[ind - 2] : null);
                 TakeProfit.Add(tp);
             }
-            LastPrice = Buy.Price;
+            LastPrice = si.PriceTicker.LastPrice.GetValueOrDefault();
             ConnectTrades();
         }
 
-        private void ConnectTrades()
+        private void ConnectTrades(bool edit = false)
         {
-            this.WhenAnyValue(x => x.LastPrice).Select(x => (double)x / (double)Buy.Price - 1.0).ToPropertyEx(this, x => x.Distance);
+            this.WhenAnyValue(x => x.LastPrice, x => (double)x / (double)Buy.Price - 1.0).ToPropertyEx(this, x => x.Distance);
+            this.WhenAnyValue(x => x.StopLoss.Price, x => x.Buy.Price, (sl, buy) => (double)(sl / buy) - 1.0).DistinctUntilChanged().ToPropertyEx(this, x => x.LossPercent);
+            if (edit)
+            {
+                this.WhenAnyValue(x => x.QuoteBalancePercent).DistinctUntilChanged().Subscribe(y => CalcQuantity());
+                this.WhenAnyValue(x => x.Buy.Quantity, x => x.Buy.Price).DistinctUntilChanged().Subscribe(x => CalcBalancePercent());
+            }
 
             var connection = this.Model.TradesStream.Connect();
             connection.Subscribe(
@@ -367,6 +388,8 @@ namespace Exchange.Net
             //connection.DisposeWith(disposables);
             this.WhenAnyValue(vm => vm.LastPrice)
                 .Subscribe(x => this.RaisePropertyChanged(nameof(Profit)));
+            this.WhenAnyValue(x => x.LastPrice).Select(x => Math.Max(Math.Min(Buy.Price, x), StopLoss.Price)).ToPropertyEx(this, x => x.LastPriceLoss);
+            this.WhenAnyValue(x => x.LastPrice).Select(x => Math.Min(ProfitPrice * 0.99m, Math.Max(x, Buy.Price))).ToPropertyEx(this, x => x.LastPriceProfit);
             //.DisposeWith(disposables);
         }
 
@@ -466,6 +489,16 @@ namespace Exchange.Net
             Buy.Quantity = SymbolInformation.ClampQuantity(Total / Buy.Price);
         }
 
+        private void CalcBalancePercent()
+        {
+            Total = Buy.Price * Buy.Quantity;
+            if (Total > QuoteBalance)
+            {
+                Total = QuoteBalance;
+            }
+            QuoteBalancePercent = QuoteBalance > 0 ? (double)(Total / QuoteBalance) : 0;
+        }
+
         public static TradeTask DeserializeModel(string json)
         {
             var model = JsonConvert.DeserializeObject<TradeTask>(json);
@@ -478,9 +511,49 @@ namespace Exchange.Net
             File.WriteAllText(Path.ChangeExtension(model.Id.ToString(), ".json"), json);
         }
 
+        public static void Delete(TradeTask model)
+        {
+            File.Delete(Path.ChangeExtension(model.Id.ToString(), ".json"));
+        }
+
         private decimal buyTotal;
-        private double qtyBalancePercent;
         public TradeTask Model { get; }
+    }
+
+
+
+    public class NewOrder : OrderBookEntry
+    {
+        public SymbolInformation SymbolInformation { get; set; }
+        public string OrderType { get; set; } = "limit";
+        public decimal Balance => Side == TradeSide.Buy ? SymbolInformation.QuoteAssetBalance.Free : SymbolInformation.BaseAssetBalance.Free;
+        [Reactive] public double BalancePercent { get; set; }
+
+
+        public NewOrder(SymbolInformation si, OrderBookEntry entry = null) : base(si.PriceDecimals, si.QuantityDecimals)
+        {
+            this.SymbolInformation = si;
+            if (entry != null)
+            {
+                Price = entry.Price;
+                Quantity = entry.Quantity;
+                Side = (entry.Side == TradeSide.Buy) ? TradeSide.Sell : TradeSide.Buy;
+            }
+            else
+            {
+                Price = si.PriceTicker.LastPrice.GetValueOrDefault();
+            }
+            this.WhenAnyValue(x => x.Side).Subscribe(y => this.RaisePropertyChanged(nameof(Balance)));
+            this.WhenAnyValue(x => x.BalancePercent).Subscribe(y => CalcQuantity());
+            BalancePercent = 0.05;
+        }
+
+        private void CalcQuantity()
+        {
+            var total = Math.Round(Balance * (decimal)BalancePercent, 8);
+            Quantity = SymbolInformation.ClampQuantity(total / Price);
+            this.RaisePropertyChanged(nameof(Total));
+        }
     }
 
     public class TradeModel

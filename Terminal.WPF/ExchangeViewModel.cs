@@ -1,4 +1,5 @@
 ﻿using DynamicData;
+using DynamicData.Binding;
 using Newtonsoft.Json;
 using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
@@ -42,6 +43,8 @@ namespace Exchange.Net
         public ReactiveList<string> MarketAssets => marketAssets;
         public ReactiveList<PriceTicker> MarketSummaries => marketSummaries;
         public ReactiveList<PublicTrade> RecentTrades => recentTrades;
+        public SourceCache<PublicTrade, long> RecentTradesCache { get; }
+        public ReadOnlyObservableCollection<PublicTrade> RecentTradesView => recentTradesView;
         public OrderBook OrderBook { get; }
         public string CurrentSymbol
         {
@@ -82,7 +85,7 @@ namespace Exchange.Net
         [Reactive] public ExchangeAccountViewModel CurrentAccountViewModel { get; set; }
         [ObservableAsProperty] public bool IsGetOpenOrdersExecuting { get; }
 
-
+        [Reactive] public bool HasSignedAccount { get; set; }
 
 
         protected abstract string DefaultMarket { get; }
@@ -120,9 +123,10 @@ namespace Exchange.Net
         ReactiveList<PriceTicker> marketSummaries;
         ReactiveList<string> marketAssets;
         ReactiveList<TradingRuleProxy> tradingRuleProxies = new ReactiveList<TradingRuleProxy>();
+        ReadOnlyObservableCollection<PublicTrade> recentTradesView;
+        ReadOnlyObservableCollection<ExchangeAccountViewModel> accViewModels;
         string currentSymbol;
         PriceTicker currentSymboTickerPrice;
-        private ReadOnlyObservableCollection<ExchangeAccountViewModel> accViewModels;
 
 #if !GTK
         readonly ViewModelActivator viewModelActivator = new ViewModelActivator();
@@ -138,6 +142,7 @@ namespace Exchange.Net
             marketAssets = new ReactiveList<string>();
             marketSummaries = new ReactiveList<PriceTicker>();
             recentTrades = new ReactiveList<PublicTrade>();
+            RecentTradesCache = new SourceCache<PublicTrade, long>(x => x.Id);
             OrderBook = new OrderBook(null);
 
             InitializeTradeController();
@@ -154,9 +159,17 @@ namespace Exchange.Net
                     .Subscribe()
                     .DisposeWith(disposables);
 
-                this.WhenAnyValue(vm => vm.CurrentAccount).Subscribe(x => CurrentAccountViewModel = AccountsViewModels.FirstOrDefault(y => y.Account == x));
+                RecentTradesCache
+                    .Connect()
+                    .Sort(SortExpressionComparer<PublicTrade>.Descending(t => t.Id))
+                    .ObserveOnDispatcher()
+                    .Bind(out recentTradesView)
+                    .Subscribe()
+                    .DisposeWith(disposables);
 
-                var symbolDependableCommandCanExecute = this.WhenAnyValue(x => x.CurrentSymbol, y => !string.IsNullOrWhiteSpace(y)).DistinctUntilChanged();
+
+                var signedDependableCommandCanExecute = this.WhenAnyValue(x => x.HasSignedAccount);
+                var symbolDependableCommandCanExecute = this.WhenAnyValue(x => x.HasSignedAccount, y => y.CurrentSymbol, (x, y) => x && !string.IsNullOrWhiteSpace(y)).DistinctUntilChanged();
                 var tradeTaskCommandCanExecute = this.WhenAnyValue(x => x.SelectedTradeTask, (TradeTaskViewModel y) => y != null).DistinctUntilChanged();
 
                 SetCurrentMarketCommand = ReactiveCommand.Create<string>(x => CurrentMarket = x).DisposeWith(disposables);
@@ -168,25 +181,27 @@ namespace Exchange.Net
                 // TODO: Make below as ReactiveCommand instead of ICommand
                 // and add DisposeWith to WhenActivated() section.
                 RefreshPrivateDataCommand = ReactiveCommand.CreateFromTask(RefreshPrivateDataExecute).DisposeWith(disposables);
-                //CancelOrderCommand = ReactiveCommand.CreateFromTask<string>(CancelOrder).DisposeWith(disposables);
-                SubmitOrderCommand = ReactiveCommand.CreateFromTask<NewOrder>(SubmitOrder).DisposeWith(disposables);
                 CreateRule = ReactiveCommand.CreateFromTask<string>(CreateRuleImpl, symbolDependableCommandCanExecute).DisposeWith(disposables);
                 CreateTradeTask = ReactiveCommand.CreateFromTask(CreateTradeTaskImpl, symbolDependableCommandCanExecute).DisposeWith(disposables);
                 SubmitRuleCommand = ReactiveCommand.Create<object>(SubmitRuleExecute).DisposeWith(disposables);
-                GetOpenOrders = ReactiveCommand.CreateFromTask(GetOpenOrdersImpl).DisposeWith(disposables);
-                GetOrdersHistory = ReactiveCommand.CreateFromTask(GetOrdersHistoryImpl, symbolDependableCommandCanExecute).DisposeWith(disposables);
-                GetTradesHistory = ReactiveCommand.CreateFromTask(GetTradesHistoryImpl, symbolDependableCommandCanExecute).DisposeWith(disposables);
-                GetDeposits = ReactiveCommand.CreateFromTask(GetDepositsImpl).DisposeWith(disposables);
-                GetWithdrawals = ReactiveCommand.CreateFromTask(GetWithdrawalsImpl).DisposeWith(disposables);
-                GetBalance = ReactiveCommand.CreateFromTask(GetBalanceImpl).DisposeWith(disposables);
+                // public data
                 GetExchangeInfo = ReactiveCommand.CreateFromTask(GetExchangeInfoImpl).DisposeWith(disposables);
                 GetTickers = ReactiveCommand.CreateFromTask(GetTickersImpl).DisposeWith(disposables);
                 GetTradesCommand = ReactiveCommand.CreateFromTask(GetTradesImpl).DisposeWith(disposables);
                 GetDepthCommand = ReactiveCommand.CreateFromTask(GetDepthImpl).DisposeWith(disposables);
+                // signed data
+                GetOpenOrders = ReactiveCommand.CreateFromTask(GetOpenOrdersImpl, signedDependableCommandCanExecute).DisposeWith(disposables);
+                GetOrdersHistory = ReactiveCommand.CreateFromTask(GetOrdersHistoryImpl, symbolDependableCommandCanExecute).DisposeWith(disposables);
+                GetTradesHistory = ReactiveCommand.CreateFromTask(GetTradesHistoryImpl, symbolDependableCommandCanExecute).DisposeWith(disposables);
+                GetDeposits = ReactiveCommand.CreateFromTask(GetDepositsImpl, signedDependableCommandCanExecute).DisposeWith(disposables);
+                GetWithdrawals = ReactiveCommand.CreateFromTask(GetWithdrawalsImpl, signedDependableCommandCanExecute).DisposeWith(disposables);
+                GetBalance = ReactiveCommand.CreateFromTask(GetBalanceImpl, signedDependableCommandCanExecute).DisposeWith(disposables);
+                //CancelOrderCommand = ReactiveCommand.CreateFromTask<string>(CancelOrder).DisposeWith(disposables);
+                SubmitOrderCommand = ReactiveCommand.CreateFromTask<NewOrder>(SubmitOrder).DisposeWith(disposables);
 
                 EnableTradeTask = ReactiveCommand.Create(EnableTradeTaskImpl, tradeTaskCommandCanExecute).DisposeWith(disposables);
                 PanicSellTradeTask = ReactiveCommand.CreateFromTask(PanicSellTradeTaskImpl, tradeTaskCommandCanExecute).DisposeWith(disposables);
-                DeleteTradeTask = ReactiveCommand.Create(DeleteTradeTaskImpl, tradeTaskCommandCanExecute).DisposeWith(disposables);
+                DeleteTradeTask = ReactiveCommand.CreateFromTask(DeleteTradeTaskImpl, tradeTaskCommandCanExecute).DisposeWith(disposables);
                 DeleteRule = ReactiveCommand.Create<TradingRuleProxy>(DeleteRuleImpl).DisposeWith(disposables);
 
                 GetOpenOrders.IsExecuting.ToPropertyEx(this, x => x.IsGetOpenOrdersExecuting).DisposeWith(disposables);
@@ -204,6 +219,9 @@ namespace Exchange.Net
 
                 RefreshCommand.ThrownExceptions.Subscribe(OnCommandException).DisposeWith(disposables);
                 GetOpenOrders.ThrownExceptions.Subscribe(OnCommandException).DisposeWith(disposables);
+
+                this.WhenAnyValue(vm => vm.CurrentAccount).Subscribe(x => CurrentAccountViewModel = AccountsViewModels.FirstOrDefault(y => y.Account == x));
+                this.WhenAnyValue(vm => vm.CurrentSymbolTickerPrice).Where(x => x != null).Select(x => x.Symbol).InvokeCommand(SetCurrentSymbolCommand);
 
                 this.ObservableForProperty(x => x.TickersSubscribed).Subscribe(x => SetTickersSubscription(x.Value)).DisposeWith(disposables);
                 this.ObservableForProperty(x => x.TradesSubscribed).Subscribe(x => SetTradesSubscription(x.Value)).DisposeWith(disposables);
@@ -624,7 +642,11 @@ namespace Exchange.Net
         {
             var tradesList = trades as List<PublicTrade> ?? trades.ToList();
             if (RecentTrades.All(x => x.SymbolInformation.Symbol != CurrentSymbol))
+            {
                 RecentTrades.Clear();
+                RecentTradesCache.Clear();
+            }
+            RecentTradesCache.AddOrUpdate(trades);
             long? lastId = RecentTrades.FirstOrDefault()?.Id;
             if (lastId != null)
                 tradesList.RemoveAll(x => x.Id <= lastId);
@@ -803,13 +825,13 @@ namespace Exchange.Net
 
         protected void UpdateWithTicker(PriceTicker ticker)
         {
-            foreach (var order in CurrentAccount.OrdersHistory.Items.Where(x => x.SymbolInformation.Symbol == ticker.Symbol))
-            {
-                if (order.Side == TradeSide.Buy)
-                    order.LastPrice = ticker.Bid.GetValueOrDefault();
-                else
-                    order.LastPrice = ticker.Ask.GetValueOrDefault();
-            }
+            //foreach (var order in CurrentAccount?.OrdersHistory?.Items?.Where(x => x.SymbolInformation.Symbol == ticker.Symbol))
+            //{
+            //    if (order.Side == TradeSide.Buy)
+            //        order.LastPrice = ticker.Bid.GetValueOrDefault();
+            //    else
+            //        order.LastPrice = ticker.Ask.GetValueOrDefault();
+            //}
             foreach (var task in TradeTasksList.Where(x => x.SymbolInformation.Symbol == ticker.Symbol))
             {
                 task.LastPrice = ticker.LastPrice.GetValueOrDefault();
@@ -932,7 +954,7 @@ namespace Exchange.Net
                 WindowStyle = System.Windows.WindowStyle.ToolWindow
             };
             var viewModel = this;
-            var order = new NewOrder(si) { QuantityPercentage = 0.5m };
+            var order = new NewOrder(si) { QuantityPercentage = 0.015m, Price = si.PriceTicker.LastPrice.GetValueOrDefault() };
             viewModel.NewOrder = order;
             wnd.DataContext = viewModel;
             wnd.ShowDialog();
@@ -946,6 +968,7 @@ namespace Exchange.Net
 
         public Interaction<TradeTaskViewModel, bool> CreateTask { get; } = new Interaction<TradeTaskViewModel, bool>();
         public Interaction<Exception, Unit> ShowException { get; } = new Interaction<Exception, Unit>();
+        public Interaction<string, bool> Confirm { get; } = new Interaction<string, bool>();
 
         [Reactive]
         public TradeTaskViewModel SelectedTradeTask { get; set; }
@@ -968,9 +991,21 @@ namespace Exchange.Net
             return PanicSell(SelectedTradeTask.Model);
         }
 
-        private void DeleteTradeTaskImpl()
+        private async Task DeleteTradeTaskImpl()
         {
-            tradeTasks.Remove(SelectedTradeTask.Model);
+            var yes = await Confirm.Handle("Вы уверены что хотите удалить задачу?");
+            if (yes)
+            {
+                try
+                {
+                    TradeTaskViewModel.Delete(SelectedTradeTask.Model);
+                    tradeTasks.Remove(SelectedTradeTask.Model);
+                }
+                catch (Exception)
+                {
+                    throw;
+                }
+            }
         }
 
         private async Task CreateTradeTaskImpl()
@@ -999,6 +1034,7 @@ namespace Exchange.Net
                 File.WriteAllText(Path.ChangeExtension(DateTime.Now.Ticks.ToString(), ".rule"), json);
             }
         }
+
 #endregion
 
         protected void DoDispose()
@@ -1082,7 +1118,7 @@ namespace Exchange.Net
             InitializeAsync(disposables);
         }
 
-        private async void InitializeAsync(CompositeDisposable disposables)
+        protected virtual async void InitializeAsync(CompositeDisposable disposables)
         {
             IsInitializing = true;
             await GetExchangeInfo.Execute();
@@ -1106,6 +1142,13 @@ namespace Exchange.Net
                 .Select(x => Unit.Default)
                 .InvokeCommand(GetBalance)
                 .DisposeWith(disposables);
+
+            InitializeAsyncImpl(disposables);
+        }
+
+        protected virtual void InitializeAsyncImpl(CompositeDisposable disposables)
+        {
+
         }
 
         private void LoadTradeTasks()
@@ -1151,6 +1194,11 @@ namespace Exchange.Net
         protected virtual IObservable<PriceTicker> ObserveTickers123()
         {
             return Observable.Empty<PriceTicker>();
+        }
+
+        protected virtual IObservable<PublicTrade> ObserveTrades(string market)
+        {
+            return Observable.Empty<PublicTrade>();
         }
 
         protected virtual Task GetDepthImpl()
@@ -1221,8 +1269,28 @@ namespace Exchange.Net
                 getTickersSubscription.Dispose();
         }
 
+        protected void SetTradesSubscriptionWebSocket(bool isEnabled)
+        {
+            if (isEnabled)
+                getTradesSubscription = ObserveTrades(CurrentSymbol)
+                                        .Subscribe(OnPublicTrade);
+            else if (getTradesSubscription != null)
+                getTradesSubscription.Dispose();
+        }
+
+        protected void OnPublicTrade(PublicTrade x)
+        {
+            RecentTradesCache.AddOrUpdate(x);
+        }
+
         protected void SetTradesSubscription(bool isEnabled)
         {
+            if (HasTradesPush)
+            {
+                SetTradesSubscriptionWebSocket(isEnabled);
+                return;
+            }
+
             if (isEnabled)
                 getTradesSubscription =
                     Observable.Timer(TimeSpan.Zero, TimeSpan.FromSeconds(2))

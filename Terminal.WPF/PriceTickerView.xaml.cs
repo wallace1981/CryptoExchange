@@ -25,37 +25,38 @@ namespace Terminal.WPF
         public PriceTickerView()
         {
             InitializeComponent();
-            fdBase = new Telerik.Windows.Data.FilterDescriptor();
-            fdBase.Member = "SymbolInformation.BaseAsset";
-            fdBase.Operator = Telerik.Windows.Data.FilterOperator.StartsWith;
-            fdBase.IsCaseSensitive = false;
-            // In most cases the data engine will discover this automatically so you do not need to set it.
-            fdBase.MemberType = typeof(string);
-            gv.FilterDescriptors.Add(fdBase);
 
-            fdQuote = new Telerik.Windows.Data.FilterDescriptor();
-            fdQuote.Member = "SymbolInformation.QuoteAsset";
-            fdQuote.Operator = Telerik.Windows.Data.FilterOperator.IsEqualTo;
-            fdQuote.IsCaseSensitive = false;
-            // In most cases the data engine will discover this automatically so you do not need to set it.
-            fdQuote.MemberType = typeof(string);
-            gv.FilterDescriptors.Add(fdQuote);
+            //fdBase = new Telerik.Windows.Data.FilterDescriptor();
+            //fdBase.Member = "SymbolInformation.BaseAsset";
+            //fdBase.Operator = Telerik.Windows.Data.FilterOperator.StartsWith;
+            //fdBase.IsCaseSensitive = false;
+            //// In most cases the data engine will discover this automatically so you do not need to set it.
+            //fdBase.MemberType = typeof(string);
+            //gv.FilterDescriptors.Add(fdBase);
 
-            var fdStatus = new Telerik.Windows.Data.FilterDescriptor();
-            fdStatus.Member = "SymbolInformation.Status";
-            fdStatus.Operator = Telerik.Windows.Data.FilterOperator.IsNotEqualTo;
-            fdStatus.IsCaseSensitive = false;
-            // In most cases the data engine will discover this automatically so you do not need to set it.
-            fdStatus.MemberType = typeof(string);
-            fdStatus.Value = "BREAK";
-            //gv.FilterDescriptors.Add(fdStatus);
+            //fdQuote = new Telerik.Windows.Data.FilterDescriptor();
+            //fdQuote.Member = "SymbolInformation.QuoteAsset";
+            //fdQuote.Operator = Telerik.Windows.Data.FilterOperator.IsEqualTo;
+            //fdQuote.IsCaseSensitive = false;
+            //// In most cases the data engine will discover this automatically so you do not need to set it.
+            //fdQuote.MemberType = typeof(string);
+            //gv.FilterDescriptors.Add(fdQuote);
 
-            //rbBtc.IsChecked = true;
+            //var fdStatus = new Telerik.Windows.Data.FilterDescriptor();
+            //fdStatus.Member = "SymbolInformation.Status";
+            //fdStatus.Operator = Telerik.Windows.Data.FilterOperator.IsNotEqualTo;
+            //fdStatus.IsCaseSensitive = false;
+            //// In most cases the data engine will discover this automatically so you do not need to set it.
+            //fdStatus.MemberType = typeof(string);
+            //fdStatus.Value = "BREAK";
+            ////gv.FilterDescriptors.Add(fdStatus);
+
+            ////rbBtc.IsChecked = true;
         }
 
         private void TextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
-            fdBase.Value = (sender as TextBox).Text;
+            //fdBase.Value = (sender as TextBox).Text;
             MarketSummaries.Refresh();
             var binding = grdMarketSummaries.GetBindingExpression(DataGrid.SelectedItemProperty);
             binding.UpdateTarget();
@@ -63,7 +64,7 @@ namespace Terminal.WPF
 
         private void RadioButton_Checked(object sender, RoutedEventArgs e)
         {
-            fdQuote.Value = (sender as Telerik.Windows.Controls.RadToggleButton).CommandParameter;
+            //fdQuote.Value = (sender as Telerik.Windows.Controls.RadToggleButton).CommandParameter;
         }
 
         public ExchangeViewModel ViewModel
@@ -73,7 +74,7 @@ namespace Terminal.WPF
 
         private void RadComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            fdQuote.Value = (sender as Telerik.Windows.Controls.RadComboBox).SelectedValue;
+            //fdQuote.Value = (sender as ComboBox).SelectedValue;
             MarketSummaries.Refresh();
         }
 

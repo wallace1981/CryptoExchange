@@ -45,35 +45,67 @@ namespace Exchange.Net
 
         protected bool LoadApiKeys(string filepath)
         {
+            var result = LoadApiKeysFromRegistry();
+            if (result)
+                return result;
+            else
+                return LoadApiKeysFromFile(filepath);
+        }
+
+        private bool LoadApiKeysFromFile(string filepath)
+        {
             if (File.Exists(filepath))
             {
                 var plain = File.ReadAllText(filepath);
-                var parts = plain.Split(new string[] { Environment.NewLine }, StringSplitOptions.RemoveEmptyEntries);
-                if (parts.Length == 3)
+                return LoadApiKeysImpl(plain);
+            }
+            return false;
+        }
+
+        private bool LoadApiKeysFromRegistry()
+        {
+            var reg = Microsoft.Win32.Registry.CurrentUser.OpenSubKey($@"Software\wallace\Terminal.WPF\{LogName}\Accounts", writable: false);
+            if (reg != null)
+            {
+                var account = reg.GetValue(null) as string;
+                if (string.IsNullOrWhiteSpace(account))
+                    return false;
+                var plain = reg.GetValue(account) as string;
+                return LoadApiKeysImpl(plain);
+            }
+            else
+            {
+                return false;
+            }
+        }
+
+        private bool LoadApiKeysImpl(string plain)
+        {
+            var parts = plain.Split(new string[] { Environment.NewLine }, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 3)
+            {
+                var entropy = Convert.FromBase64String(parts[0]);
+                var apiKeyProtected = Convert.FromBase64String(parts[1]);
+                var apiSecretProtected = Convert.FromBase64String(parts[2]);
+                try
                 {
-                    var entropy = Convert.FromBase64String(parts[0]);
-                    var apiKeyProtected = Convert.FromBase64String(parts[1]);
-                    var apiSecretProtected = Convert.FromBase64String(parts[2]);
-                    try
+                    var apiKeyBytes = ProtectedData.Unprotect(apiKeyProtected, entropy, DataProtectionScope.CurrentUser);
+                    var apiSecretBytes = ProtectedData.Unprotect(apiSecretProtected, entropy, DataProtectionScope.CurrentUser);
+                    apiKey = new SecureString();
+                    foreach (byte ch in apiKeyBytes)
                     {
-                        var apiKeyBytes = ProtectedData.Unprotect(apiKeyProtected, entropy, DataProtectionScope.CurrentUser);
-                        var apiSecretBytes = ProtectedData.Unprotect(apiSecretProtected, entropy, DataProtectionScope.CurrentUser);
-                        apiKey = new SecureString();
-                        foreach (byte ch in apiKeyBytes)
-                        {
-                            apiKey.AppendChar((char)ch);
-                        }
-                        apiSecret = new SecureString();
-                        foreach (byte ch in apiSecretBytes)
-                        {
-                            apiSecret.AppendChar((char)ch);
-                        }
-                        return true;
+                        apiKey.AppendChar((char)ch);
                     }
-                    catch (CryptographicException ex)
+                    apiSecret = new SecureString();
+                    foreach (byte ch in apiSecretBytes)
                     {
-                        Debug.Print(ex.ToString());
+                        apiSecret.AppendChar((char)ch);
                     }
+                    return true;
+                }
+                catch (CryptographicException ex)
+                {
+                    Debug.Print(ex.ToString());
                 }
             }
             return false;
@@ -102,6 +134,7 @@ namespace Exchange.Net
                 var secretKeyProtected = ProtectedData.Protect(apiSecret.ToByteArray(), entropy, DataProtectionScope.CurrentUser);
                 var plain = String.Join(Environment.NewLine, Convert.ToBase64String(entropy), Convert.ToBase64String(apiKeyProtected), Convert.ToBase64String(secretKeyProtected));
                 reg.SetValue(account, plain);
+                reg.SetValue(null, account); // set this account as default
             }
         }
 

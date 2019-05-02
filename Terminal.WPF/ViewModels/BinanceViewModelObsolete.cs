@@ -6,6 +6,7 @@ using System.Linq;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
+using System.Windows.Input;
 
 namespace Exchange.Net
 {
@@ -43,7 +44,7 @@ namespace Exchange.Net
         {
             var result = await client.Get24hrPriceTickerAsync().ConfigureAwait(false);
             if (result.Success)
-                return result.Data.Select(ToPriceTicker);
+                return result.Data.Select(Convert);
             else
                 return Enumerable.Empty<PriceTicker>();
         }
@@ -54,7 +55,7 @@ namespace Exchange.Net
             if (result.Success)
             {
                 var si = GetSymbolInformation(market);
-                var trades = result.Data.Select(x => ToPublicTrade(x, si)).Reverse().ToList();
+                var trades = result.Data.Select(x => Convert(x, si)).Reverse().ToList();
                 return trades;
             }
             else
@@ -105,7 +106,7 @@ namespace Exchange.Net
                 }
                 else if (trade.tradeId > lastTradeId)
                 {
-                    var newTrade = ToPublicTrade(trade);
+                    var newTrade = Convert(trade);
                     lastTradeId = newTrade.Id;
                     return Enumerable.Repeat(newTrade, 1);
                 }
@@ -197,6 +198,7 @@ namespace Exchange.Net
             })
             ).ToList();
         }
+      public ICommand GetServerTimeCommand => getServerTimeCommand;
 
 
 
@@ -215,7 +217,7 @@ namespace Exchange.Net
             if (taskExchangeInfo.Result.Success)
                 ProcessExchangeInfo(taskExchangeInfo.Result.Data.symbols.Select(CreateSymbolInformation));
             if (taskPriceTicker.Result.Success)
-                ProcessPriceTicker(taskPriceTicker.Result.Data.Select(ToPriceTicker));
+                ProcessPriceTicker(taskPriceTicker.Result.Data.Select(Convert));
 
             //Run();
             //var test = await client.TestPlaceOrderAsync2("GOBTC", Binance.TradeSide.BUY, Binance.OrderType.LIMIT, 1.0m, 0.00000400m);
@@ -239,7 +241,7 @@ namespace Exchange.Net
             sub24hrPriceTickerWs.Subscribe(
                 (Binance.WsPriceTicker24hr ticker) =>
                 {
-                    OnRefreshMarketSummary2(ToPriceTicker(ticker));
+                    OnRefreshMarketSummary2(Convert(ticker));
                 }).DisposeWith(Disposables);
         }
 

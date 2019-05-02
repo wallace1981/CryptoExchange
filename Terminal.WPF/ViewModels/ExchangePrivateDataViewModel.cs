@@ -7,6 +7,7 @@ using System.Reactive.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using DynamicData;
+using DynamicData.Binding;
 using Exchange.Net;
 using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
@@ -55,18 +56,21 @@ namespace Exchange.Net
         {
             Account = acc;
             Account.Deposits.Connect()
+                .Sort(SortExpressionComparer<Transfer>.Descending(x => x.Timestamp))
                 .ObserveOnDispatcher()
                 .Bind(out deposits)
                 .Subscribe()
                 .DisposeWith(disposables);
 
             Account.Withdrawals.Connect()
+                .Sort(SortExpressionComparer<Transfer>.Descending(x => x.Timestamp))
                 .ObserveOnDispatcher()
                 .Bind(out withdrawals)
                 .Subscribe()
                 .DisposeWith(disposables);
 
             Account.OpenOrders.Connect()
+                .Sort(SortExpressionComparer<Order>.Descending(x => x.OrderId))
                 .ObserveOnDispatcher()
                 .Bind(out openOrders)
                 .Subscribe()
@@ -79,6 +83,7 @@ namespace Exchange.Net
                 .DisposeWith(disposables);
 
             Account.BalanceManager.Balances.Connect()
+                .Sort(SortExpressionComparer<Balance>.Ascending(x => x.Asset))
                 .ObserveOnDispatcher()
                 .Bind(out balances)
                 .Subscribe()

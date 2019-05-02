@@ -1,5 +1,6 @@
 ﻿using DynamicData;
 using ReactiveUI;
+using ReactiveUI.Fody.Helpers;
 using ReactiveUI.Legacy;
 using System;
 using System.Collections.Generic;
@@ -291,6 +292,16 @@ namespace Exchange.Net
                     if (balance.HasValue) balance.Value.PriceBtc = price;
                 }
             }
+            if (symbol.EndsWith("PAX"))
+            {
+                var asset = symbol.Replace("PAX", string.Empty);
+                if (asset == "BTC")
+                {
+                    var b = Balances.Lookup("PAX");
+                    if (b.HasValue)
+                        b.Value.PriceBtc = 1m / price;
+                }
+            }
             this.RaisePropertyChanged(nameof(TotalBtc));
             this.RaisePropertyChanged(nameof(TotalUsd));
             return result;
@@ -444,6 +455,23 @@ namespace Exchange.Net
         public decimal BuyVolume { get => _buyVolume; set => this.RaiseAndSetIfChanged(ref _buyVolume, value); }
         public SymbolInformation SymbolInformation { get; set; }
         public decimal PriceDiff => PrevLastPrice != null && LastPrice != null ? LastPrice.Value - PrevLastPrice.Value : decimal.Zero;
+
+        [Reactive] public Candle Candle1m { get; set; }
+        [Reactive] public Candle Candle5m { get; set; }
+        [Reactive] public Candle Candle15m { get; set; }
+
+    }
+
+    public class Candle
+    {
+        public decimal Open { get; set; }
+        public decimal High { get; set; }
+        public decimal Low { get; set; }
+        public decimal Close { get; set; }
+        public decimal Volume { get; set; }
+        public decimal QuoteVolume { get; set; }
+        public decimal BuyVolume { get; set; }
+        public decimal BuyQuoteVolume { get; set; }
     }
 
     public enum TransferType
@@ -485,7 +513,7 @@ namespace Exchange.Net
             this.qtyDecimals = qtyDecimals;
         }
 
-        public TradeSide Side { get; set; }
+        [Reactive] public TradeSide Side { get; set; }
         public decimal Price
         {
             get { return _Price; }
@@ -887,23 +915,6 @@ namespace Exchange.Net
         public OrderTrade(SymbolInformation si) : base(si.PriceDecimals, si.QuantityDecimals)
         {
             this.SymbolInformation = si;
-        }
-    }
-
-    public class NewOrder : OrderBookEntry
-    {
-        public SymbolInformation SymbolInformation { get; set; }
-        public string OrderType { get; set; } = "limit";
-
-        public NewOrder(SymbolInformation si, OrderBookEntry entry = null) : base(si.PriceDecimals, si.QuantityDecimals)
-        {
-            this.SymbolInformation = si;
-            if (entry != null)
-            {
-                Price = entry.Price;
-                Quantity = entry.Quantity;
-                Side = (entry.Side == TradeSide.Buy) ? TradeSide.Sell : TradeSide.Buy;
-            }
         }
     }
 }

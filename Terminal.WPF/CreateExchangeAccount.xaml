@@ -55,7 +55,7 @@
             <TextBlock Text="API Secret:"/>
         </Label>
 
-        <telerik:RadComboBox
+        <ComboBox
             Grid.Column="1" Grid.Row="2"
             VerticalAlignment="Center"
             ItemsSource="{Binding Path=Exchanges, Mode=OneTime}"
@@ -81,14 +81,14 @@
             x:Name="pwdApiSecret"
             />
 
-        <telerik:RadButton
+        <Button
             Grid.Column="1" Grid.Row="9"
             HorizontalAlignment="Right" VerticalAlignment="Center"
             MinWidth="75"
             Command="{Binding Path=Submit, Mode=OneTime}"
             >
             <TextBlock Text="Создать"/>
-        </telerik:RadButton>
+        </Button>
         
     </Grid>
 </rxui:ReactiveUserControl>

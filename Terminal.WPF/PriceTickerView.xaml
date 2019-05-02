@@ -6,7 +6,6 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
     xmlns:sys="clr-namespace:System;assembly=mscorlib"
     xmlns:scm="clr-namespace:System.ComponentModel;assembly=WindowsBase"
-    xmlns:telerik="http://schemas.telerik.com/2008/xaml/presentation"
     xmlns:local="clr-namespace:Terminal.WPF"
     mc:Ignorable="d"
     d:DesignHeight="320"
@@ -17,15 +16,6 @@
         <sys:Boolean x:Key="blFalse">False</sys:Boolean>
         <local:EqualityToVisibilityConverter EqualValue="{StaticResource blTrue}" NotEqualValue="{StaticResource blFalse}" x:Key="convEqualityBool"/>
         <local:DecimalValueFormatConverter x:Key="cvtDecimalFmt"/>
-        <Style TargetType="{x:Type telerik:GridViewRow}" BasedOn="{StaticResource GridViewRowStyle}" x:Key="rowStyle">
-            <!--<Setter Property="SelectedBackground" Value="#FDF1CF"/>-->
-            <Setter Property="Padding" Value="1"/>
-            <Setter Property="MinHeight" Value="10"/>
-        </Style>
-        <Style TargetType="{x:Type telerik:GridViewCell}" BasedOn="{StaticResource GridViewCellStyle}" x:Key="cellStyle">
-            <Setter Property="CurrentBorderBrush" Value="Transparent" />
-            <Setter Property="Foreground" Value="Black"/>
-        </Style>
         <CollectionViewSource
             x:Key="csvMarketSummaries"
             Source="{Binding Path=MarketSummaries, Mode=OneWay}"
@@ -33,8 +23,8 @@
             IsLiveSortingRequested="True"
             >
             <CollectionViewSource.SortDescriptions>
-                <!--<scm:SortDescription PropertyName="QuoteVolume" Direction="Descending"/>
-                <scm:SortDescription PropertyName="PriceChangePercent" Direction="Descending"/>-->
+                <scm:SortDescription PropertyName="QuoteVolume" Direction="Descending"/>
+                <!--<scm:SortDescription PropertyName="PriceChangePercent" Direction="Descending"/>-->
             </CollectionViewSource.SortDescriptions>
         </CollectionViewSource>
     </UserControl.Resources>
@@ -48,12 +38,13 @@
         <DockPanel LastChildFill="False" Margin="0 3">
             <TextBox Width="85" TextChanged="TextBox_TextChanged" x:Name="tb"/>
             <!--<telerik:RadToggleButton x:Name="collapse" IsChecked="True" Margin="1 3 0 3">-</telerik:RadToggleButton>-->
-            <telerik:RadToggleButton IsChecked="{Binding Path=TickersSubscribed}" Margin="2 0 0 0" VerticalAlignment="Center" FontWeight="Bold">Tickers</telerik:RadToggleButton>
+            <Button VerticalAlignment="Center" Margin="2 0 0 0" Command="{Binding Path=GetExchangeInfo}">!</Button>
+            <ToggleButton IsChecked="{Binding Path=TickersSubscribed}" Margin="2 0 0 0" VerticalAlignment="Center" FontWeight="Bold">>></ToggleButton>
             <Button Command="{Binding Path=GetTickers}" VerticalAlignment="Center" Margin="2 0 0 0">></Button>
             <Label HorizontalContentAlignment="Right" VerticalAlignment="Center" FontSize="11" Width="50">
                 <TextBlock Text="{Binding Path=GetTickersElapsed, Mode=OneWay, FallbackValue=9999, StringFormat='{}{0}ms.'}"/>
             </Label>
-            <telerik:RadComboBox
+            <ComboBox
                 x:Name="cmbQuoteAsset"
                 DockPanel.Dock="Right" Width="80"
                 ItemsSource="{Binding Path=MarketAssets, Mode=OneWay}"
@@ -78,7 +69,7 @@
                         </telerik:RadToggleButton>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>-->
-            </telerik:RadComboBox>
+            </ComboBox>
         </DockPanel>
 
         <DataGrid
@@ -147,99 +138,38 @@
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
-            </DataGrid.Columns>
-            <telerik:EventToCommandBehavior.EventBindings>
-                <telerik:EventBinding EventName="SelectionChanged"
-                                      Command="{Binding Path=SetCurrentSymbolCommand, Mode=OneWay}"
-                                      CommandParameter="{Binding Path=CurrentSymbolTickerPrice.Symbol, Mode=OneWay}"/>
-            </telerik:EventToCommandBehavior.EventBindings>
-        </DataGrid>
-        
-        <telerik:RadGridView
-            Grid.Row="1"
-            IsReadOnly="True"
-            SelectionMode="Single" SelectionUnit="FullRow"
-            IsSynchronizedWithCurrentItem="False"
-            AutoGenerateColumns="False"
-            FrozenColumnsSplitterVisibility="Collapsed"
-            RowIndicatorVisibility="Collapsed"
-            ShowGroupPanel="False"
-            FilteringMode="Popup" IsFilteringAllowed="True" GroupRenderMode="Flat"
-            RowStyle="{StaticResource rowStyle}"
-            ValidatesOnDataErrors="None"
-            ScrollViewer.VerticalScrollBarVisibility="Visible"
-            Visibility="Collapsed"
-            x:Name="gv">
-            
-            <telerik:RadGridView.Columns>
-                <telerik:GridViewColumn Header="Пара" Width="85" SortMemberPath="SymbolInformation.ProperSymbol" FilterMemberPath="SymbolInformation.ProperSymbol" CellStyle="{StaticResource cellStyle}">
-                    <telerik:GridViewColumn.CellTemplate>
-                        <DataTemplate>
-                            <TextBlock FontFamily="{StaticResource RobotoCondensed}" FontSize="12">
-                                <Run Text="{Binding Path=SymbolInformation.BaseAsset, Mode=OneWay}"/>/<Run Text="{Binding Path=SymbolInformation.QuoteAsset, Mode=OneWay}"/>
-                                <TextBlock.Style>
-                                    <Style>
-                                        <Setter Property="TextBlock.Foreground" Value="{Binding Path=SymbolInformation, Mode=OneWay, Converter={StaticResource convSymbolToBrush}}"/>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
-                        </DataTemplate>
-                    </telerik:GridViewColumn.CellTemplate>
-                </telerik:GridViewColumn>
 
-                <telerik:GridViewColumn Header="Цена" Width="85" SortMemberPath="LastPrice" CellStyle="{StaticResource cellStyle}">
-                    <telerik:GridViewColumn.CellTemplate>
-                        <DataTemplate>
-                            <TextBlock Text="{Binding Path=LastPrice, Mode=OneWay, TargetNullValue='- -'}" HorizontalAlignment="Left" FontFamily="{StaticResource RobotoCondensed}" FontSize="12">
-                                <TextBlock.Style>
-                                    <Style>
-                                        <Setter Property="TextBlock.Foreground" Value="{Binding Path=PriceDiff, Mode=OneWay, Converter={StaticResource convPriceDiffToBrush}}"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding Path=IsLastPriceUpdated, Mode=OneWay}" Value="True">
-                                                <Setter Property="TextBlock.Background" Value="{Binding Path=PriceDiff, Mode=OneWay, Converter={StaticResource convPriceDiffToBrush}, ConverterParameter={StaticResource NeutralCandleBrush}}"/>
-                                                <Setter Property="TextBlock.Foreground" Value="White"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
-                        </DataTemplate>
-                    </telerik:GridViewColumn.CellTemplate>
-                </telerik:GridViewColumn>
-
-                <telerik:GridViewColumn Header="Измен." HeaderTextAlignment="Right" IsVisible="{Binding ElementName=collapse, Path=IsChecked}" Width="50" SortMemberPath="PriceChangePercent" CellStyle="{StaticResource cellStyle}">
-                    <telerik:GridViewColumn.CellTemplate>
-                        <DataTemplate>
-                            <StackPanel HorizontalAlignment="Right">
-                                <TextBlock Foreground="{Binding Path=PriceChangePercent, Mode=OneWay, Converter={StaticResource convPriceDiffToBrush}}" HorizontalAlignment="Right" FontFamily="{StaticResource RobotoCondensed}" FontSize="12">
-                                    <Run Text="{Binding Path=PriceChangePercent, Mode=OneWay, TargetNullValue='- -', StringFormat={StaticResource StringFormatPercentage}}"/>
-                                </TextBlock>
-                            </StackPanel>
-                        </DataTemplate>
-                    </telerik:GridViewColumn.CellTemplate>
-                </telerik:GridViewColumn>
-
-                <telerik:GridViewColumn Header="Объем" HeaderTextAlignment="Right" IsVisible="{Binding ElementName=collapse, Path=IsChecked}" Width="70" SortMemberPath="QuoteVolume" FilterMemberPath="QuoteVolume" CellStyle="{StaticResource cellStyle}">
-                    <telerik:GridViewColumn.CellTemplate>
+                <DataGridTemplateColumn Header="Buy/Sell 1m"  Width="72" SortMemberPath="Candle1m.QuoteVolume">
+                    <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                             <TextBlock DockPanel.Dock="Right" HorizontalAlignment="Right" FontFamily="{StaticResource RobotoCondensed}" FontSize="12">
-                                <Run Text="{Binding Path=QuoteVolume, Mode=OneWay, TargetNullValue='- -', StringFormat='N0'}"/>
+                                <Run Text="{Binding Path=Candle1m.QuoteVolume, Mode=OneWay, TargetNullValue='- -', StringFormat='N2'}"/>
+                                <Run Text="/"/>
+                                <Run Text="{Binding Path=Candle1m.BuyQuoteVolume, Mode=OneWay, TargetNullValue='- -', StringFormat='N2'}"/>
                             </TextBlock>
                         </DataTemplate>
-                    </telerik:GridViewColumn.CellTemplate>
-                </telerik:GridViewColumn>
-            </telerik:RadGridView.Columns>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
 
-            <telerik:RadGridView.SortDescriptors>
-                <telerik:SortDescriptor Member="QuoteVolume" SortDirection="Descending"/>
-            </telerik:RadGridView.SortDescriptors>
-
-            <telerik:EventToCommandBehavior.EventBindings>
+                <DataGridTemplateColumn Header="Buy/Sell 5m"  Width="72" SortMemberPath="Candle5m.QuoteVolume">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <TextBlock DockPanel.Dock="Right" HorizontalAlignment="Right" FontFamily="{StaticResource RobotoCondensed}" FontSize="12">
+                                <Run Text="{Binding Path=Candle5m.QuoteVolume, Mode=OneWay, TargetNullValue='- -', StringFormat='N2'}"/>
+                                <Run Text="/"/>
+                                <Run Text="{Binding Path=Candle5m.BuyQuoteVolume, Mode=OneWay, TargetNullValue='- -', StringFormat='N2'}"/>
+                            </TextBlock>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+            </DataGrid.Columns>
+            <!--<telerik:EventToCommandBehavior.EventBindings>
                 <telerik:EventBinding EventName="SelectionChanged"
                                       Command="{Binding Path=SetCurrentSymbolCommand, Mode=OneWay}"
                                       CommandParameter="{Binding Path=CurrentSymbolTickerPrice.Symbol, Mode=OneWay}"/>
-            </telerik:EventToCommandBehavior.EventBindings>
-        </telerik:RadGridView>
+            </telerik:EventToCommandBehavior.EventBindings>-->
+        </DataGrid>
+       
     </Grid>
 
 </UserControl>

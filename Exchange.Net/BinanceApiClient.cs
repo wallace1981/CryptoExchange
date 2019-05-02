@@ -747,6 +747,24 @@ namespace Exchange.Net
                 responseMessage.Content.Dispose();
                 responseMessage.Dispose();
             }
+            catch (HttpRequestException ex)
+            {
+                for (var innerEx = ex.InnerException; innerEx != null; innerEx = innerEx.InnerException)
+                {
+                    var socketEx = innerEx as System.Net.Sockets.SocketException;
+                    if (socketEx?.SocketErrorCode == System.Net.Sockets.SocketError.ConnectionReset)
+                    {
+                        // An existing connection was forcibly closed by the remote host (10054)
+                        // because of Keep-Alive=true. Retry.
+                        result = new ApiResult<T>(default(T), new ApiError(socketEx.ErrorCode, socketEx.Message));
+                        break;
+                    }
+                }
+                if (result == null)
+                {
+                    result = new ApiResult<T>(default(T), new ApiError(ex.HResult, ex.Message));
+                }
+            }
             catch (Exception ex)
             {
                 result = new ApiResult<T>(default(T), new ApiError(ex.HResult, ex.Message));
@@ -763,7 +781,7 @@ namespace Exchange.Net
         internal void CalcServerTimeOffset(long serverTime, double callDelayMilliseconds)
         {
             var diff = serverTime.FromUnixTimestamp(convertToLocalTime: false) - DateTime.UtcNow;
-            var offset = diff.TotalMilliseconds + callDelayMilliseconds / 2.0;
+            var offset = diff.TotalMilliseconds - callDelayMilliseconds / 2.0;
             Interlocked.Exchange(ref serverTimeOffsetMilliseconds, (long)offset);
             Debug.Print($"Server Time Offset: {offset}ms (diff: {diff.TotalMilliseconds}ms; callDelay: {callDelayMilliseconds}).");
         }
