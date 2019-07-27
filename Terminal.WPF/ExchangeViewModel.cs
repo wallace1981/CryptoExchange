@@ -181,7 +181,7 @@ namespace Exchange.Net
                 // TODO: Make below as ReactiveCommand instead of ICommand
                 // and add DisposeWith to WhenActivated() section.
                 RefreshPrivateDataCommand = ReactiveCommand.CreateFromTask(RefreshPrivateDataExecute).DisposeWith(disposables);
-                CreateRule = ReactiveCommand.CreateFromTask<string>(CreateRuleImpl, symbolDependableCommandCanExecute).DisposeWith(disposables);
+                CreateRule = ReactiveCommand.CreateFromTask<string>(CreateRuleImpl/*, symbolDependableCommandCanExecute*/).DisposeWith(disposables);
                 CreateTradeTask = ReactiveCommand.CreateFromTask(CreateTradeTaskImpl, symbolDependableCommandCanExecute).DisposeWith(disposables);
                 SubmitRuleCommand = ReactiveCommand.Create<object>(SubmitRuleExecute).DisposeWith(disposables);
                 // public data
@@ -191,12 +191,12 @@ namespace Exchange.Net
                 GetDepthCommand = ReactiveCommand.CreateFromTask(GetDepthImpl).DisposeWith(disposables);
                 // signed data
                 GetOpenOrders = ReactiveCommand.CreateFromTask(GetOpenOrdersImpl, signedDependableCommandCanExecute).DisposeWith(disposables);
-                GetOrdersHistory = ReactiveCommand.CreateFromTask(GetOrdersHistoryImpl, symbolDependableCommandCanExecute).DisposeWith(disposables);
+                GetOrdersHistory = ReactiveCommand.CreateFromTask(GetOrdersHistoryImpl, signedDependableCommandCanExecute).DisposeWith(disposables);
                 GetTradesHistory = ReactiveCommand.CreateFromTask(GetTradesHistoryImpl, symbolDependableCommandCanExecute).DisposeWith(disposables);
                 GetDeposits = ReactiveCommand.CreateFromTask(GetDepositsImpl, signedDependableCommandCanExecute).DisposeWith(disposables);
                 GetWithdrawals = ReactiveCommand.CreateFromTask(GetWithdrawalsImpl, signedDependableCommandCanExecute).DisposeWith(disposables);
                 GetBalance = ReactiveCommand.CreateFromTask(GetBalanceImpl, signedDependableCommandCanExecute).DisposeWith(disposables);
-                //CancelOrderCommand = ReactiveCommand.CreateFromTask<string>(CancelOrder).DisposeWith(disposables);
+                CancelOrderCommand = ReactiveCommand.CreateFromTask<string>(CancelOrderImpl).DisposeWith(disposables);
                 SubmitOrderCommand = ReactiveCommand.CreateFromTask<NewOrder>(SubmitOrder).DisposeWith(disposables);
 
                 EnableTradeTask = ReactiveCommand.Create(EnableTradeTaskImpl, tradeTaskCommandCanExecute).DisposeWith(disposables);
@@ -439,7 +439,7 @@ namespace Exchange.Net
             var si = GetSymbolInformation(CurrentSymbol);
 
             return orderBook.GroupBy(x => MergePrice(x.Price, factor, x.Side), x => x,
-                (priceLevel, entries) => new OrderBookEntry(OrderBook.PriceDecimals, OrderBook.QuantityDecimals) { Price = priceLevel, Quantity = entries.Sum(y => y.Quantity), Side = entries.First().Side });
+                (priceLevel, entries) => new OrderBookEntry(si) { Price = priceLevel, Quantity = entries.Sum(y => y.Quantity), Side = entries.First().Side });
         }
 
         private static decimal MergePrice(decimal price, decimal factor, TradeSide side)
@@ -871,6 +871,10 @@ namespace Exchange.Net
                 await @lock.WaitAsync();
                 if (rule.IsApplicable(ticker))
                 {
+                    if (proxy.Confirmations == 0)
+                    {
+                        Notify(proxy);
+                    }
                     proxy.Confirmations += 1;
                     proxy.Status = $"Triggered #{proxy.Confirmations}/{MAX_CONFIRMS} times";
                     if (proxy.Confirmations < MAX_CONFIRMS)
@@ -921,6 +925,12 @@ namespace Exchange.Net
             }
         }
 
+        protected Task Notify(TradingRuleProxy proxy)
+        {
+            string msg = $"{ExchangeName}: {proxy.Symbol} {proxy.Rule.Operator} {proxy.Rule.ThresholdRate}";
+            return TelegramNotifier.Notify(msg);
+        }
+
         protected virtual Task<Order> PlaceOrder(TradingRule rule)
         {
             return Task.FromResult<Order>(null);
@@ -960,6 +970,25 @@ namespace Exchange.Net
             wnd.ShowDialog();
         }
 
+        public async Task CreateOrder(OrderBookEntry entry)
+        {
+            var si = await GetFullSymbolInformation();
+            var wnd = new System.Windows.Window
+            {
+                Content = new Terminal.WPF.SubmitOrder() { Margin = new System.Windows.Thickness(6) },
+                Owner = System.Windows.Application.Current.MainWindow,
+                SizeToContent = System.Windows.SizeToContent.WidthAndHeight,
+                Title = "Submit Order",
+                WindowStartupLocation = System.Windows.WindowStartupLocation.CenterOwner,
+                WindowStyle = System.Windows.WindowStyle.ToolWindow
+            };
+            var viewModel = this;
+            var order = new NewOrder(si, entry);
+            viewModel.NewOrder = order;
+            wnd.DataContext = viewModel;
+            wnd.ShowDialog();
+        }
+
         private void DeleteRuleImpl(TradingRuleProxy proxy)
         {
             if (proxy != null)
@@ -969,6 +998,7 @@ namespace Exchange.Net
         public Interaction<TradeTaskViewModel, bool> CreateTask { get; } = new Interaction<TradeTaskViewModel, bool>();
         public Interaction<Exception, Unit> ShowException { get; } = new Interaction<Exception, Unit>();
         public Interaction<string, bool> Confirm { get; } = new Interaction<string, bool>();
+        public Interaction<string, Unit> Alert { get; } = new Interaction<string, Unit>();
 
         [Reactive]
         public TradeTaskViewModel SelectedTradeTask { get; set; }
@@ -1231,7 +1261,7 @@ namespace Exchange.Net
             return Task.CompletedTask;
         }
 
-        protected virtual Task<bool> CancelOrder(string orderId)
+        protected virtual Task<bool> CancelOrderImpl(string orderId)
         {
             return Task.FromResult(false);
         }

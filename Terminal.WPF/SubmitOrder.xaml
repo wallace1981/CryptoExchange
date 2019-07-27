@@ -5,7 +5,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
              xmlns:local="clr-namespace:Terminal.WPF"
              xmlns:exchange="clr-namespace:Exchange.Net"
-             xmlns:telerik="http://schemas.telerik.com/2008/xaml/presentation"
+             xmlns:xceed="http://schemas.xceed.com/wpf/xaml/toolkit"
              mc:Ignorable="d" 
              FontFamily="{StaticResource Roboto}"
              Width="250">
@@ -42,18 +42,18 @@
         <Label Grid.Column="0" Grid.Row="1">
             <TextBlock>Цена:</TextBlock>
         </Label>
-        <telerik:RadNumericUpDown Grid.Column="1" Grid.Row="1"
-                                  HorizontalContentAlignment="Left" VerticalAlignment="Center"
-                                  NullValue="{Binding Model.CurrentSymbolTickerPrice.LastPrice, Mode=OneTime}"
-                                  ValueFormat="Numeric"
-                                  NumberDecimalDigits="{Binding Path=NewOrder.SymbolInformation.PriceDecimals, Mode=OneTime}"
-                                  ShowButtons="False"
-                                  Value="{Binding Path=BuyPrice, Mode=TwoWay, Converter={StaticResource convDecimalToDouble}}"
-                                  Minimum="{Binding Path=NewOrder.SymbolInformation.MinPrice, Mode=OneTime}"
-                                  Maximum="{Binding Path=NewOrder.SymbolInformation.MaxPrice, Mode=OneTime}"
-                                  UpdateValueEvent="PropertyChanged"
-                                  x:Name="txtPrice"/>
-        <TextBlock Grid.Column="1" Grid.Row="1" HorizontalAlignment="Right" VerticalAlignment="Center" Padding="0 0 6 0" Text="{Binding Path=NewOrder.SymbolInformation.QuoteAsset, Mode=OneTime}" Foreground="LightGray"/>
+        <xceed:DecimalUpDown
+            Grid.Column="1" Grid.Row="1"
+            HorizontalContentAlignment="Left" VerticalAlignment="Center"
+            FormatString="{Binding Path=NewOrder.SymbolInformation.PriceFmt, Mode=OneWay}"
+            Maximum="{Binding Path=NewOrder.SymbolInformation.MaxPrice, Mode=OneWay}"
+            Minimum="{Binding Path=NewOrder.SymbolInformation.MinPrice, Mode=OneWay}"
+            Increment="{Binding Path=NewOrder.SymbolInformation.TickSize, Mode=OneWay}"
+            TextAlignment="Left"
+            Value="{Binding Path=NewOrder.Price, Mode=TwoWay}"
+            x:Name="txtPrice"/>
+        <TextBlock Grid.Column="1" Grid.Row="1" HorizontalAlignment="Right" VerticalAlignment="Center" Padding="0 0 6 0" Text="{Binding Path=NewOrder.SymbolInformation.QuoteAsset, Mode=OneTime, FallbackValue=USD}" Foreground="LightGray"
+                   Margin="0 0 24 0"/>
         <DockPanel Grid.Column="1" Grid.Row="2" VerticalAlignment="Top">
             <TextBlock Text="{Binding Path=NewOrder.SymbolInformation.MaxPrice, Mode=OneWay, FallbackValue=0.0001999}" FontSize="10" DockPanel.Dock="Right"/>
             <TextBlock Text="{Binding Path=NewOrder.SymbolInformation.MinPrice, Mode=OneWay, FallbackValue=0.0000999}" FontSize="10" HorizontalAlignment="Left"/>
@@ -62,17 +62,18 @@
         <Label Grid.Column="0" Grid.Row="3">
             <TextBlock>Объем:</TextBlock>
         </Label>
-        <telerik:RadNumericUpDown Grid.Column="1" Grid.Row="3"
-                                  HorizontalContentAlignment="Left" VerticalAlignment="Center"
-                                  NullValue="{Binding Path=NewOrder.SymbolInformation.MinQuantity, Mode=OneTime}"
-                                  ValueFormat="Numeric"
-                                  NumberDecimalDigits="{Binding Path=NewOrder.SymbolInformation.QuantityDecimals, Mode=OneTime}"
-                                  ShowButtons="False"
-                                  Value="{Binding Path=NewOrder.Quantity, Mode=TwoWay, Converter={StaticResource convDecimalToDouble}}"
-                                  Minimum="{Binding Path=NewOrder.SymbolInformation.MinQuantity, Mode=OneTime}"
-                                  UpdateValueEvent="PropertyChanged"
-                                  x:Name="txtAmount"/>
-        <TextBlock Grid.Column="1" Grid.Row="3" HorizontalAlignment="Right" VerticalAlignment="Center" Padding="0 0 6 0" Text="{Binding Path=NewOrder.SymbolInformation.BaseAsset, Mode=OneTime}" Foreground="LightGray"/>
+        <xceed:DecimalUpDown
+            Grid.Column="1" Grid.Row="3"
+            HorizontalContentAlignment="Left" VerticalAlignment="Center"
+            FormatString="{Binding Path=NewOrder.SymbolInformation.QuantityFmt, Mode=OneWay}"
+            Maximum="{Binding Path=NewOrder.SymbolInformation.MaxQuantity, Mode=OneWay}"
+            Minimum="{Binding Path=NewOrder.SymbolInformation.MinQuantity, Mode=OneWay}"
+            Increment="{Binding Path=NewOrder.SymbolInformation.StepSize, Mode=OneWay}"
+            TextAlignment="Left"
+            Value="{Binding Path=NewOrder.Quantity, Mode=TwoWay}"
+            x:Name="txtAmount"/>
+        <TextBlock Grid.Column="1" Grid.Row="3" HorizontalAlignment="Right" VerticalAlignment="Center" Padding="0 0 6 0" Text="{Binding Path=NewOrder.SymbolInformation.BaseAsset, Mode=OneTime, FallbackValue=BTC}" Foreground="LightGray"
+                   Margin="0 0 24 0"/>
         <DockPanel Grid.Column="1" Grid.Row="4" VerticalAlignment="Top">
             <TextBlock Text="{Binding Path=NewOrder.SymbolInformation.MinQuantity, Mode=OneWay, FallbackValue=100}" FontSize="10" HorizontalAlignment="Left"/>
         </DockPanel>
@@ -80,11 +81,11 @@
         <Label Grid.Column="0" Grid.Row="5">
             <TextBlock>Тип ордера:</TextBlock>
         </Label>
-        <telerik:RadComboBox Grid.Column="1" Grid.Row="5"
+        <ComboBox Grid.Column="1" Grid.Row="5"
                              HorizontalContentAlignment="Left" VerticalAlignment="Center"
                              ItemsSource="{Binding Path=OrderTypes, Mode=OneTime}"
                              SelectedValue="{Binding Path=NewOrder.OrderType, Mode=TwoWay}">
-        </telerik:RadComboBox>
+        </ComboBox>
 
         <Label Grid.Column="0" Grid.Row="6">
             <TextBlock>Сумма:</TextBlock>
@@ -108,14 +109,14 @@
             </Label>
         </UniformGrid>
 
-        <telerik:RadButton Grid.Column="1" Grid.Row="8"
+        <Button Grid.Column="1" Grid.Row="8"
                 Command="{Binding Path=SubmitOrderCommand, Mode=OneTime}"
                 CommandParameter="{Binding Path=NewOrder, Mode=OneTime}"
                 Background="{Binding Path=NewOrder.Side, Mode=OneTime, Converter={StaticResource convOrderSide}}">
             <TextBlock Text="{Binding Path=NewOrder.Side, Mode=OneTime, FallbackValue=Submit}"
                        FontWeight="Bold"
                        Foreground="White"/>
-        </telerik:RadButton>
+        </Button>
 
     </Grid>
 </UserControl>

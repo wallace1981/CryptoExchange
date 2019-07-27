@@ -67,9 +67,10 @@ namespace Exchange.Net
             var result = await client.GetDepthAsync(market, limit);
             if (result.Success)
             {
+                var si = GetSymbolInformation(market);
                 var depth = result.Data;
-                var asks = depth.asks.Select(a => new OrderBookEntry(OrderBook.PriceDecimals, OrderBook.QuantityDecimals) { Price = decimal.Parse(a[0]), Quantity = decimal.Parse(a[1]), Side = TradeSide.Sell });
-                var bids = depth.bids.Select(b => new OrderBookEntry(OrderBook.PriceDecimals, OrderBook.QuantityDecimals) { Price = decimal.Parse(b[0]), Quantity = decimal.Parse(b[1]), Side = TradeSide.Buy });
+                var asks = depth.asks.Select(a => new OrderBookEntry(si) { Price = decimal.Parse(a[0]), Quantity = decimal.Parse(a[1]), Side = TradeSide.Sell });
+                var bids = depth.bids.Select(b => new OrderBookEntry(si) { Price = decimal.Parse(b[0]), Quantity = decimal.Parse(b[1]), Side = TradeSide.Buy });
                 return asks.Reverse().Concat(bids);
             }
             else
@@ -169,12 +170,12 @@ namespace Exchange.Net
 
         List<OrderBookEntry> Convert(Binance.Depth depth, SymbolInformation si)
         {
-            return depth.asks.Select(y => new OrderBookEntry(OrderBook.PriceDecimals, OrderBook.QuantityDecimals)
+            return depth.asks.Select(y => new OrderBookEntry(si)
             {
                 Price = decimal.Parse(y[0]),
                 Quantity = decimal.Parse(y[1]),
                 Side = TradeSide.Sell
-            }).Reverse().Concat(depth.bids.Select(y => new OrderBookEntry(OrderBook.PriceDecimals, OrderBook.QuantityDecimals)
+            }).Reverse().Concat(depth.bids.Select(y => new OrderBookEntry(si)
             {
                 Price = decimal.Parse(y[0]),
                 Quantity = decimal.Parse(y[1]),
@@ -185,12 +186,12 @@ namespace Exchange.Net
 
         internal List<OrderBookEntry> Convert(Binance.WsDepth depth, SymbolInformation si)
         {
-            return depth.asks.Select(y => new OrderBookEntry(OrderBook.PriceDecimals, OrderBook.QuantityDecimals)
+            return depth.asks.Select(y => new OrderBookEntry(si)
             {
                 Price = decimal.Parse(y[0]),
                 Quantity = decimal.Parse(y[1]),
                 Side = TradeSide.Sell
-            }).Reverse().Concat(depth.bids.Select(y => new OrderBookEntry(OrderBook.PriceDecimals, OrderBook.QuantityDecimals)
+            }).Reverse().Concat(depth.bids.Select(y => new OrderBookEntry(si)
             {
                 Price = decimal.Parse(y[0]),
                 Quantity = decimal.Parse(y[1]),
@@ -256,12 +257,12 @@ namespace Exchange.Net
 
         public IEnumerable<OrderBookEntry> ConvertDepth(Binance.WsDepth depth)
         {
-            return depth.bids.Select(y => new OrderBookEntry(OrderBook.PriceDecimals, OrderBook.QuantityDecimals)
+            return depth.bids.Select(y => new OrderBookEntry(OrderBook.SymbolInformation)
             {
                 Price = decimal.Parse(y[0]),
                 Quantity = decimal.Parse(y[1]),
                 Side = TradeSide.Buy
-            }).Concat(depth.asks.Select(y => new OrderBookEntry(OrderBook.PriceDecimals, OrderBook.QuantityDecimals)
+            }).Concat(depth.asks.Select(y => new OrderBookEntry(OrderBook.SymbolInformation)
             {
                 Price = decimal.Parse(y[0]),
                 Quantity = decimal.Parse(y[1]),

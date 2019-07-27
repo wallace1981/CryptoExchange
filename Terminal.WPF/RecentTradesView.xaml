@@ -44,7 +44,7 @@
                         <GridView.Columns>
                             <GridViewColumn x:Name="clPrice" Width="85">
                             <GridViewColumn.Header>
-                                <TextBlock FontFamily="{StaticResource RobotoCondensed}" FontSize="12">
+                                <TextBlock FontFamily="{StaticResource RobotoCondensed}" FontSize="12" HorizontalAlignment="Right">
                                     <Run Text="Price,"/>
                                     <Run Text="{Binding Path=CurrentSymbolInformation.QuoteAsset, Mode=OneWay, FallbackValue=---}"/>
                                 </TextBlock>
@@ -55,17 +55,16 @@
                                             Content="{Binding Path=Price, Mode=OneWay}"
                                             ContentStringFormat="{Binding Path=PriceFmt, Mode=OneWay}"
                                             Foreground="{Binding Path=Side, Mode=OneWay, Converter={StaticResource ResourceKey=convOrderSide}}"
-                                            Style="{StaticResource ContentControlRightAligned}"
-                                            HorizontalAlignment="Left"/>
+                                            Style="{StaticResource ContentControlRightAligned}"/>
                                     </DataTemplate>
                                 </GridViewColumn.CellTemplate>
                             </GridViewColumn>
                             
                             <GridViewColumn x:Name="clQuantity" Width="108">
                                 <GridViewColumn.Header>
-                                    <TextBlock FontFamily="{StaticResource RobotoCondensed}" FontSize="12">
-                                                <Run Text="Amount,"/>
-                                                <Run Text="{Binding Path=CurrentSymbolInformation.BaseAsset, Mode=OneWay, FallbackValue=---}"/>
+                                    <TextBlock FontFamily="{StaticResource RobotoCondensed}" FontSize="12" HorizontalAlignment="Right">
+                                        <Run Text="Amount,"/>
+                                        <Run Text="{Binding Path=CurrentSymbolInformation.BaseAsset, Mode=OneWay, FallbackValue=---}"/>
                                     </TextBlock>
                                 </GridViewColumn.Header>
                                 <GridViewColumn.CellTemplate>
@@ -81,7 +80,7 @@
                             
                             <GridViewColumn x:Name="clTotal" Width="85">
                                 <GridViewColumn.Header>
-                                    <TextBlock FontFamily="{StaticResource RobotoCondensed}" FontSize="12">
+                                    <TextBlock FontFamily="{StaticResource RobotoCondensed}" FontSize="12" HorizontalAlignment="Right">
                                         <Run Text="Total,"/>
                                         <Run Text="{Binding Path=CurrentSymbolInformation.QuoteAsset, Mode=OneWay, FallbackValue=---}"/>
                                     </TextBlock>
@@ -96,10 +95,12 @@
                                             <Rectangle Grid.Column="1"
                                                 Fill="{Binding Path=Side, Mode=OneWay, Converter={StaticResource ResourceKey=convOrderSide}}"
                                                 Opacity="0.2"/>
-                                            <ContentControl Grid.ColumnSpan="2"
+                                            <ContentControl
+                                                Grid.ColumnSpan="2"
                                                 Content="{Binding Path=Total, Mode=OneWay}"
-                                                ContentStringFormat="N2"
-                                                Style="{StaticResource ContentControlRightAligned}" Margin="0"/>
+                                                ContentStringFormat="{Binding Path=TotalFmt, Mode=OneWay}"
+                                                Style="{StaticResource ContentControlRightAligned}"
+                                                Margin="0"/>
                                         </Grid>
                                     </DataTemplate>
                                 </GridViewColumn.CellTemplate>
@@ -107,7 +108,7 @@
                             
                             <GridViewColumn x:Name="clTime" Width="85">
                             <GridViewColumn.Header>
-                                <TextBlock FontFamily="{StaticResource RobotoCondensed}" FontSize="12">
+                                <TextBlock FontFamily="{StaticResource RobotoCondensed}" FontSize="12" HorizontalAlignment="Right">
                                     <Run Text="Time"/>
                                 </TextBlock>
                             </GridViewColumn.Header>

@@ -72,7 +72,7 @@
                         <GridView.Columns>
                             <GridViewColumn x:Name="clOrderBookPrice" Width="85">
                                 <GridViewColumn.Header>
-                                    <TextBlock FontFamily="{StaticResource RobotoCondensed}" FontSize="12">
+                                    <TextBlock FontFamily="{StaticResource RobotoCondensed}" FontSize="12" HorizontalAlignment="Right">
                                         <Run Text="Price,"/>
                                         <Run Text="{Binding Path=CurrentSymbolInformation.QuoteAsset, Mode=OneWay, FallbackValue=---}"/>
                                     </TextBlock>
@@ -83,14 +83,13 @@
                                             Content="{Binding Path=Price, Mode=OneWay}"
                                             ContentStringFormat="{Binding Path=PriceFmt, Mode=OneWay}"
                                             Foreground="{Binding Path=Side, Mode=OneWay, Converter={StaticResource ResourceKey=convOrderSide}}"
-                                            Style="{StaticResource ContentControlRightAligned}"
-                                            HorizontalAlignment="Left"/>
+                                            Style="{StaticResource ContentControlRightAligned}"/>
                                     </DataTemplate>
                                 </GridViewColumn.CellTemplate>
                             </GridViewColumn>
                             <GridViewColumn x:Name="clOrderBookQuantity" Width="108">
                                 <GridViewColumn.Header>
-                                    <TextBlock FontFamily="{StaticResource RobotoCondensed}" FontSize="12">
+                                    <TextBlock FontFamily="{StaticResource RobotoCondensed}" FontSize="12" HorizontalAlignment="Right">
                                         <Run Text="Amount,"/>
                                         <Run Text="{Binding Path=CurrentSymbolInformation.BaseAsset, Mode=OneWay, FallbackValue=---}"/>
                                     </TextBlock>
@@ -106,7 +105,7 @@
                             </GridViewColumn>
                             <GridViewColumn x:Name="clOrderBookTotal" Width="85">
                                 <GridViewColumn.Header>
-                                    <TextBlock FontFamily="{StaticResource RobotoCondensed}" FontSize="12">
+                                    <TextBlock FontFamily="{StaticResource RobotoCondensed}" FontSize="12" HorizontalAlignment="Right">
                                         <Run Text="Total,"/>
                                         <Run Text="{Binding Path=CurrentSymbolInformation.QuoteAsset, Mode=OneWay, FallbackValue=---}"/>
                                     </TextBlock>
@@ -122,15 +121,16 @@
                                             <ContentControl
                                                 Grid.ColumnSpan="2"
                                                 Content="{Binding Path=Total, Mode=OneWay}"
-                                                ContentStringFormat="N2"
-                                                Style="{StaticResource ContentControlRightAligned}" Margin="0"/>
+                                                ContentStringFormat="{Binding Path=TotalFmt, Mode=OneTime}"
+                                                Style="{StaticResource ContentControlRightAligned}"
+                                                Margin="0"/>
                                         </Grid>
                                     </DataTemplate>
                                 </GridViewColumn.CellTemplate>
                             </GridViewColumn>
                             <GridViewColumn x:Name="clOrderBookTotalCumulative" Width="85">
                                 <GridViewColumn.Header>
-                                    <TextBlock FontFamily="{StaticResource RobotoCondensed}" FontSize="12">
+                                    <TextBlock FontFamily="{StaticResource RobotoCondensed}" FontSize="12" HorizontalAlignment="Right">
                                         <Run Text="Cumul.,"/>
                                         <Run Text="{Binding Path=CurrentSymbolInformation.QuoteAsset, Mode=OneWay, FallbackValue=---}"/>
                                     </TextBlock>
@@ -151,30 +151,23 @@
 
             <Border Grid.Row="1" BorderThickness="0 1" Margin="0 20 0 0" BorderBrush="LightGray" VerticalAlignment="Center"
                     Canvas.ZIndex="10" Background="White">
-                <DockPanel VerticalAlignment="Center">
+                <DockPanel VerticalAlignment="Center" LastChildFill="False">
                     <DockPanel Width="{Binding ElementName=clOrderBookPrice, Path=ActualWidth, Mode=OneWay}">
                         <ContentControl
                             Content="{Binding Path=OrderBook.Spread, Mode=OneWay}"
                             ContentStringFormat="{Binding Path=CurrentSymbolInformation.PriceFmt, Mode=OneWay}"
                             Style="{StaticResource ContentControlRightAligned}"
-                            HorizontalAlignment="Left" Margin="3 0 0 0"/>
+                            Margin="3 0 0 0"/>
                     </DockPanel>
                     <DockPanel Width="{Binding ElementName=clOrderBookQuantity, Path=ActualWidth, Mode=OneWay}" x:Name="lblPrice">
                         <TextBlock HorizontalAlignment="Right">
                         </TextBlock>
                     </DockPanel>
-                    <DockPanel Width="{Binding Path=ActualWidth, ElementName=clOrderBookTotal}">
+                    <DockPanel Width="{Binding ElementName=clOrderBookTotal, Path=ActualWidth, Mode=OneWay}">
                         <ContentControl
                             Content="{Binding Path=OrderBook.SpreadPercentage, Mode=OneWay}"
-                            ContentStringFormat="N2"
+                            ContentStringFormat="P2"
                             Style="{StaticResource ContentControlRightAligned}" Margin="0 0 -1 0"/>
-                    </DockPanel>
-                    <DockPanel>
-                        <ContentControl
-                            Content="%"
-                            Style="{StaticResource ContentControlRightAligned}"
-                            HorizontalAlignment="Left" HorizontalContentAlignment="Left"
-                            Margin="3 0 0 0"/>
                     </DockPanel>
                 </DockPanel>
             </Border>
@@ -198,8 +191,7 @@
                                             Content="{Binding Path=Price, Mode=OneWay}"
                                             ContentStringFormat="{Binding Path=PriceFmt, Mode=OneWay}"
                                             Foreground="{Binding Path=Side, Mode=OneWay, Converter={StaticResource ResourceKey=convOrderSide}}"
-                                            Style="{StaticResource ContentControlRightAligned}"
-                                            HorizontalAlignment="Left"/>
+                                            Style="{StaticResource ContentControlRightAligned}"/>
                                     </DataTemplate>
                                 </GridViewColumn.CellTemplate>
                             </GridViewColumn>
@@ -223,10 +215,12 @@
                                                 <ColumnDefinition Width="{Binding Path=QuantityPercentage, Converter={StaticResource convPercentToGridLength}}"/>
                                             </Grid.ColumnDefinitions>
                                             <Rectangle Grid.Column="1" Fill="{StaticResource BullCandleBrush}" Opacity="0.2"/>
-                                            <ContentControl Grid.ColumnSpan="2"
+                                            <ContentControl
+                                                Grid.ColumnSpan="2"
                                                 Content="{Binding Path=Total, Mode=OneWay}"
-                                                ContentStringFormat="N2"
-                                                Style="{StaticResource ContentControlRightAligned}" Margin="0"/>
+                                                ContentStringFormat="{Binding Path=TotalFmt, Mode=OneTime}"
+                                                Style="{StaticResource ContentControlRightAligned}"
+                                                Margin="0"/>
                                         </Grid>
                                     </DataTemplate>
                                 </GridViewColumn.CellTemplate>

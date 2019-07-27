@@ -408,12 +408,12 @@ namespace Terminal.WPF
 
         internal List<OrderBookEntry> Convert(Binance.Depth depth, SymbolInformation si)
         {
-            return depth.asks.Select(y => new OrderBookEntry(orderBook.PriceDecimals, orderBook.QuantityDecimals)
+            return depth.asks.Select(y => new OrderBookEntry(si)
             {
                 Price = Math.Round(decimal.Parse(y[0]), si.PriceDecimals),
                 Quantity = Math.Round(decimal.Parse(y[1]), si.QuantityDecimals),
                 Side = TradeSide.Sell
-            }).Reverse().Concat(depth.bids.Select(y => new OrderBookEntry(orderBook.PriceDecimals, orderBook.QuantityDecimals)
+            }).Reverse().Concat(depth.bids.Select(y => new OrderBookEntry(si)
             {
                 Price = Math.Round(decimal.Parse(y[0]), si.PriceDecimals),
                 Quantity = Math.Round(decimal.Parse(y[1]), si.QuantityDecimals),
@@ -424,12 +424,12 @@ namespace Terminal.WPF
 
         internal List<OrderBookEntry> Convert(Binance.WsDepth depth, SymbolInformation si)
         {
-            return depth.asks.Select(y => new OrderBookEntry(orderBook.PriceDecimals, orderBook.QuantityDecimals)
+            return depth.asks.Select(y => new OrderBookEntry(si)
             {
                 Price = Math.Round(decimal.Parse(y[0]), si.PriceDecimals),
                 Quantity = Math.Round(decimal.Parse(y[1]), si.QuantityDecimals),
                 Side = TradeSide.Sell
-            }).Reverse().Concat(depth.bids.Select(y => new OrderBookEntry(orderBook.PriceDecimals, orderBook.QuantityDecimals)
+            }).Reverse().Concat(depth.bids.Select(y => new OrderBookEntry(si)
             {
                 Price = Math.Round(decimal.Parse(y[0]), si.PriceDecimals),
                 Quantity = Math.Round(decimal.Parse(y[1]), si.QuantityDecimals),
@@ -448,11 +448,14 @@ namespace Terminal.WPF
             }
         }
 
-        private void OrderBook_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+        private async void OrderBook_MouseDoubleClick(object sender, MouseButtonEventArgs e)
         {
             var lv = sender as ListView;
             if (lv.SelectedItem == null)
                 return;
+            var viewModel = DataContext as ExchangeViewModel;
+            await viewModel.CreateOrder(lv.SelectedItem as OrderBookEntry);
+            /*
             var wnd = new Window
             {
                 Content = new SubmitOrder() { Margin = new Thickness(6) },
@@ -466,7 +469,7 @@ namespace Terminal.WPF
             var order = new NewOrder(viewModel.CurrentSymbolInformation, lv.SelectedItem as OrderBookEntry);
             viewModel.NewOrder = order;
             wnd.DataContext = viewModel;
-            wnd.ShowDialog();
+            wnd.ShowDialog();*/
         }
 
         private void cmbSymbols_SelectionChanged(object sender, SelectionChangedEventArgs e)

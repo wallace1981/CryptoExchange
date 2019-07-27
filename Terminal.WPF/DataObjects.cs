@@ -225,7 +225,17 @@ namespace Exchange.Net
 
         public void AddUpdateBalance(Balance balance)
         {
-            Balances.AddOrUpdate(balance);
+            //Balances.AddOrUpdate(balance);
+            var b = Balances.Lookup(balance.Asset);
+            if (b.HasValue)
+            {
+                b.Value.Free = balance.Free;
+                b.Value.Locked = balance.Locked;
+            }
+            else
+            {
+                Balances.AddOrUpdate(balance);
+            }
             UpdatePercentages();
             this.RaisePropertyChanged(nameof(TotalBtc));
             this.RaisePropertyChanged(nameof(TotalUsd));
@@ -302,6 +312,16 @@ namespace Exchange.Net
                         b.Value.PriceBtc = 1m / price;
                 }
             }
+            if (symbol.EndsWith("EUR"))
+            {
+                var asset = symbol.Replace("EUR", string.Empty);
+                if (asset == "BTC")
+                {
+                    var b = Balances.Lookup("EUR");
+                    if (b.HasValue)
+                        b.Value.PriceBtc = 1m / price;
+                }
+            }
             this.RaisePropertyChanged(nameof(TotalBtc));
             this.RaisePropertyChanged(nameof(TotalUsd));
             return result;
@@ -330,8 +350,10 @@ namespace Exchange.Net
         public int PriceDecimals { get; set; }
         public int QuantityDecimals { get; set; }
         public decimal MinNotional { get; set; }
-        public string PriceFmt => "N" + PriceDecimals.ToString();
-        public string QuantityFmt => "N" + QuantityDecimals.ToString();
+        public decimal TotalDecimals { get; set; }
+        public string PriceFmt => $"N{PriceDecimals}";
+        public string QuantityFmt => $"N{QuantityDecimals}";
+        public string TotalFmt => $"N{TotalDecimals}";
         //public string ImageUrl { get => $"https://raw.githubusercontent.com/cjdowner/cryptocurrency-icons/master/128/color/{BaseAsset?.ToLower()}.png"; }
         //public string ProperSymbol { get => (BaseAsset + QuoteAsset).ToUpper(); }
         public string ImageUrl => $"https://s2.coinmarketcap.com/static/img/coins/32x32/{CmcId}.png";
@@ -391,6 +413,7 @@ namespace Exchange.Net
         }
         public string PriceFmt => SymbolInformation.PriceFmt;
         public string QuantityFmt => SymbolInformation.QuantityFmt;
+        public string TotalFmt => SymbolInformation.TotalFmt;
 
         public PublicTrade(SymbolInformation si)
         {
@@ -464,6 +487,9 @@ namespace Exchange.Net
 
     public class Candle
     {
+        public string Symbol { get; set; }
+        public DateTime OpenTime { get; set; }
+        public DateTime CloseTime { get; set; }
         public decimal Open { get; set; }
         public decimal High { get; set; }
         public decimal Low { get; set; }
@@ -507,12 +533,18 @@ namespace Exchange.Net
 
     public class OrderBookEntry : ReactiveObject
     {
-        public OrderBookEntry(int priceDecimals, int qtyDecimals)
+        //public OrderBookEntry(int priceDecimals, int qtyDecimals)
+        //{
+        //    this.priceDecimals = priceDecimals;
+        //    this.qtyDecimals = qtyDecimals;
+        //}
+
+        public OrderBookEntry(SymbolInformation si)
         {
-            this.priceDecimals = priceDecimals;
-            this.qtyDecimals = qtyDecimals;
+            SymbolInformation = si;
         }
 
+        public SymbolInformation SymbolInformation { get; }
         [Reactive] public TradeSide Side { get; set; }
         public decimal Price
         {
@@ -552,15 +584,14 @@ namespace Exchange.Net
                 Quantity = e.Quantity;
         }
 
-        public string PriceFmt => "N" + priceDecimals.ToString();
-        public string QuantityFmt => "N" + qtyDecimals.ToString();
+        public string PriceFmt => SymbolInformation.PriceFmt;
+        public string QuantityFmt => SymbolInformation.QuantityFmt;
+        public string TotalFmt => SymbolInformation.TotalFmt;
 
         private decimal _Price;
         private decimal _Quantity;
         private decimal _TotalCumulative;
         private decimal _QuantityPercentage;
-        private int priceDecimals;
-        private int qtyDecimals;
     }
 
     public class OrderBook : ReactiveObject
@@ -612,7 +643,7 @@ namespace Exchange.Net
             if (MergeDecimals != SymbolInformation.PriceDecimals)
             {
                 bookUpdates = bookUpdates.GroupBy(x => x.MergePrice(factor), x => x,
-                    (priceLevel, entries) => new OrderBookEntry(SymbolInformation.PriceDecimals, SymbolInformation.QuantityDecimals) { Price = priceLevel, Quantity = entries.Sum(y => y.Quantity), Side = entries.First().Side });
+                    (priceLevel, entries) => new OrderBookEntry(SymbolInformation) { Price = priceLevel, Quantity = entries.Sum(y => y.Quantity), Side = entries.First().Side });
             }
             if (IsEmpty)
             {
@@ -743,7 +774,7 @@ namespace Exchange.Net
         {
             if (MergeDecimals != SymbolInformation.PriceDecimals)
             {
-                e = new OrderBookEntryGroup(PriceDecimals, QuantityDecimals, e.Side, priceLevel, Enumerable.Repeat(e, 1));
+                e = new OrderBookEntryGroup(SymbolInformation, e.Side, priceLevel, Enumerable.Repeat(e, 1));
             }
             if (e.Side == TradeSide.Sell)
                 Asks.Insert(idx, e);
@@ -754,9 +785,9 @@ namespace Exchange.Net
         private void Merge(IEnumerable<OrderBookEntry> depth)
         {
             var tmpAsks = depth.Where(x => x.Side == TradeSide.Sell).GroupBy(x => x.MergePrice(factor), x => x,
-                (priceLevel, entries) => new OrderBookEntryGroup(SymbolInformation.PriceDecimals, QuantityDecimals, TradeSide.Sell, priceLevel, entries)).ToList();
+                (priceLevel, entries) => new OrderBookEntryGroup(SymbolInformation, TradeSide.Sell, priceLevel, entries)).ToList();
             var tmpBids = depth.Where(x => x.Side == TradeSide.Buy).GroupBy(x => x.MergePrice(factor), x => x,
-                (priceLevel, entries) => new OrderBookEntryGroup(SymbolInformation.PriceDecimals, QuantityDecimals, TradeSide.Buy, priceLevel, entries)).ToList();
+                (priceLevel, entries) => new OrderBookEntryGroup(SymbolInformation, TradeSide.Buy, priceLevel, entries)).ToList();
             Replace(tmpAsks, tmpBids);
         }
 
@@ -790,7 +821,7 @@ namespace Exchange.Net
         {
             if (Bids.Count < 1 || Asks.Count < 1)
                 return 0;
-            return Asks.Last().Price / Bids.First().Price * 100m - 100m;
+            return Asks.Last().Price / Bids.First().Price - 1m;
         }
 
         private decimal factor;
@@ -800,7 +831,7 @@ namespace Exchange.Net
     {
         private List<OrderBookEntry> entries;
 
-        public OrderBookEntryGroup(int priceDecimals, int qtyDecimals, TradeSide side, decimal priceLevel, IEnumerable<OrderBookEntry> entries) : base(priceDecimals, qtyDecimals)
+        public OrderBookEntryGroup(SymbolInformation si, TradeSide side, decimal priceLevel, IEnumerable<OrderBookEntry> entries) : base(si)
         {
             Price = priceLevel;
             Side = side;
@@ -867,19 +898,19 @@ namespace Exchange.Net
         Filled,
         PartiallyFilled,
         Rejected,
-        Cancelled
+        Cancelled,
+        Cancelling,
+        Undefined
     }
 
     public class Order : OrderBookEntry
     {
-        public Order(SymbolInformation si) : base(si.PriceDecimals, si.QuantityDecimals)
+        public Order(SymbolInformation si) : base(si)
         {
-            this.SymbolInformation = si;
             this.Fills = new List<OrderTrade>();
             this.ObservableForProperty(x => x.LastPrice).Subscribe(y => this.RaisePropertyChanged(nameof(Profit)));
         }
 
-        public SymbolInformation SymbolInformation { get; set; }
         public string Type { get; set; }
         public decimal StopPrice { get; set; }
         public DateTime Created { get; set; }
@@ -905,16 +936,14 @@ namespace Exchange.Net
 
     public class OrderTrade : OrderBookEntry
     {
-        public SymbolInformation SymbolInformation { get; set; }
         public string Id { get; set; }
         public string OrderId { get; set; }
         public DateTime Timestamp { get; set; }
         public decimal Comission { get; set; }
         public string ComissionAsset { get; set; }
 
-        public OrderTrade(SymbolInformation si) : base(si.PriceDecimals, si.QuantityDecimals)
+        public OrderTrade(SymbolInformation si) : base(si)
         {
-            this.SymbolInformation = si;
         }
     }
 }

@@ -524,15 +524,13 @@ namespace Exchange.Net
 
     public class NewOrder : OrderBookEntry
     {
-        public SymbolInformation SymbolInformation { get; set; }
         public string OrderType { get; set; } = "limit";
         public decimal Balance => Side == TradeSide.Buy ? SymbolInformation.QuoteAssetBalance.Free : SymbolInformation.BaseAssetBalance.Free;
         [Reactive] public double BalancePercent { get; set; }
 
 
-        public NewOrder(SymbolInformation si, OrderBookEntry entry = null) : base(si.PriceDecimals, si.QuantityDecimals)
+        public NewOrder(SymbolInformation si, OrderBookEntry entry = null) : base(si)
         {
-            this.SymbolInformation = si;
             if (entry != null)
             {
                 Price = entry.Price;

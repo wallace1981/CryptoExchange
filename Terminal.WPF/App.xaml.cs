@@ -51,6 +51,8 @@ namespace Terminal.WPF
             Locator.CurrentMutable.Register(() => new CreateExchangeAccount(), typeof(IViewFor<CreateExchangeAccountViewModel>));
 
             ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls11 | SecurityProtocolType.Tls12;
+
+            TelegramNotifier.Initialize();
         }
 
         private void Application_DispatcherUnhandledException(object sender, System.Windows.Threading.DispatcherUnhandledExceptionEventArgs e)

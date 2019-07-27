@@ -15,7 +15,8 @@ namespace Exchange.Net
 {
     public class DsxApiClient : ExchangeApiCore
     {
-        // https://dsx.docs.apiary.io/
+        // V3: https://dsx.uk/developers/publicApi
+        // V2: https://dsx.docs.apiary.io/
 
         protected override string LogName => "dsx";
 
@@ -88,13 +89,14 @@ namespace Exchange.Net
         const string OrderStatusEndpoint = "tapi/v2/order/status";
         const string CancelOrderEndpoint = "tapi/v2/order/cancel";
         const string CancellAllOrdersEndpoint = "tapi/v2/order/cancel/all";
-        const string OrdersEndpoint = "tapi/v2/orders";
+        const string OrdersEndpointV2 = "tapi/v2/orders";
+        const string OrdersEndpoint = "tapi/v3/orders";
         const string TransactionsEndpoint = "tapi/v2/history/transactions";
         const string TradesHistoryEndpoint = "tapi/v2/history/trades";
         const string OrdersHistoryEndpoint = "tapi/v2/history/orders";
-        const string AccountEndpoint = "tapi/v2/info/account";
-        const string FeesEndpoint = "tapi/v2/fees";
-        const string TradingVolumeEndpoint = "tapi/v2/volume";
+        const string AccountEndpoint = "tapi/v3/info/account";
+        const string FeesEndpoint = "tapi/v3/fees";
+        const string TradingVolumeEndpoint = "tapi/v3/volume";
 
 
         // NOTE: We are going to serialize signed API calls using semaphore.
@@ -150,8 +152,15 @@ namespace Exchange.Net
         public Task<ApiResult<List<DSX.Order>>> GetOrdersAsync(string pair)
         {
             var requestParams = new Dictionary<string, object>() { { "pair", pair } };
-            var requestMessage = CreateRequestMessage(ApiKey, ApiSecret, requestParams, OrdersEndpoint, HttpMethod.Post);
+            var requestMessage = CreateRequestMessage(ApiKey, ApiSecret, requestParams, OrdersEndpointV2, HttpMethod.Post);
             return ExecuteSignedRequestAsync<Dictionary<long, DSX.Order>, List<DSX.Order>>(requestMessage, ConvertOrders, contentPath: $"orders-{pair}");
+        }
+
+        public Task<ApiResult<List<DSX.Order>>> GetOrdersAsync()
+        {
+            var requestParams = new Dictionary<string, object>() {};
+            var requestMessage = CreateRequestMessage(ApiKey, ApiSecret, requestParams, OrdersEndpoint, HttpMethod.Post);
+            return ExecuteSignedRequestAsync<Dictionary<long, DSX.Order>, List<DSX.Order>>(requestMessage, ConvertOrders, contentPath: $"orders-all");
         }
 
         public Task<ApiResult<DSX.Fees>> GetCurrentFeesAsync()
@@ -251,9 +260,14 @@ namespace Exchange.Net
             }
             else
             {
+                var reason = responseMessage.ReasonPhrase;
+                if ((int)responseMessage.StatusCode == MAINTENANCE_CODE)
+                {
+                    reason = "Platform Maintenance";
+                }
                 Debug.Print($"{content}");
-                Log.WarnFormat("{0} {1} - {2}ms : {3} ({4}).", requestMessage.Method, uri, sw.ElapsedMilliseconds, responseMessage.ReasonPhrase, (int)responseMessage.StatusCode);
-                result = new ApiResult<T>(default(T), new ApiError((int)responseMessage.StatusCode, responseMessage.ReasonPhrase), sw.ElapsedMilliseconds);
+                Log.WarnFormat("{0} {1} - {2}ms : {3} ({4}).", requestMessage.Method, uri, sw.ElapsedMilliseconds, reason, (int)responseMessage.StatusCode);
+                result = new ApiResult<T>(default(T), new ApiError((int)responseMessage.StatusCode, reason), sw.ElapsedMilliseconds);
             }
 
             requestMessage.Dispose();
@@ -357,6 +371,7 @@ namespace Exchange.Net
         #endregion
 
         const string restApiUrl = "https://dsx.uk/";
+        const int MAINTENANCE_CODE = 418;
         private static HttpClient httpClient = new HttpClient() { BaseAddress = new Uri(restApiUrl) };
     }
 }

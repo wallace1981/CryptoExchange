@@ -1,4 +1,5 @@
 ﻿using DynamicData;
+using Newtonsoft.Json;
 using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
 using System;
@@ -34,7 +35,20 @@ namespace Exchange.Net
         protected override bool HasOrderBookPush => false;
         [Reactive] public DateTime ServerTime { get; set; }
         //public ICommand GetServerTimeCommand => getServerTimeCommand;
+        [Reactive] public string CurrentInterval { get; set; } = "1d";
         private ReactiveCommand<Unit, Unit> GetServerTime { get; }
+
+        public IList<string> KlineIntervals
+        {
+            get
+            {
+                var intervals = new List<string>
+                {
+                    "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d", "3d", "1w", "1M"
+                };
+                return intervals;
+            }
+        }
 
         public BinanceViewModel()
         {
@@ -44,6 +58,9 @@ namespace Exchange.Net
 
             //getServerTimeCommand = ReactiveCommand.CreateFromTask<long, DateTime>(x => GetServerTimeAsync());
             GetServerTime = ReactiveCommand.CreateFromTask(GetServerTimeImpl);
+
+            FetchKlines = ReactiveCommand.CreateFromTask<int>(FetchKlinesImpl);
+            ConvertKlines = ReactiveCommand.Create(ConvertKlinesImpl);
 
             //this.WhenActivated(disposables =>
             //{
@@ -68,14 +85,13 @@ namespace Exchange.Net
                 .Select(x => Unit.Default)
                 .InvokeCommand(GetServerTime)
                 .DisposeWith(Disposables);
-
-            var pairs = Markets.Where(x => x.QuoteAsset == "BTC" || x.QuoteAsset == "USDT").Select(x => x.Symbol);
-            var kline1m = client.SubscribeKlinesAsync(pairs, "1m");
-            kline1m.ObserveOnDispatcher().Subscribe(OnKline).DisposeWith(disposables);
-            var kline5m = client.SubscribeKlinesAsync(pairs, "5m");
-            kline5m.ObserveOnDispatcher().Subscribe(OnKline).DisposeWith(disposables);
-            var kline15m = client.SubscribeKlinesAsync(pairs, "15m");
-            kline15m.ObserveOnDispatcher().Subscribe(OnKline).DisposeWith(disposables);
+            //var pairs = Markets.Where(x => x.QuoteAsset == "BTC" || x.QuoteAsset == "USDT").Select(x => x.Symbol);
+            //var kline1m = client.SubscribeKlinesAsync(pairs, "1m");
+            //kline1m.ObserveOnDispatcher().Subscribe(OnKline).DisposeWith(disposables);
+            //var kline5m = client.SubscribeKlinesAsync(pairs, "5m");
+            //kline5m.ObserveOnDispatcher().Subscribe(OnKline).DisposeWith(disposables);
+            //var kline15m = client.SubscribeKlinesAsync(pairs, "15m");
+            //kline15m.ObserveOnDispatcher().Subscribe(OnKline).DisposeWith(disposables);
         }
 
         protected void UpdateStatus(string serverStatus, string clientMsg = null)
@@ -95,6 +111,36 @@ namespace Exchange.Net
             else
                 ServerTime = DateTime.UtcNow;
             UpdateStatus($"Server Time: {ServerTime}");
+        }
+
+        private async Task FetchKlinesImpl(int limit)
+        {
+            var result = await client.GetKlinesAsync(CurrentSymbol, CurrentInterval, limit: limit).ConfigureAwait(false);
+        }
+
+        private void ConvertKlinesImpl()
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("\"Symbol\",\"Volume\",\"Buy Volume\",\"Ratio\"");
+            foreach (var json in System.IO.Directory.EnumerateFiles("binance\\db", "klines*.json"))
+            {
+                var text = System.IO.File.ReadAllText(json);
+                var kline = JsonConvert.DeserializeObject<List<object[]>>(text);
+                var Symbol = json.Replace("binance\\db\\klines-", "").Replace("-1d.json", "");
+                kline.Reverse();
+                var volume = kline.Take(10).Sum(x => decimal.Parse(x[7].ToString()));
+                var buyVolume = kline.Take(10).Sum(x => decimal.Parse(x[10].ToString()));
+                //var summ = new KlineSummary()
+                //{
+                //    Symbol = json.Replace("klines-", "").Replace("-1d.json", ""),
+                //    OpenDate = ((long)kline[0]).FromUnixTimestamp(),
+                //    QuoteVolume = (decimal)kline[7],
+                //    QuoteBuyVolume = (decimal)kline[10]
+                //};
+
+                sb.AppendLine($"{Symbol},{volume},{buyVolume},{buyVolume/volume}");
+            }
+            System.IO.File.WriteAllText("binance\\db\\klines-10d.csv", sb.ToString());
         }
 
         protected override async Task GetExchangeInfoImpl()
@@ -206,8 +252,8 @@ namespace Exchange.Net
             {
                 GetDepthElapsed = resultDepth.ElapsedMilliseconds;
                 var depth = resultDepth.Data;
-                var asks = depth.asks.Select(a => new OrderBookEntry(OrderBook.PriceDecimals, OrderBook.QuantityDecimals) { Price = decimal.Parse(a[0]), Quantity = decimal.Parse(a[1]), Side = TradeSide.Sell });
-                var bids = depth.bids.Select(b => new OrderBookEntry(OrderBook.PriceDecimals, OrderBook.QuantityDecimals) { Price = decimal.Parse(b[0]), Quantity = decimal.Parse(b[1]), Side = TradeSide.Buy });
+                var asks = depth.asks.Select(a => new OrderBookEntry(si) { Price = decimal.Parse(a[0]), Quantity = decimal.Parse(a[1]), Side = TradeSide.Sell });
+                var bids = depth.bids.Select(b => new OrderBookEntry(si) { Price = decimal.Parse(b[0]), Quantity = decimal.Parse(b[1]), Side = TradeSide.Buy });
                 ProcessOrderBook(asks.Reverse().Concat(bids));
                 UpdateStatus(ServerStatus);
             }
@@ -388,17 +434,20 @@ namespace Exchange.Net
                 StepSize = lotSizeFilter.stepSize,
                 QuantityDecimals = DigitsCount(lotSizeFilter.stepSize),
                 MinNotional = minNotionalFilter.minNotional,
+                TotalDecimals = DigitsCount(minNotionalFilter.minNotional),
                 CmcId = cmcEntry != null ? cmcEntry.id : -1,
                 CmcName = cmcEntry != null ? cmcEntry.name : market.baseAsset,
                 CmcSymbol = cmcEntry != null ? cmcEntry.symbol : market.symbol
             };
         }
 
+        public ReactiveCommand<int, Unit> FetchKlines { get; }
+        public ReactiveCommand<Unit, Unit> ConvertKlines { get; }
+
         private void UpdateStatus()
         {
             Status = $"Binance: Weight is {client.Weight}, expiration in {client.WeightReset.TotalSeconds} secs.";
         }
-
 
         public Order Convert(Binance.Order x)
         {
@@ -550,7 +599,10 @@ namespace Exchange.Net
                 QuoteVolume = ticker.kline.quoteVolume,
                 BuyQuoteVolume = ticker.kline.takerBuyQuoteVolume,
                 Volume = ticker.kline.volume,
-                BuyVolume = ticker.kline.quoteVolume
+                BuyVolume = ticker.kline.quoteVolume,
+                Symbol = ticker.symbol,
+                OpenTime = ticker.kline.openTime.FromUnixTimestamp(),
+                CloseTime = ticker.kline.closeTime.FromUnixTimestamp()
             };
         }
 
@@ -605,6 +657,7 @@ namespace Exchange.Net
                         break;
                     case "5m":
                         ticker.Candle5m = Convert(candlestick);
+                        AnalyzeCandle(ticker.Candle5m);
                         break;
                     case "15m":
                         ticker.Candle15m = Convert(candlestick);
@@ -612,6 +665,23 @@ namespace Exchange.Net
                 }
             }
         }
+
+        private Dictionary<string, long> candleCache = new Dictionary<string, long>();
+
+        private async void AnalyzeCandle(Candle candle)
+        {
+            if (candle.Close == decimal.Zero || candle.Open == decimal.Zero)
+                return;
+            if (candleCache.ContainsKey(candle.Symbol) && candleCache[candle.Symbol] == candle.CloseTime.Ticks)
+                return;
+            decimal delta = candle.Close / candle.Open;
+            if (delta >= 1.04m)
+            {
+                candleCache[candle.Symbol] = candle.CloseTime.Ticks;
+                await Alert.Handle($"{candle.Symbol}: price raised {delta-1m:p2}");
+            }
+        }
+
         // TODO: below FUNC is EXACT COPY of ExecuteOrder(), so do home work and refactor.
         protected override async Task<Order> PlaceOrder(TradingRule rule)
         {
@@ -746,5 +816,13 @@ namespace Exchange.Net
         private Binance.ExchangeInfo currentExchangeInfo;
         private DateTime ticker24hrLastRun = DateTime.MinValue;
         BinanceApiClient client = new BinanceApiClient();
+    }
+
+    public class KlineSummary
+    {
+        public string Symbol { get; set; }
+        public DateTime OpenDate { get; set; }
+        public decimal QuoteVolume { get; set; }
+        public decimal QuoteBuyVolume { get; set; }
     }
 }

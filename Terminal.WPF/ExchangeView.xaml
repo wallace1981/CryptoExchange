@@ -200,7 +200,7 @@
                                 Content="Refresh"
                                 />
                         </ToolBar>
-                        <DataGrid AutoGenerateColumns="True" ItemsSource="{Binding Path=OrdersHistory, Mode=OneWay}"></DataGrid>
+                        <local:OrdersHistory />
                     </DockPanel>
                 </TabItem>
                 <TabItem Header="История сделок">
@@ -247,7 +247,7 @@
                                           FontWeight="Normal" ScrollViewer.VerticalScrollBarVisibility="Auto">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <Grid Visibility="{Binding Path=TotalBtc, Mode=OneWay, Converter={StaticResource convBalanceVisib}}"
+                                            <Grid Visibility="{Binding Path=Total, Mode=OneWay, Converter={StaticResource convBalanceVisib}}"
                                               Background="{Binding Path=Percentage, Mode=OneWay, Converter={StaticResource convPercentToGradient}, ConverterParameter=192}">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="Auto" SharedSizeGroup="balance11"/>
@@ -279,7 +279,7 @@
                                 Content="Refresh"
                                 />
                         </ToolBar>
-                        <DataGrid AutoGenerateColumns="True" ItemsSource="{Binding Path=CurrentAccountViewModel.Deposits, Mode=OneWay}"></DataGrid>
+                        <local:TransfersView DataContext="{Binding Path=CurrentAccountViewModel.Deposits, Mode=OneWay}"/>
                     </DockPanel>
                 </TabItem>
                 <TabItem Header="Выплаты">
@@ -290,7 +290,33 @@
                                 Content="Refresh"
                                 />
                         </ToolBar>
-                        <DataGrid AutoGenerateColumns="True" ItemsSource="{Binding Path=CurrentAccountViewModel.Withdrawals, Mode=OneWay}"></DataGrid>
+                        <local:TransfersView DataContext="{Binding Path=CurrentAccountViewModel.Withdrawals, Mode=OneWay}"/>
+                    </DockPanel>
+                </TabItem>
+                <TabItem Header="Candles">
+                    <DockPanel>
+                        <ToolBar DockPanel.Dock="Top">
+                            <ComboBox
+                                ItemsSource="{Binding Path=KlineIntervals, Mode=OneTime}"
+                                SelectedValue="{Binding Path=CurrentInterval, Mode=TwoWay, FallbackValue='1d'}"
+                                />
+                            <xceed:IntegerUpDown
+                                Minimum="1"
+                                Maximum="1000"
+                                Value="90"
+                                x:Name="numKlinesLimit"
+                                />
+                            <Button
+                                Command="{Binding Path=FetchKlines, Mode=OneWay}"
+                                CommandParameter="{Binding Path=Value, Mode=OneWay, ElementName=numKlinesLimit}"
+                                Content="Fetch"
+                                />
+                            <Button
+                                Command="{Binding Path=ConvertKlines, Mode=OneWay}"
+                                Content="Convert to CSV"
+                                />
+                        </ToolBar>
+                        <Grid></Grid>
                     </DockPanel>
                 </TabItem>
             </TabControl>

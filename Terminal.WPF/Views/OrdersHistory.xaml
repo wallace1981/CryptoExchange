@@ -1,15 +1,13 @@
-﻿<UserControl
-    x:Class="Terminal.WPF.OpenOrdersView"
-    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
-    xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
-    xmlns:local="clr-namespace:Terminal.WPF"
-    mc:Ignorable="d" 
-    d:DesignHeight="450" d:DesignWidth="800">
-    
+﻿<UserControl x:Class="Terminal.WPF.OrdersHistory"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:local="clr-namespace:Terminal.WPF.Views"
+             mc:Ignorable="d" 
+             d:DesignHeight="450" d:DesignWidth="800">
     <DataGrid
-        ItemsSource="{Binding Path=CurrentAccountViewModel.OpenOrders}"
+        ItemsSource="{Binding Path=CurrentAccountViewModel.OrdersHistory}"
         >
         <DataGrid.ColumnHeaderStyle>
             <Style TargetType="DataGridColumnHeader">
@@ -24,7 +22,7 @@
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
                         <TextBlock
-                            Text="{Binding Path=Updated, Mode=OneWay, StringFormat='yyyy-MM-dd HH:mm:ss'}"
+                            Text="{Binding Path=Created, Mode=OneWay, StringFormat='yyyy-MM-dd HH:mm:ss'}"
                             Padding="0"/>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
@@ -40,7 +38,7 @@
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
 
-            <DataGridTemplateColumn Header="Тип" x:Name="clOrderType" Width="100">
+            <DataGridTemplateColumn Header="Тип" x:Name="clOrderType">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
                         <TextBlock
@@ -71,7 +69,7 @@
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
 
-            <DataGridTemplateColumn Header="Объем" Width="100" x:Name="clQuantity">
+            <DataGridTemplateColumn Header="Объем" x:Name="clQuantity">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
                         <Grid>
@@ -82,17 +80,18 @@
                                 Maximum="{Binding Path=Quantity, Mode=OneWay}"
                                 Value="{Binding Path=ExecutedQuantity, Mode=OneWay}"
                                 BorderBrush="{StaticResource NeutralCandleBrush}"
-                                Background="Transparent"/>
-                            <TextBlock
-                                Text="{Binding Path=Quantity, Mode=OneWay}"
-                                Padding="0"
-                                HorizontalAlignment="Right"/>
+                                Background="Transparent"
+                                Foreground="{Binding Path=Side, Mode=OneWay, Converter={StaticResource convOrderSide}}"
+                                Opacity="0.5"/>
+                            <ContentControl
+                                Content="{Binding Path=Quantity, Mode=OneWay}"
+                                ContentStringFormat="{Binding Path=SymbolInformation.QuantityFmt, Mode=OneWay}"/>
                         </Grid>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
 
-            <DataGridTemplateColumn Header="Сумма" x:Name="clTotal">
+            <DataGridTemplateColumn Header="Сумма" Width="*" x:Name="clTotal">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
                         <StackPanel
@@ -108,48 +107,17 @@
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
-            <!--<DataGridTextColumn Header="Условия" Binding="{Binding Path=Conditions, Mode=OneWay}"></DataGridTextColumn>-->
 
-            <DataGridTemplateColumn>
-                <DataGridTemplateColumn.HeaderTemplate>
-                    <DataTemplate>
-                        <TextBlock HorizontalAlignment="Right">
-                            <Hyperlink
-                                Command="{Binding Path=DataContext.CancelOrderCommand, Mode=OneWay, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}">
-                                <TextBlock Text="Отменить Все"/>
-                            </Hyperlink>
-                        </TextBlock>
-                    </DataTemplate>
-                </DataGridTemplateColumn.HeaderTemplate>
+            <DataGridTemplateColumn Header="Статус" x:Name="clStatus">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
-                        <TextBlock HorizontalAlignment="Right">
-                            <Hyperlink
-                                Command="{Binding Path=DataContext.CancelOrderCommand, Mode=OneWay, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
-                                CommandParameter="{Binding Path=OrderId, Mode=OneWay}">
-                                <TextBlock Text="Отменить"/>
-                            </Hyperlink>
-                        </TextBlock>
+                        <TextBlock
+                            Text="{Binding Path=Status, Mode=OneWay}"
+                            Padding="0"/>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
 
         </DataGrid.Columns>
-        <DataGrid.ItemContainerStyle>
-            <Style TargetType="DataGridRow">
-                <Setter Property="Background" Value="{Binding Path=Status, Mode=OneWay, Converter={StaticResource convOrderStatusToBrush}}"/>
-                <Style.Triggers>
-                    <!--<Trigger Property="IsSelected" Value="True">
-                                        <Setter Property="Background" Value="#FDF1CF" />
-                                        <Setter Property="Foreground" Value="Black" />
-                                        <Setter Property="BorderBrush" Value="#FDF1CF"/>
-                                    </Trigger>-->
-                    <Trigger Property="IsMouseOver" Value="True">
-                        <Setter Property="Background" Value="#F0F0F0"/>
-                        <Setter Property="BorderBrush" Value="#F0F0F0"/>
-                    </Trigger>
-                </Style.Triggers>
-            </Style>
-        </DataGrid.ItemContainerStyle>
     </DataGrid>
 </UserControl>

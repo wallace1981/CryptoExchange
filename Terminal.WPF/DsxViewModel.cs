@@ -146,8 +146,8 @@ namespace Exchange.Net
                     var bids = new List<OrderBookEntry>();
                     var asks = new List<OrderBookEntry>();
                     var orderBook = resultDepth.Data[si.Symbol]; // pair is <symbol,orderbook>
-                    asks.AddRange(orderBook.asks.Take(OrderBookMaxItemCount).Select(x => new OrderBookEntry(OrderBook.PriceDecimals, OrderBook.QuantityDecimals) { Price = x[0], Quantity = x[1], Side = TradeSide.Sell }));
-                    bids.AddRange(orderBook.bids.Take(OrderBookMaxItemCount).Select(x => new OrderBookEntry(OrderBook.PriceDecimals, OrderBook.QuantityDecimals) { Price = x[0], Quantity = x[1], Side = TradeSide.Buy }));
+                    asks.AddRange(orderBook.asks.Take(OrderBookMaxItemCount).Select(x => new OrderBookEntry(si) { Price = x[0], Quantity = x[1], Side = TradeSide.Sell }));
+                    bids.AddRange(orderBook.bids.Take(OrderBookMaxItemCount).Select(x => new OrderBookEntry(si) { Price = x[0], Quantity = x[1], Side = TradeSide.Buy }));
                     var depth = asks.AsEnumerable().Reverse().Concat(bids);
                     ProcessOrderBook(depth);
                     UpdateStatus(ServerStatus);
@@ -159,7 +159,7 @@ namespace Exchange.Net
             }
         }
 
-        protected override async Task<bool> CancelOrder(string orderId)
+        protected override async Task<bool> CancelOrderImpl(string orderId)
         {
             var result = await client.CancelOrderAsync(long.Parse(orderId));
             if (result.Success)
@@ -243,12 +243,31 @@ namespace Exchange.Net
             return TransferStatus.Undefined;
         }
 
+        private static OrderStatus Code2OrderStatus(int code)
+        {
+            switch (code)
+            {
+                case 0:
+                    return OrderStatus.Active;
+                case 1:
+                    return OrderStatus.Filled;
+                case 2:
+                    return OrderStatus.Cancelled;
+                case 3:
+                    return OrderStatus.Cancelling;
+                case 4:
+                    return OrderStatus.Rejected;
+                default:
+                    return OrderStatus.Undefined;
+            }
+        }
 
         public DsxViewModel()
         {
             var defaultAccount = new ExchangeAccount("default", client);
             Accounts.AddOrUpdate(defaultAccount);
             CurrentAccount = defaultAccount;
+            this.HasSignedAccount = client.IsSigned;
             //AddRule(CreateStopLoss("ltcusd", 28.49m, 28.2m, 9.98m));
             //AddRule(CreateStopLoss("ltcusd", 31.39m, 31.0m, 35.837m));
             //AddRule(CreateStopLoss("ltceur", 25.59m, 25.29m, 10.08m));
@@ -293,7 +312,7 @@ namespace Exchange.Net
         {
             try
             {
-                var yx = await client.GetOrdersAsync("btcusd");
+                var yx = await client.GetOrdersAsync();
                 var xz = await client.GetOrdersHistoryAsync();
                 var xy = await client.GetTradesHistoryAsync();
                 var yz = await client.GetAccountInfoAsync();
@@ -364,9 +383,10 @@ namespace Exchange.Net
                 var asks = new List<OrderBookEntry>();
                 if (result.Data.ContainsKey(market))
                 {
+                    var si = GetSymbolInformation(market);
                     var orderBook = result.Data[market]; // pair is <symbol,orderbook>
-                    asks.AddRange(orderBook.asks.Take(limit).Select(x => new OrderBookEntry(OrderBook.PriceDecimals, OrderBook.QuantityDecimals) { Price = x[0], Quantity = x[1], Side = TradeSide.Sell }));
-                    bids.AddRange(orderBook.bids.Take(limit).Select(x => new OrderBookEntry(OrderBook.PriceDecimals, OrderBook.QuantityDecimals) { Price = x[0], Quantity = x[1], Side = TradeSide.Buy }));
+                    asks.AddRange(orderBook.asks.Take(limit).Select(x => new OrderBookEntry(si) { Price = x[0], Quantity = x[1], Side = TradeSide.Sell }));
+                    bids.AddRange(orderBook.bids.Take(limit).Select(x => new OrderBookEntry(si) { Price = x[0], Quantity = x[1], Side = TradeSide.Buy }));
                 }
                 return asks.AsEnumerable().Reverse().Concat(bids);
             }
@@ -411,16 +431,55 @@ namespace Exchange.Net
             return orders;
         }
 
-        protected async Task<List<Order>> GetOrderHistoryAsync()
+        protected override async Task GetOpenOrdersImpl()
+        {
+            var ordersResult = await client.GetOrdersAsync().ConfigureAwait(false);
+            UpdateStatus();
+            if (ordersResult.Success)
+            {
+                var orders = ordersResult.Data.Select(Convert).OrderByDescending(x => x.Created);
+                CurrentAccount.OpenOrders.Clear();
+                CurrentAccount.OpenOrders.AddOrUpdate(orders);
+            }
+        }
+
+        protected override async Task GetBalanceImpl()
+        {
+            var result = await GetBalancesAsync().ConfigureAwait(false);
+            var mngr = CurrentAccount?.BalanceManager;
+            foreach (Balance b in result)
+            {
+                mngr.AddUpdateBalance(b);
+            }
+            foreach (var ticker in MarketSummaries)
+                mngr.UpdateWithLastPrice(ticker.Symbol, ticker.LastPrice.GetValueOrDefault());
+        }
+
+        protected override async Task GetDepositsImpl()
+        {
+            var deposits = await GetDepositsAsync().ConfigureAwait(false);
+            CurrentAccount.Deposits.AddOrUpdate(deposits);
+            UpdateStatus();
+        }
+
+        protected override async Task GetWithdrawalsImpl()
+        {
+            var withdrawals = await GetWithdrawalsAsync().ConfigureAwait(false);
+            CurrentAccount.Withdrawals.AddOrUpdate(withdrawals);
+            UpdateStatus();
+        }
+
+        protected override async Task GetOrdersHistoryImpl()
         {
             var orders = new List<Order>();
-            var ordersResult = await client.GetOrdersHistoryAsync(fromId: lastHistoryOrderId);
-            var tradesResult = await client.GetTradesHistoryAsync(fromId: lastHistoryTradeId);
+            var ordersResult = await client.GetOrdersHistoryAsync(fromId: lastHistoryOrderId).ConfigureAwait(false);
+            var tradesResult = await client.GetTradesHistoryAsync(fromId: lastHistoryTradeId).ConfigureAwait(false);
+            UpdateStatus();
             if (ordersResult.Success && tradesResult.Success)
             {
                 lastHistoryTradeId = tradesResult.Data.Max(x => x.id); // get latest ID
                 lastHistoryOrderId = ordersResult.Data.Max(x => x.id); // get latest ID
-                foreach (var data in ordersResult.Data.Where(x => x.status == 1).OrderByDescending(x => x.id))
+                foreach (var data in ordersResult.Data.Where(x => x.status == 1 || x.remainingVolume != x.volume).OrderByDescending(x => x.id))
                 {
                     var si = GetSymbolInformation(data.pair);
                     var deals = tradesResult.Data.Where(x => x.orderId == data.id);
@@ -428,7 +487,7 @@ namespace Exchange.Net
                     orders.Add(order);
                 }
             }
-            return orders;
+            CurrentAccount.OrdersHistory.AddOrUpdate(orders.OrderByDescending(x => x.Created));
         }
 
         bool ignoreCancelledOrders = true;
@@ -533,6 +592,16 @@ namespace Exchange.Net
                 si.QuoteAsset != "TRY";
         }
 
+        protected override async Task<SymbolInformation> GetFullSymbolInformation()
+        {
+            var si = CurrentSymbolInformation;
+            var balances = await GetBalancesAsync();
+            si.BaseAssetBalance = balances.SingleOrDefault(x => x.Asset == si.BaseAsset);
+            si.QuoteAssetBalance = balances.SingleOrDefault(x => x.Asset == si.QuoteAsset);
+            si.PriceTicker = GetPriceTicker(si.Symbol);
+            return si;
+        }
+
         internal void UpdateStatus()
         {
             Status = $"DSX: Noting to say so far.";
@@ -546,7 +615,10 @@ namespace Exchange.Net
                 BaseAsset = p.Value.base_currency,
                 MaxPrice = p.Value.max_price,
                 MinPrice = p.Value.min_price,
+                TickSize = p.Value.min_amount,
                 MinQuantity = p.Value.min_amount,
+                MaxQuantity = decimal.MaxValue,
+                StepSize = p.Value.min_amount,
                 QuantityDecimals = p.Value.amount_decimal_places,
                 PriceDecimals = p.Value.decimal_places,
                 QuoteAsset = p.Value.quoted_currency,
@@ -597,8 +669,11 @@ namespace Exchange.Net
                 {
                     totalQuote += deal.volume * deal.rate;
                 }
-                orderPrice = totalQuote / (x.volume - x.remainingVolume);
-                orderPrice = Math.Round(orderPrice, si.PriceDecimals);
+                if (totalQuote > decimal.Zero)
+                {
+                    orderPrice = totalQuote / (x.volume - x.remainingVolume);
+                    orderPrice = Math.Round(orderPrice, si.PriceDecimals);
+                }
             }
             return new Order(si)
             {
@@ -606,7 +681,27 @@ namespace Exchange.Net
                 Quantity = x.volume,
                 ExecutedQuantity = x.volume - x.remainingVolume,
                 Side = x.type == "buy" ? TradeSide.Buy : TradeSide.Sell,
+                Status = Code2OrderStatus(x.status),
                 Created = x.timestampCreated.FromUnixSeconds(),
+                Updated = x.timestampCreated.FromUnixSeconds(),
+                Type = x.orderType,
+                OrderId = x.id.ToString()
+            };
+        }
+
+        private Order Convert(DSX.Order x)
+        {
+            var orderPrice = x.rate;
+            SymbolInformation si = GetSymbolInformation(x.pair);
+            return new Order(si)
+            {
+                Price = orderPrice,
+                Quantity = x.volume,
+                ExecutedQuantity = x.volume - x.remainingVolume,
+                Side = x.type == "buy" ? TradeSide.Buy : TradeSide.Sell,
+                Status = Code2OrderStatus(x.status),
+                Created = x.timestampCreated.FromUnixSeconds(),
+                Updated = x.timestampCreated.FromUnixSeconds(),
                 Type = x.orderType,
                 OrderId = x.id.ToString()
             };

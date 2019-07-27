@@ -30,7 +30,7 @@ namespace Terminal.WPF
             //DataContext = vm;
 
 
-            tab.ItemsSource = new ExchangeViewModel[] { new BinanceViewModel(), new BittrexViewModel(), new DsxViewModel() };//, new CryptopiaViewModel(), new HuobiViewModel(), new HitBtcViewModel(), new OKexViewModel() };
+            tab.ItemsSource = new ExchangeViewModel[] { new BinanceViewModel(), new DsxViewModel()  };// new BittrexViewModel(),, new CryptopiaViewModel(), new HuobiViewModel(), new HitBtcViewModel(), new OKexViewModel() };
 
             //var ctl = new DsxTerminalView();
             //tab.Items.Add(new RadTabItem { Header = "DSX", Content = ctl });

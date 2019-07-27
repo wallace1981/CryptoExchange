@@ -86,8 +86,8 @@ namespace Exchange.Net
                 GetDepthElapsed = resultDepth.ElapsedMilliseconds;
 
                 var orderBook = resultDepth.Data;
-                var asks = orderBook.sell.Select(a => new OrderBookEntry(OrderBook.PriceDecimals, OrderBook.QuantityDecimals) { Price = a.Rate, Quantity = a.Quantity, Side = TradeSide.Sell });
-                var bids = orderBook.buy.Select(b => new OrderBookEntry(OrderBook.PriceDecimals, OrderBook.QuantityDecimals) { Price = b.Rate, Quantity = b.Quantity, Side = TradeSide.Buy });
+                var asks = orderBook.sell.Select(a => new OrderBookEntry(si) { Price = a.Rate, Quantity = a.Quantity, Side = TradeSide.Sell });
+                var bids = orderBook.buy.Select(b => new OrderBookEntry(si) { Price = b.Rate, Quantity = b.Quantity, Side = TradeSide.Buy });
                 var depth = asks.Take(OrderBookMaxItemCount).Reverse().Concat(bids.Take(OrderBookMaxItemCount));
                 ProcessOrderBook(depth);
                 UpdateStatus(ServerStatus);
@@ -146,9 +146,10 @@ namespace Exchange.Net
             var result = await client.GetOrderBookAsync(market).ConfigureAwait(false);
             if (result.Success)
             {
+                var si = GetSymbolInformation(market);
                 var depth = result.Data;
-                var asks = depth.sell.Select(a => new OrderBookEntry(OrderBook.PriceDecimals, OrderBook.QuantityDecimals) { Price = a.Rate, Quantity = a.Quantity, Side = TradeSide.Sell });
-                var bids = depth.buy.Select(b => new OrderBookEntry(OrderBook.PriceDecimals, OrderBook.QuantityDecimals) { Price = b.Rate, Quantity = b.Quantity, Side = TradeSide.Buy });
+                var asks = depth.sell.Select(a => new OrderBookEntry(si) { Price = a.Rate, Quantity = a.Quantity, Side = TradeSide.Sell });
+                var bids = depth.buy.Select(b => new OrderBookEntry(si) { Price = b.Rate, Quantity = b.Quantity, Side = TradeSide.Buy });
                 return asks.Take(limit).Reverse().Concat(bids.Take(limit));
             }
             else

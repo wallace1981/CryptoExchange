@@ -14,6 +14,8 @@ namespace Terminal.WPF
     /// </summary>
     public partial class ExchangeView : UserControl, IViewFor<ExchangeViewModel>
     {
+        RadDesktopAlertManager alertManager = new RadDesktopAlertManager();
+
         public ExchangeView()
         {
             InitializeComponent();
@@ -72,6 +74,20 @@ namespace Terminal.WPF
                         interaction =>
                         {
                             MessageBox.Show(Application.Current.MainWindow, interaction.Input.Message, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                            interaction.SetOutput(Unit.Default);
+                        }).DisposeWith(disposables);
+                this.ViewModel
+                    .Alert
+                    .RegisterHandler(
+                        interaction =>
+                        {
+                            var alert = new RadDesktopAlert() {
+                                CanAutoClose = false,
+                                Content = interaction.Input,
+                                Header = "Trading Bot Alert"
+                            };
+                            Dispatcher.Invoke(() => alertManager.ShowAlert(alert));
+                            //MessageBox.Show(Application.Current.MainWindow, interaction.Input, ViewModel.ExchangeName, MessageBoxButton.OK, MessageBoxImage.Exclamation);
                             interaction.SetOutput(Unit.Default);
                         }).DisposeWith(disposables);
             });

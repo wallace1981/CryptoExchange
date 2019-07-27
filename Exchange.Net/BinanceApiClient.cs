@@ -337,7 +337,7 @@ namespace Exchange.Net
         public Task<ApiResult<List<object[]>>> GetKlinesAsync(string market, string interval, long? startTime = null, long? endTime = null, int? limit = null)
         {
             var requestMessage = CreateRequestMessage(new KlinesRequest() { symbol = market, interval = interval, limit = limit, startTime = startTime, endTime = endTime }, GetKlinesEndpoint, HttpMethod.Get);
-            return ExecuteRequestAsync<List<object[]>>(requestMessage, GetKlinesWeight, contentPath: $"klines-{market}");
+            return ExecuteRequestAsync<List<object[]>>(requestMessage, GetKlinesWeight, contentPath: $"klines-{market}-{interval}");
         }
 
         public Task<ApiResult<List<Binance.BookTicker>>> GetBookTickerAsync(string market = null)
