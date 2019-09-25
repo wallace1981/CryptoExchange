@@ -85,13 +85,15 @@ namespace Exchange.Net
                 .Select(x => Unit.Default)
                 .InvokeCommand(GetServerTime)
                 .DisposeWith(Disposables);
-            //var pairs = Markets.Where(x => x.QuoteAsset == "BTC" || x.QuoteAsset == "USDT").Select(x => x.Symbol);
-            //var kline1m = client.SubscribeKlinesAsync(pairs, "1m");
-            //kline1m.ObserveOnDispatcher().Subscribe(OnKline).DisposeWith(disposables);
-            //var kline5m = client.SubscribeKlinesAsync(pairs, "5m");
-            //kline5m.ObserveOnDispatcher().Subscribe(OnKline).DisposeWith(disposables);
-            //var kline15m = client.SubscribeKlinesAsync(pairs, "15m");
-            //kline15m.ObserveOnDispatcher().Subscribe(OnKline).DisposeWith(disposables);
+            return;
+            var pairs = Markets.Where(x => x.QuoteAsset == "BTC" || x.QuoteAsset == "USDT").Select(x => x.Symbol);
+
+            string[] intervals = { "15m", "1h", "6h", "12h", "1d", "3d", "1w" };
+            foreach (var x in intervals)
+            {
+                var kline = client.SubscribeKlinesAsync(pairs, x);
+                kline.ObserveOnDispatcher().Subscribe(OnKline).DisposeWith(disposables);
+            }
         }
 
         protected void UpdateStatus(string serverStatus, string clientMsg = null)
@@ -382,9 +384,14 @@ namespace Exchange.Net
             }
         }
 
-        protected override async Task<SymbolInformation> GetFullSymbolInformation()
+        protected override Task<SymbolInformation> GetFullSymbolInformation()
         {
-            var si = CurrentSymbolInformation;
+            return GetFullSymbolInformation(CurrentSymbol);
+        }
+
+        protected override async Task<SymbolInformation> GetFullSymbolInformation(string market)
+        {
+            var si = GetSymbolInformation(market);
             var balances = await GetBalancesAsync();
             //si.QuoteAssetBalance = await GetAssetBalance(si.QuoteAsset);
             //si.QuoteAssetBalance.Free = Math.Round(si.QuoteAssetBalance.Free, si.PriceDecimals);
@@ -419,7 +426,7 @@ namespace Exchange.Net
             var lotSizeFilter = market.filters.SingleOrDefault((f) => f.filterType == Binance.FilterType.LOT_SIZE.ToString());
             var minNotionalFilter = market.filters.SingleOrDefault((f) => f.filterType == Binance.FilterType.MIN_NOTIONAL.ToString());
             var cmcEntry = GetCmcEntry(market.baseAsset);
-            return new SymbolInformation()
+            return new SymbolInformation
             {
                 BaseAsset = market.baseAsset,
                 QuoteAsset = market.quoteAsset,
@@ -432,6 +439,7 @@ namespace Exchange.Net
                 MinQuantity = lotSizeFilter.minQty,
                 MaxQuantity = lotSizeFilter.maxQty,
                 StepSize = lotSizeFilter.stepSize,
+                OrderTypes = market.orderTypes,
                 QuantityDecimals = DigitsCount(lotSizeFilter.stepSize),
                 MinNotional = minNotionalFilter.minNotional,
                 TotalDecimals = DigitsCount(minNotionalFilter.minNotional),
@@ -650,17 +658,39 @@ namespace Exchange.Net
             var ticker = GetPriceTicker(candlestick.symbol);
             if (ticker != null)
             {
+                var candle = Convert(candlestick);
                 switch (candlestick.kline.interval)
                 {
                     case "1m":
-                        ticker.Candle1m = Convert(candlestick);
+                        ticker.Candle1m = candle;
                         break;
                     case "5m":
-                        ticker.Candle5m = Convert(candlestick);
+                        ticker.Candle5m = candle;
                         AnalyzeCandle(ticker.Candle5m);
                         break;
                     case "15m":
-                        ticker.Candle15m = Convert(candlestick);
+                        ticker.Candle15m = candle;
+                        break;
+                    case "30m":
+                        ticker.Candle30m = candle;
+                        break;
+                    case "1h":
+                        ticker.Candle1h = candle;
+                        break;
+                    case "6h":
+                        ticker.Candle6h = candle;
+                        break;
+                    case "12h":
+                        ticker.Candle12h = candle;
+                        break;
+                    case "1d":
+                        ticker.Candle1d = candle;
+                        break;
+                    case "3d":
+                        ticker.Candle3d = candle;
+                        break;
+                    case "1w":
+                        ticker.Candle1w = candle;
                         break;
                 }
             }

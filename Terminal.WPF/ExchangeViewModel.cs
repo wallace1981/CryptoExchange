@@ -87,7 +87,6 @@ namespace Exchange.Net
 
         [Reactive] public bool HasSignedAccount { get; set; }
 
-
         protected abstract string DefaultMarket { get; }
         protected List<string> UsdAssets = new List<string>();
 
@@ -271,7 +270,9 @@ namespace Exchange.Net
                 .Replace("IOTA", "MIOTA")
                 .Replace("VEN", "VET")
                 .Replace("BCHABC", "BCH")
-                .Replace("BCHSV", "BSV");
+                .Replace("BCHSV", "BSV")
+                .Replace("GXS", "GXC")
+                .Replace("PHB", "PHX");
         }
 
         protected virtual bool IsValidMarket(SymbolInformation si)
@@ -647,6 +648,13 @@ namespace Exchange.Net
                 RecentTradesCache.Clear();
             }
             RecentTradesCache.AddOrUpdate(trades);
+            if (RecentTradesCache.Count > TradesMaxItemCount)
+            {
+                RecentTradesCache.Remove(RecentTradesCache.Items.Skip(TradesMaxItemCount));
+            }
+            CalcQuantityPercentageTotal(RecentTradesCache.Items);
+            return;
+
             long? lastId = RecentTrades.FirstOrDefault()?.Id;
             if (lastId != null)
                 tradesList.RemoveAll(x => x.Id <= lastId);
@@ -764,6 +772,11 @@ namespace Exchange.Net
             return Task.FromResult(CurrentSymbolInformation);
         }
 
+        protected virtual Task<SymbolInformation> GetFullSymbolInformation(string market)
+        {
+            return Task.FromResult(GetSymbolInformation(market));
+        }
+
         protected async void OnRefreshMarketSummary2(PriceTicker ticker)
         {
             if (tickersMapping.TryGetValue(ticker.Symbol, out int idx))
@@ -874,6 +887,7 @@ namespace Exchange.Net
                     if (proxy.Confirmations == 0)
                     {
                         Notify(proxy);
+                        rule.IsActive = false;
                     }
                     proxy.Confirmations += 1;
                     proxy.Status = $"Triggered #{proxy.Confirmations}/{MAX_CONFIRMS} times";
@@ -925,10 +939,10 @@ namespace Exchange.Net
             }
         }
 
-        protected Task Notify(TradingRuleProxy proxy)
+        protected async void Notify(TradingRuleProxy proxy)
         {
-            string msg = $"{ExchangeName}: {proxy.Symbol} {proxy.Rule.Operator} {proxy.Rule.ThresholdRate}";
-            return TelegramNotifier.Notify(msg);
+            string msg = $"[{ExchangeName}] {proxy.Symbol} {proxy.Rule.Operator} {proxy.Rule.ThresholdRate}";
+            await TelegramNotifier.Notify(msg);
         }
 
         protected virtual Task<Order> PlaceOrder(TradingRule rule)
@@ -964,7 +978,12 @@ namespace Exchange.Net
                 WindowStyle = System.Windows.WindowStyle.ToolWindow
             };
             var viewModel = this;
-            var order = new NewOrder(si) { QuantityPercentage = 0.015m, Price = si.PriceTicker.LastPrice.GetValueOrDefault() };
+            var order = new NewOrder(si)
+            {
+                QuantityPercentage = 0.015m,
+                Price = si.PriceTicker.LastPrice.GetValueOrDefault(),
+                OrderType = si.OrderTypes.FirstOrDefault()
+            };
             viewModel.NewOrder = order;
             wnd.DataContext = viewModel;
             wnd.ShowDialog();
@@ -1052,13 +1071,26 @@ namespace Exchange.Net
         {
             if (NewOrder != null)
             {
+                var si = NewOrder.SymbolInformation;
                 var direction = NewOrder.Side == TradeSide.Buy ? 100m : -100m;
-                var rule = new TrailingTakeProfit(NewOrder.Price, NewOrder.QuantityPercentage / direction);
+                var rule = new TradingRule();
+                rule.Exchange = ExchangeName;
                 rule.Market = NewOrder.SymbolInformation.Symbol;
                 rule.Property = ThresholdType.LastPrice;
                 rule.OrderVolume = NewOrder.Quantity;
                 rule.OrderSide = NewOrder.Side;
                 rule.OrderType = NewOrder.OrderType;
+                rule.Operator = si.PriceTicker.LastPrice > NewOrder.Price ? ThresholdOperator.LessOrEqual : ThresholdOperator.GreaterOrEqual;
+                rule.ThresholdRate = NewOrder.Price;
+
+
+
+                //var rule = new TrailingTakeProfit(NewOrder.Price, NewOrder.QuantityPercentage / direction);
+                //rule.Market = NewOrder.SymbolInformation.Symbol;
+                //rule.Property = ThresholdType.LastPrice;
+                //rule.OrderVolume = NewOrder.Quantity;
+                //rule.OrderSide = NewOrder.Side;
+                //rule.OrderType = NewOrder.OrderType;
                 AddRule(rule);
                 var json = JsonConvert.SerializeObject(rule);
                 File.WriteAllText(Path.ChangeExtension(DateTime.Now.Ticks.ToString(), ".rule"), json);
@@ -1153,6 +1185,7 @@ namespace Exchange.Net
             IsInitializing = true;
             await GetExchangeInfo.Execute();
             await GetTickers.Execute();
+            TelegramNotifier.ParseAndRun.Add(ParseAndRun);
             IsInitializing = false;
             //SetTickersSubscription(true);
 
@@ -1201,8 +1234,12 @@ namespace Exchange.Net
             foreach (var file in Directory.EnumerateFiles(".", "*.rule"))
             {
                 var json = File.ReadAllText(file);
-                var rule = JsonConvert.DeserializeObject<TrailingTakeProfit>(json);
-                AddRule(rule);
+                //var rule = JsonConvert.DeserializeObject<TrailingTakeProfit>(json);
+                var rule = JsonConvert.DeserializeObject<TradingRule>(json);
+                if (rule.Exchange.Equals(ExchangeName, StringComparison.OrdinalIgnoreCase))
+                {
+                    AddRule(rule);
+                }
             }
         }
 
@@ -1360,7 +1397,45 @@ namespace Exchange.Net
             return Task.FromResult(new Balance(asset));
         }
 
-        public virtual string[] OrderTypes => new [] { "limit", "market", "fill-or-kill" };
+        protected async void ParseAndRun(string cmd)
+        {
+            try
+            {
+                var parts = cmd.ToUpper().Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Select(x => x.Trim()).ToArray();
+                var market = parts.Length > 1 ? parts[1] : null;
+                var si = market != null ? await GetFullSymbolInformation(market) : null;
+                var response = string.Empty;
+                switch (parts[0])
+                {
+                    case "/BALANCE":
+                        response = $"[{ExchangeName}] balance is: {CurrentAccount.BalanceManager.TotalBtc} BTC, {CurrentAccount.BalanceManager.TotalUsd} USD";
+                        break;
+                    case "/PRICE":
+                        if (si != null)
+                        {
+                            response = $"[{ExchangeName}] {si.BaseAsset} price is: {si.PriceTicker?.LastPrice} {si.QuoteAsset}";
+                        }
+                        break;
+                    case "/VOLUME":
+                        if (si != null)
+                        {
+                            response = $"[{ExchangeName}] {si.Caption} volume is: {si.PriceTicker?.Volume:N0} {si.BaseAsset} / {si.PriceTicker?.QuoteVolume:N0} {si.QuoteAsset}";
+                        }
+                        break;
+                }
+                if (!string.IsNullOrWhiteSpace(response))
+                {
+                    TelegramNotifier.Notify(response);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.ToString());
+            }
+        }
+
+
+        public virtual string[] OrderTypes => new string[] { };
 
         public NewOrder NewOrder { get; set; }
 
@@ -1378,6 +1453,7 @@ namespace Exchange.Net
 
     public class TradingRule
     {
+        public string Exchange { get; set; }
         public string Market { get; set; }
         public decimal ThresholdRate { get; set; }
         public ThresholdType Property { get; set; }

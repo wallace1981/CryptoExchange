@@ -350,6 +350,7 @@ namespace Exchange.Net
         public int PriceDecimals { get; set; }
         public int QuantityDecimals { get; set; }
         public decimal MinNotional { get; set; }
+        public string[] OrderTypes { get; set; }
         public decimal TotalDecimals { get; set; }
         public string PriceFmt => $"N{PriceDecimals}";
         public string QuantityFmt => $"N{QuantityDecimals}";
@@ -482,7 +483,13 @@ namespace Exchange.Net
         [Reactive] public Candle Candle1m { get; set; }
         [Reactive] public Candle Candle5m { get; set; }
         [Reactive] public Candle Candle15m { get; set; }
-
+        [Reactive] public Candle Candle30m { get; set; }
+        [Reactive] public Candle Candle1h { get; set; }
+        [Reactive] public Candle Candle6h { get; set; }
+        [Reactive] public Candle Candle12h { get; set; }
+        [Reactive] public Candle Candle1d { get; set; }
+        [Reactive] public Candle Candle3d { get; set; }
+        [Reactive] public Candle Candle1w { get; set; }
     }
 
     public class Candle

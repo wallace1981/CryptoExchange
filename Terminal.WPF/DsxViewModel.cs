@@ -620,6 +620,7 @@ namespace Exchange.Net
                 MaxQuantity = decimal.MaxValue,
                 StepSize = p.Value.min_amount,
                 QuantityDecimals = p.Value.amount_decimal_places,
+                OrderTypes = this.OrderTypes,
                 PriceDecimals = p.Value.decimal_places,
                 QuoteAsset = p.Value.quoted_currency,
                 Symbol = p.Key,
@@ -725,5 +726,6 @@ namespace Exchange.Net
         DsxApiClient client = new DsxApiClient();
         private DateTime serverTime;
         private DSX.Fees fees;
+        public override string[] OrderTypes => new[] { "limit", "market", "fill-or-kill" };
     }
 }

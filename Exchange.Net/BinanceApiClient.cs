@@ -833,7 +833,11 @@ namespace Binance
         public int baseAssetPrecision { get; set; }
         public string quoteAsset { get; set; }
         public int quotePrecision { get; set; }
+        public string[] orderTypes { get; set; }
         public bool icebergAllowed { get; set; }
+        public bool ocoAllowed { get; set; } // One-Cancel-Other order
+        public bool isSpotTradingAllowed { get; set; }
+        public bool isMarginTradingAllowed { get; set; }
         public IEnumerable<Filter> filters { get; set; }
     }
 

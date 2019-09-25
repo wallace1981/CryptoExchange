@@ -78,7 +78,7 @@
             BorderThickness="1"
             ItemsSource="{Binding Source={StaticResource csvMarketSummaries}, Mode=OneWay}"
             SelectedItem="{Binding Path=CurrentSymbolTickerPrice, Mode=TwoWay}"
-            IsSynchronizedWithCurrentItem="False"
+            IsSynchronizedWithCurrentItem="False" FrozenColumnCount="4"
             >
 
             <DataGrid.Columns>
@@ -139,25 +139,73 @@
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
 
-                <DataGridTemplateColumn Header="Buy/Sell 1m"  Width="72" SortMemberPath="Candle1m.QuoteVolume">
+                <DataGridTemplateColumn Header="Buy/Sell 15m"  Width="72" SortMemberPath="Candle15m.QuoteVolume">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                             <TextBlock DockPanel.Dock="Right" HorizontalAlignment="Right" FontFamily="{StaticResource RobotoCondensed}" FontSize="12">
-                                <Run Text="{Binding Path=Candle1m.QuoteVolume, Mode=OneWay, TargetNullValue='- -', StringFormat='N2'}"/>
+                                <Run Text="{Binding Path=Candle15m.QuoteVolume, Mode=OneWay, TargetNullValue='- -', StringFormat='N2'}"/>
                                 <Run Text="/"/>
-                                <Run Text="{Binding Path=Candle1m.BuyQuoteVolume, Mode=OneWay, TargetNullValue='- -', StringFormat='N2'}"/>
+                                <Run Text="{Binding Path=Candle15m.BuyQuoteVolume, Mode=OneWay, TargetNullValue='- -', StringFormat='N2'}"/>
                             </TextBlock>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
 
-                <DataGridTemplateColumn Header="Buy/Sell 5m"  Width="72" SortMemberPath="Candle5m.QuoteVolume">
+                <DataGridTemplateColumn Header="Buy/Sell 1H"  Width="72" SortMemberPath="Candle1h.QuoteVolume">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                             <TextBlock DockPanel.Dock="Right" HorizontalAlignment="Right" FontFamily="{StaticResource RobotoCondensed}" FontSize="12">
-                                <Run Text="{Binding Path=Candle5m.QuoteVolume, Mode=OneWay, TargetNullValue='- -', StringFormat='N2'}"/>
+                                <Run Text="{Binding Path=Candle1h.QuoteVolume, Mode=OneWay, TargetNullValue='- -', StringFormat='N2'}"/>
                                 <Run Text="/"/>
-                                <Run Text="{Binding Path=Candle5m.BuyQuoteVolume, Mode=OneWay, TargetNullValue='- -', StringFormat='N2'}"/>
+                                <Run Text="{Binding Path=Candle1h.BuyQuoteVolume, Mode=OneWay, TargetNullValue='- -', StringFormat='N2'}"/>
+                            </TextBlock>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+
+                <DataGridTemplateColumn Header="Buy/Sell 6H"  Width="72" SortMemberPath="Candle6h.QuoteVolume">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <TextBlock DockPanel.Dock="Right" HorizontalAlignment="Right" FontFamily="{StaticResource RobotoCondensed}" FontSize="12">
+                                <Run Text="{Binding Path=Candle6h.QuoteVolume, Mode=OneWay, TargetNullValue='- -', StringFormat='N2'}"/>
+                                <Run Text="/"/>
+                                <Run Text="{Binding Path=Candle6h.BuyQuoteVolume, Mode=OneWay, TargetNullValue='- -', StringFormat='N2'}"/>
+                            </TextBlock>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+
+                <DataGridTemplateColumn Header="Buy/Sell 12H"  Width="72" SortMemberPath="Candle1d.QuoteVolume">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <TextBlock DockPanel.Dock="Right" HorizontalAlignment="Right" FontFamily="{StaticResource RobotoCondensed}" FontSize="12">
+                                <Run Text="{Binding Path=Candle12h.QuoteVolume, Mode=OneWay, TargetNullValue='- -', StringFormat='N2'}"/>
+                                <Run Text="/"/>
+                                <Run Text="{Binding Path=Candle12h.BuyQuoteVolume, Mode=OneWay, TargetNullValue='- -', StringFormat='N2'}"/>
+                            </TextBlock>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+
+                <DataGridTemplateColumn Header="Buy/Sell 3D"  Width="72" SortMemberPath="Candle3d.QuoteVolume">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <TextBlock DockPanel.Dock="Right" HorizontalAlignment="Right" FontFamily="{StaticResource RobotoCondensed}" FontSize="12">
+                                <Run Text="{Binding Path=Candle3d.QuoteVolume, Mode=OneWay, TargetNullValue='- -', StringFormat='N2'}"/>
+                                <Run Text="/"/>
+                                <Run Text="{Binding Path=Candle3d.BuyQuoteVolume, Mode=OneWay, TargetNullValue='- -', StringFormat='N2'}"/>
+                            </TextBlock>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+
+                <DataGridTemplateColumn Header="Buy/Sell 7D"  Width="72" SortMemberPath="Candle1w.QuoteVolume">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <TextBlock DockPanel.Dock="Right" HorizontalAlignment="Right" FontFamily="{StaticResource RobotoCondensed}" FontSize="12">
+                                <Run Text="{Binding Path=Candle1w.QuoteVolume, Mode=OneWay, TargetNullValue='- -', StringFormat='N2'}"/>
+                                <Run Text="/"/>
+                                <Run Text="{Binding Path=Candle1w.BuyQuoteVolume, Mode=OneWay, TargetNullValue='- -', StringFormat='N2'}"/>
                             </TextBlock>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>

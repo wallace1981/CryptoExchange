@@ -55,7 +55,7 @@
             </Label>
 
             <Label Grid.Column="0" Grid.Row="1" x:Name="lblAmount">
-                <TextBlock>Объем:</TextBlock>
+                <TextBlock>Amount:</TextBlock>
             </Label>
             <xceed:DecimalUpDown
                 Grid.Column="1" Grid.Row="1" Padding="6 3"
@@ -76,7 +76,7 @@
 
             <Label Grid.Column="0" Grid.Row="3">
                 <TextBlock>
-                <Run Text="Сумма:"/>
+                <Run Text="Total:"/>
                 </TextBlock>
             </Label>
             <Grid Grid.Column="1" Grid.Row="3" Margin="0 3 0 0">
@@ -106,7 +106,7 @@
             </Grid>
             <TextBlock
                 Grid.Column="2" Grid.ColumnSpan="2" Grid.Row="3" VerticalAlignment="Top" Margin="6 8 0 0">
-                <Run Text="Мин.:"/>
+                <Run Text="Min:"/>
                 <Run Text="{Binding Path=NewOrder.SymbolInformation.MinNotional, Mode=OneWay}"/>
                 <Run Text="{Binding Path=NewOrder.SymbolInformation.QuoteAsset, Mode=OneWay}"/>
             </TextBlock>
@@ -116,7 +116,7 @@
                 Text="{Binding ElementName=sliderQtyPercents, Path=Value, StringFormat=P2, FallbackValue=1.0}"/>
 
             <Label Grid.Column="0" Grid.Row="4">
-                <TextBlock>Цена:</TextBlock>
+                <TextBlock>Price:</TextBlock>
             </Label>
             <xceed:DecimalUpDown
                 Grid.Column="1" Grid.Row="4" Padding="6 3"
@@ -132,17 +132,17 @@
 
 
             <Label Grid.Column="0" Grid.Row="5">
-                <TextBlock>Тип ордера:</TextBlock>
+                <TextBlock>Order Type:</TextBlock>
             </Label>
             <ComboBox
                 Grid.Column="1" Grid.Row="5" Padding="6 5"
                 HorizontalContentAlignment="Left" VerticalAlignment="Center"
-                ItemsSource="{Binding Path=OrderTypes, Mode=OneTime}"
+                ItemsSource="{Binding Path=NewOrder.SymbolInformation.OrderTypes, Mode=OneTime}"
                 SelectedValue="{Binding Path=NewOrder.OrderType, Mode=TwoWay}">
             </ComboBox>
 
             <Label Grid.Column="0" Grid.Row="6">
-                <TextBlock>Трейлинг:</TextBlock>
+                <TextBlock>Trailing:</TextBlock>
             </Label>
             <DockPanel Grid.Column="1" Grid.Row="6">
                 <xceed:DoubleUpDown
@@ -165,7 +165,7 @@
                 Grid.Column="1" Grid.Row="9" Padding="6 5"
                 Command="{Binding Path=SubmitRuleCommand}">
                 <TextBlock
-                    Text="Создать"
+                    Text="CREATE"
                     FontFamily="{StaticResource RobotoCondensedBold}"/>
             </Button>
 
