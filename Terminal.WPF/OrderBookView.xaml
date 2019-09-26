@@ -18,10 +18,15 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <DockPanel LastChildFill="False">
-            <ToggleButton IsChecked="{Binding Path=DepthSubscribed}" VerticalAlignment="Center" FontWeight="Bold" Margin="2 0 0 0">Order Book</ToggleButton>
-            <Button Command="{Binding Path=GetDepthCommand}" VerticalAlignment="Center" Margin="2 0 0 0">></Button>
-            <Label HorizontalContentAlignment="Right" VerticalAlignment="Center" FontSize="11" Width="50">
+        <DockPanel LastChildFill="False" Margin="0 0 0 3">
+            <ToggleButton
+                IsChecked="{Binding Path=DepthSubscribed}"
+                VerticalAlignment="Center"
+                FontWeight="Bold"
+                MinWidth="80"
+                >Order Book</ToggleButton>
+            <Button Command="{Binding Path=GetDepthCommand}" VerticalAlignment="Center" Margin="1 0 0 0">></Button>
+            <Label HorizontalContentAlignment="Right" VerticalAlignment="Center" FontSize="11" Foreground="LightGray" Width="50">
                 <TextBlock Text="{Binding Path=GetDepthElapsed, Mode=OneWay, FallbackValue=9999, StringFormat='{}{0}ms.'}"/>
             </Label>
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
@@ -35,7 +40,7 @@
                 </ComboBox>
                 <Label>Merge:</Label>
                 <ComboBox
-                    Width="45" Padding="6 3 0 3"
+                    Width="45" Padding="6 2 0 2"
                     HorizontalAlignment="Left" VerticalAlignment="Center"
                     ItemsSource="{Binding Path=OrderBookMergeDecimalsList, Mode=OneTime}"
                     SelectedValue="{Binding Path=OrderBookMergeDecimals, Mode=TwoWay, FallbackValue=10}"
@@ -45,12 +50,11 @@
                 <ComboBox x:Name="cmbBookSize"
                     ItemsSource="{Binding Path=OrderBookSizeList, Mode=OneWay}"
                     SelectedValue="{Binding Path=OrderBookMaxItemCount, Mode=TwoWay}"
-                    Width="60" Padding="6 3 0 3" Margin="0 0 2 0"
+                    Width="60" Padding="6 2 0 2"
                     VerticalAlignment="Center">
                 </ComboBox>
             </StackPanel>
         </DockPanel>
-
 
         <Grid Grid.Row="1">
             <Grid.RowDefinitions>
@@ -150,24 +154,31 @@
             </ListView>
 
             <Border Grid.Row="1" BorderThickness="0 1" Margin="0 20 0 0" BorderBrush="LightGray" VerticalAlignment="Center"
-                    Canvas.ZIndex="10" Background="White">
+                    Canvas.ZIndex="10" Background="White" Padding="0">
                 <DockPanel VerticalAlignment="Center" LastChildFill="False">
-                    <DockPanel Width="{Binding ElementName=clOrderBookPrice, Path=ActualWidth, Mode=OneWay}">
+                    <DockPanel
+                        Width="{Binding ElementName=clOrderBookPrice, Path=ActualWidth, Mode=OneWay}"
+                        >
                         <ContentControl
                             Content="{Binding Path=OrderBook.Spread, Mode=OneWay}"
                             ContentStringFormat="{Binding Path=CurrentSymbolInformation.PriceFmt, Mode=OneWay}"
                             Style="{StaticResource ContentControlRightAligned}"
-                            Margin="3 0 0 0"/>
+                            Margin="0 0 -1 0"
+                            />
                     </DockPanel>
-                    <DockPanel Width="{Binding ElementName=clOrderBookQuantity, Path=ActualWidth, Mode=OneWay}" x:Name="lblPrice">
+                    <DockPanel
+                        Width="{Binding ElementName=clOrderBookQuantity, Path=ActualWidth, Mode=OneWay}"
+                        x:Name="lblPrice">
                         <TextBlock HorizontalAlignment="Right">
                         </TextBlock>
                     </DockPanel>
-                    <DockPanel Width="{Binding ElementName=clOrderBookTotal, Path=ActualWidth, Mode=OneWay}">
+                    <DockPanel
+                        Width="{Binding ElementName=clOrderBookTotal, Path=ActualWidth, Mode=OneWay}">
                         <ContentControl
                             Content="{Binding Path=OrderBook.SpreadPercentage, Mode=OneWay}"
                             ContentStringFormat="P2"
-                            Style="{StaticResource ContentControlRightAligned}" Margin="0 0 -1 0"/>
+                            Style="{StaticResource ContentControlRightAligned}"
+                            Margin="0 0 -1 0"/>
                     </DockPanel>
                 </DockPanel>
             </Border>
@@ -240,6 +251,9 @@
                 </ListView.View>
             </ListView>
         </Grid>
+
+        <Border Grid.Row="1" BorderThickness="1" BorderBrush="LightGray">
+        </Border>
 
     </Grid>
 </UserControl>

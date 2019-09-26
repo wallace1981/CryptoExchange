@@ -632,12 +632,11 @@ namespace Exchange.Net
         {
             if (MergeDecimals != SymbolInformation.PriceDecimals)
             {
-                factor = CalcFactor(MergeDecimals);
-                Merge(depth);
+                var factor = CalcFactor(MergeDecimals);
+                Merge(depth, factor);
             }
             else
             {
-                factor = decimal.Zero;
                 Replace(depth.Where(x => x.Side == TradeSide.Sell), depth.Where(x => x.Side == TradeSide.Buy));
             }
         }
@@ -649,6 +648,7 @@ namespace Exchange.Net
             // 3. calc agg total
             if (MergeDecimals != SymbolInformation.PriceDecimals)
             {
+                var factor = CalcFactor(MergeDecimals);
                 bookUpdates = bookUpdates.GroupBy(x => x.MergePrice(factor), x => x,
                     (priceLevel, entries) => new OrderBookEntry(SymbolInformation) { Price = priceLevel, Quantity = entries.Sum(y => y.Quantity), Side = entries.First().Side });
             }
@@ -759,7 +759,7 @@ namespace Exchange.Net
         private void AddOrUpdate(OrderBookEntry e)
         {
             var bidsOrAsks = e.Side == TradeSide.Buy ? Bids : Asks;
-            var priceLevel = e.MergePrice(factor);
+            var priceLevel = e.MergePrice(decimal.Zero);
             var item = bidsOrAsks.LastOrDefault(x => priceLevel <= x.Price);
             if (item != null)
             {
@@ -789,7 +789,7 @@ namespace Exchange.Net
                 Bids.Insert(idx, e);
         }
 
-        private void Merge(IEnumerable<OrderBookEntry> depth)
+        private void Merge(IEnumerable<OrderBookEntry> depth, decimal factor)
         {
             var tmpAsks = depth.Where(x => x.Side == TradeSide.Sell).GroupBy(x => x.MergePrice(factor), x => x,
                 (priceLevel, entries) => new OrderBookEntryGroup(SymbolInformation, TradeSide.Sell, priceLevel, entries)).ToList();
@@ -830,8 +830,6 @@ namespace Exchange.Net
                 return 0;
             return Asks.Last().Price / Bids.First().Price - 1m;
         }
-
-        private decimal factor;
     }
 
     public class OrderBookEntryGroup : OrderBookEntry

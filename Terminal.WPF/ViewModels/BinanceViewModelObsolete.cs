@@ -51,7 +51,7 @@ namespace Exchange.Net
 
         protected async override Task<IEnumerable<PublicTrade>> GetPublicTradesAsync(string market, int limit)
         {
-            var result = await client.GetRecentTradesAsync(market, limit);
+            var result = await client.GetRecentTradesAsync(market, limit).ConfigureAwait(false);
             if (result.Success)
             {
                 var si = GetSymbolInformation(market);

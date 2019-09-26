@@ -27,7 +27,7 @@
             
         </dragablz:TabablzControl>
 
-        <DockPanel VerticalAlignment="Top" HorizontalAlignment="Right" Margin="0 0 0 0">
+        <DockPanel VerticalAlignment="Top" HorizontalAlignment="Right" Margin="0 2 0 0">
             <TextBlock
                 FontFamily="{StaticResource RobotoCondensed}"
                 FontSize="15"
@@ -37,23 +37,32 @@
                 <Run Text="{Binding Path=SelectedItem.CurrentAccountViewModel.TotalBtc, Mode=OneWay, ElementName=tab}"/>
                 <Run Text="BTC"/>
             </TextBlock>
-            <Button
-                Click="RadButton_Click"
-                >
-                <TextBlock Text="API"/>
-            </Button>
-            <ToggleButton
-                DataContext="{Binding ElementName=tab, Path=SelectedItem}"
-                IsChecked="{Binding Path=IsActive, Mode=TwoWay}"
-                Command="{Binding Path=SetActiveCommand, Mode=OneWay}"
-                CommandParameter="{Binding RelativeSource={RelativeSource Self}, Path=IsChecked, Mode=OneWay}"
-            >Start/Stop</ToggleButton>
         </DockPanel>
 
         <!--<local:OrderBookView/>-->
 
         <!--<local:PriceTickerView x:Name="priceTicker" Visibility="Collapsed"/>-->
 
-        <Button HorizontalAlignment="Right" VerticalAlignment="Bottom" Click="Button_Click">Dispose Me!</Button>
+        <DockPanel HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="6 0 6 2">
+            <Button
+                Click="RadButton_Click"
+                >
+                <Label Content="API Keys"/>
+            </Button>
+            <ToggleButton
+                DataContext="{Binding ElementName=tab, Path=SelectedItem}"
+                IsChecked="{Binding Path=IsActive, Mode=TwoWay}"
+                Command="{Binding Path=SetActiveCommand, Mode=OneWay}"
+                CommandParameter="{Binding RelativeSource={RelativeSource Self}, Path=IsChecked, Mode=OneWay}"
+                Margin="1 0 0 0"
+                >
+                <Label>Start/Stop</Label>
+            </ToggleButton>
+            <Button
+                Margin="1 0 0 0"
+                Click="Button_Click">
+                <Label>Dispose Me!</Label>
+            </Button>
+        </DockPanel>
     </Grid>
 </Window>

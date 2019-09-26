@@ -150,6 +150,7 @@ namespace Exchange.Net
             var resultExchangeInfo = await client.GetExchangeInfoAsync().ConfigureAwait(false);
             if (resultExchangeInfo.Success)
             {
+                client.SetServerTimeOffset(resultExchangeInfo.Data.serverTime, 500);
                 GetExchangeInfoElapsed = resultExchangeInfo.ElapsedMilliseconds;
                 currentExchangeInfo = resultExchangeInfo.Data;
                 var symbols = resultExchangeInfo.Data.symbols.Select(CreateSymbolInformation);
@@ -230,7 +231,7 @@ namespace Exchange.Net
             if (CurrentSymbol == null)
                 return;
             var si = CurrentSymbolInformation;
-            var resultTrades = await client.GetRecentTradesAsync(si.Symbol, TradesMaxItemCount).ConfigureAwait(true);
+            var resultTrades = await client.GetRecentTradesAsync(si.Symbol, TradesMaxItemCount).ConfigureAwait(false);
             if (resultTrades.Success)
             {
                 GetTradesElapsed = resultTrades.ElapsedMilliseconds;
@@ -249,7 +250,7 @@ namespace Exchange.Net
             if (CurrentSymbol == null)
                 return;
             var si = CurrentSymbolInformation;
-            var resultDepth = await client.GetDepthAsync(si.Symbol, OrderBookMaxItemCount).ConfigureAwait(true);
+            var resultDepth = await client.GetDepthAsync(si.Symbol, OrderBookMaxItemCount).ConfigureAwait(false);
             if (resultDepth.Success)
             {
                 GetDepthElapsed = resultDepth.ElapsedMilliseconds;

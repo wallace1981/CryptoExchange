@@ -148,6 +148,8 @@ namespace Exchange.Net
 
             MarketAssets.EnableThreadSafety();
             MarketSummaries.EnableThreadSafety();
+            OrderBook.Bids.EnableThreadSafety();
+            OrderBook.Asks.EnableThreadSafety();
 
             this.WhenActivated(disposables =>
             {
@@ -165,7 +167,6 @@ namespace Exchange.Net
                     .Bind(out recentTradesView)
                     .Subscribe()
                     .DisposeWith(disposables);
-
 
                 var signedDependableCommandCanExecute = this.WhenAnyValue(x => x.HasSignedAccount);
                 var symbolDependableCommandCanExecute = this.WhenAnyValue(x => x.HasSignedAccount, y => y.CurrentSymbol, (x, y) => x && !string.IsNullOrWhiteSpace(y)).DistinctUntilChanged();
@@ -202,6 +203,7 @@ namespace Exchange.Net
                 PanicSellTradeTask = ReactiveCommand.CreateFromTask(PanicSellTradeTaskImpl, tradeTaskCommandCanExecute).DisposeWith(disposables);
                 DeleteTradeTask = ReactiveCommand.CreateFromTask(DeleteTradeTaskImpl, tradeTaskCommandCanExecute).DisposeWith(disposables);
                 DeleteRule = ReactiveCommand.Create<TradingRuleProxy>(DeleteRuleImpl).DisposeWith(disposables);
+                NavigateToTradingView = ReactiveCommand.Create(NavigateToTradingViewImpl).DisposeWith(disposables);
 
                 GetOpenOrders.IsExecuting.ToPropertyEx(this, x => x.IsGetOpenOrdersExecuting).DisposeWith(disposables);
 
@@ -209,7 +211,10 @@ namespace Exchange.Net
                     .Subscribe(x =>
                     {
                         OrderBook.SymbolInformation = x.Value;
+                        OrderBook.Bids.Clear();
+                        OrderBook.Asks.Clear();
                         OrderBookMergeDecimals = x.Value.PriceDecimals;
+                        RecentTradesCache.Clear();
                     }).DisposeWith(disposables);
                 var subMD = this.ObservableForProperty(vm => vm.OrderBookMergeDecimals)
                     .Subscribe(x => OrderBook.MergeDecimals = x.Value).DisposeWith(disposables);
@@ -1014,6 +1019,18 @@ namespace Exchange.Net
                 TradingRuleProxies.Remove(proxy);
         }
 
+        private void NavigateToTradingViewImpl()
+        {
+            var alt = (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control;
+            if (CurrentSymbolInformation != null)
+            {
+                var url = $"https://tradingview.com/chart?symbol={ExchangeName}%3A{CurrentSymbolInformation.Symbol}";
+                if (alt)
+                    url = $"https://www.binance.com/en/trade/{CurrentSymbolInformation.Caption.Replace("/", "_")}";
+                Process.Start(url);
+            }
+        }
+
         public Interaction<TradeTaskViewModel, bool> CreateTask { get; } = new Interaction<TradeTaskViewModel, bool>();
         public Interaction<Exception, Unit> ShowException { get; } = new Interaction<Exception, Unit>();
         public Interaction<string, bool> Confirm { get; } = new Interaction<string, bool>();
@@ -1029,6 +1046,7 @@ namespace Exchange.Net
         public ReactiveCommand<TradingRuleProxy, Unit> DeleteRule { get; private set; }
         public ICommand CreateRule { get; private set; }
         public ICommand SubmitRuleCommand { get; private set; }
+        public ReactiveCommand<Unit, Unit> NavigateToTradingView { get; private set; }
 
         private void EnableTradeTaskImpl()
         {

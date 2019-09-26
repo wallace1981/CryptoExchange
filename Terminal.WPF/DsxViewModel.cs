@@ -22,10 +22,10 @@ namespace Exchange.Net
 
         protected override async Task GetExchangeInfoImpl()
         {
-            var resultExchangeInfo = await client.GetExchangeInfoAsync().ConfigureAwait(true);
+            var resultExchangeInfo = await client.GetExchangeInfoAsync().ConfigureAwait(false);
             if (client.IsSigned)
             {
-                var resultFees = await client.GetCurrentFeesAsync();
+                var resultFees = await client.GetCurrentFeesAsync().ConfigureAwait(false);
                 if (resultFees.Success)
                     fees = resultFees.Data;
             }
@@ -55,12 +55,12 @@ namespace Exchange.Net
             var pairs = string.Join("-", ValidPairs.Select(x => x.Symbol));
             if (pairs.Count() < 1)
                 return;
-            var resultTickers = await client.GetTickerAsync(pairs).ConfigureAwait(true);
+            var resultTickers = await client.GetTickerAsync(pairs).ConfigureAwait(false);
             if (resultTickers.Success)
             {
                 GetTickersElapsed = resultTickers.ElapsedMilliseconds;
                 var tickers = resultTickers.Data.Select(ToPriceTicker);
-                var bars = await Get24hrBars(pairs);
+                var bars = await Get24hrBars(pairs).ConfigureAwait(false);
                 if (bars.Count != 0)
                     tickers = tickers.Join(bars, x => x.Symbol, x => x.pair, Join);
                 ProcessPriceTicker(tickers);
@@ -86,7 +86,7 @@ namespace Exchange.Net
             var result = new List<DSX.Bar>();
             if (next24hrBarsCall > DateTime.Now)
                 return result;
-            var resultBars = await client.GetLastBarstAsync(pairs, "h", 24);
+            var resultBars = await client.GetLastBarstAsync(pairs, "h", 24).ConfigureAwait(false);
             if (resultBars.Success)
             {
                 var timestamp = DateTime.Now;
@@ -115,7 +115,7 @@ namespace Exchange.Net
             if (CurrentSymbol == null)
                 return;
             var si = CurrentSymbolInformation;
-            var resultTrades = await client.GetTradesAsync(si.Symbol, TradesMaxItemCount).ConfigureAwait(true);
+            var resultTrades = await client.GetTradesAsync(si.Symbol, TradesMaxItemCount).ConfigureAwait(false);
             if (resultTrades.Success)
             {
                 GetTradesElapsed = resultTrades.ElapsedMilliseconds;
@@ -137,7 +137,7 @@ namespace Exchange.Net
             if (CurrentSymbol == null)
                 return;
             var si = CurrentSymbolInformation;
-            var resultDepth = await client.GetDepthAsync(si.Symbol).ConfigureAwait(true);
+            var resultDepth = await client.GetDepthAsync(si.Symbol).ConfigureAwait(false);
             if (resultDepth.Success)
             {
                 GetDepthElapsed = resultDepth.ElapsedMilliseconds;
@@ -161,7 +161,7 @@ namespace Exchange.Net
 
         protected override async Task<bool> CancelOrderImpl(string orderId)
         {
-            var result = await client.CancelOrderAsync(long.Parse(orderId));
+            var result = await client.CancelOrderAsync(long.Parse(orderId)).ConfigureAwait(false);
             if (result.Success)
             {
                 UpdateFunds(result.Data.funds);
@@ -178,7 +178,7 @@ namespace Exchange.Net
             {
                 UpdateFunds(result.Data.funds);
                 var orderId = result.Data.orderId;
-                var orderResult = await client.GetOrderAsync(orderId);
+                var orderResult = await client.GetOrderAsync(orderId).ConfigureAwait(false);
                 if (orderResult.Success)
                 {
                     orderResult.Data.id = orderId;
@@ -409,7 +409,7 @@ namespace Exchange.Net
 
         protected override async Task<List<Balance>> GetBalancesAsync()
         {
-            var result = await client.GetAccountInfoAsync();
+            var result = await client.GetAccountInfoAsync().ConfigureAwait(false);
             if (result.Success)
                 return result.Data.funds.Select(x => new Balance(x.Key, true) { Free = x.Value.available, Locked = x.Value.total - x.Value.available }).ToList();
             else
@@ -424,7 +424,7 @@ namespace Exchange.Net
             foreach (var market in markets)
             {
                 var si = GetSymbolInformation(market);
-                var ordersResult = await client.GetOrdersAsync(market);
+                var ordersResult = await client.GetOrdersAsync(market).ConfigureAwait(false);
                 if (ordersResult.Success)
                     orders.AddRange(ordersResult.Data.Select(x => Convert(x, si)));
             }
@@ -540,7 +540,7 @@ namespace Exchange.Net
 
         protected async Task<List<Transfer>> GetDepositsAsync()
         {
-            var result = await client.GetDepositsAsync();
+            var result = await client.GetDepositsAsync().ConfigureAwait(false);
             if (result.Success)
                 return result.Data.Select(x => Convert(x.Value, x.Key)).ToList();
             return new List<Transfer>();
@@ -548,7 +548,7 @@ namespace Exchange.Net
 
         protected async Task<List<Transfer>> GetWithdrawalsAsync()
         {
-            var result = await client.GetWithdrawalsAsync();
+            var result = await client.GetWithdrawalsAsync().ConfigureAwait(false);
             if (result.Success)
                 return result.Data.Select(x => Convert(x.Value, x.Key)).ToList();
             return new List<Transfer>();
@@ -563,23 +563,23 @@ namespace Exchange.Net
                     CurrentAccount.OpenOrders.AddOrUpdate(await GetOpenOrdersAsync(new string[] { "btcusd", "btgusd", "ethusd", "ltcusd", "eurusd" }));
                     break;
                 case 3: // orders history
-                    await RefreshPrivateDataExecute();
+                    await RefreshPrivateDataExecute().ConfigureAwait(false);
                     break;
                 case 4: // trades history
-                    await RefreshPrivateDataExecute();
+                    await RefreshPrivateDataExecute().ConfigureAwait(false);
                     break;
                 case 5: // funds
-                    var result = await GetBalancesAsync();
+                    var result = await GetBalancesAsync().ConfigureAwait(false);
                     foreach (Balance b in result)
                         CurrentAccount.BalanceManager.AddUpdateBalance(b);
                     break;
                 case 6: // deposits
                     CurrentAccount.Deposits.Clear();
-                    CurrentAccount.Deposits.AddOrUpdate(await GetDepositsAsync());
+                    CurrentAccount.Deposits.AddOrUpdate(await GetDepositsAsync().ConfigureAwait(false));
                     break;
                 case 7: // withdrawals
                     CurrentAccount.Withdrawals.Clear();
-                    CurrentAccount.Withdrawals.AddOrUpdate(await GetWithdrawalsAsync());
+                    CurrentAccount.Withdrawals.AddOrUpdate(await GetWithdrawalsAsync().ConfigureAwait(false));
                     break;
             }
         }
@@ -595,7 +595,7 @@ namespace Exchange.Net
         protected override async Task<SymbolInformation> GetFullSymbolInformation()
         {
             var si = CurrentSymbolInformation;
-            var balances = await GetBalancesAsync();
+            var balances = await GetBalancesAsync().ConfigureAwait(false);
             si.BaseAssetBalance = balances.SingleOrDefault(x => x.Asset == si.BaseAsset);
             si.QuoteAssetBalance = balances.SingleOrDefault(x => x.Asset == si.QuoteAsset);
             si.PriceTicker = GetPriceTicker(si.Symbol);

@@ -281,7 +281,7 @@ namespace Exchange.Net
         {
             try
             {
-                await slim.WaitAsync().ConfigureAwait(true);
+                await slim.WaitAsync().ConfigureAwait(false);
                 var sw = Stopwatch.StartNew();
                 var responseMessage = await httpClient.SendAsync(requestMessage).ConfigureAwait(false);
                 var content = await responseMessage.Content.ReadAsStringAsync().ConfigureAwait(false);
@@ -327,7 +327,7 @@ namespace Exchange.Net
         {
             try
             {
-                await slim.WaitAsync().ConfigureAwait(true);
+                await slim.WaitAsync().ConfigureAwait(false);
                 var sw = Stopwatch.StartNew();
                 var responseMessage = await httpClient.SendAsync(requestMessage).ConfigureAwait(false);
                 var content = await responseMessage.Content.ReadAsStringAsync().ConfigureAwait(false);
