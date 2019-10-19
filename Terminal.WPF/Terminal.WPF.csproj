@@ -254,6 +254,9 @@
     <Compile Include="Views\TestTradesView.xaml.cs">
       <DependentUpon>TestTradesView.xaml</DependentUpon>
     </Compile>
+    <Compile Include="Views\TradesHistory.xaml.cs">
+      <DependentUpon>TradesHistory.xaml</DependentUpon>
+    </Compile>
     <Compile Include="Views\TradeTasksListView.xaml.cs">
       <DependentUpon>TradeTasksListView.xaml</DependentUpon>
     </Compile>
@@ -331,6 +334,10 @@
       <Generator>MSBuild:Compile</Generator>
     </Page>
     <Page Include="Views\TestTradesView.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Views\TradesHistory.xaml">
+      <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
     <Page Include="Views\TradeTasksListView.xaml">

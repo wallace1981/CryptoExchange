@@ -76,7 +76,10 @@ namespace Exchange.Net
     {
         public string symbol { get; set; }
         public int limit { get; set; }
+        public long? fromId { get; set; }
 
+        public long? startTime { get; set; }
+        public long? endTime { get; set; }
         public override bool Validate()
         {
             throw new NotImplementedException();
@@ -307,10 +310,10 @@ namespace Exchange.Net
             return ExecuteRequestAsync<Binance.Trade[]>(requestMessage, GetRecentTradesWeight, contentPath: $"trades-{symbol}");
         }
 
-        public Task<ApiResult<Binance.AggTrade[]>> GetAggregatedTradesAsync(string symbol, int limit = 500)
+        public Task<ApiResult<Binance.AggTrade[]>> GetAggregatedTradesAsync(string symbol, int limit = 500, long? fromId = null)
         {
-            var requestMessage = CreateRequestMessage(new TradesRequest() { symbol = symbol, limit = limit }, GetAggregatedTradesEndpoint, HttpMethod.Get);
-            return ExecuteRequestAsync<Binance.AggTrade[]>(requestMessage, GetAggregatedTradesWeight, contentPath: $"trades-{symbol}");
+            var requestMessage = CreateRequestMessage(new TradesRequest() { symbol = symbol, limit = limit, fromId = fromId }, GetAggregatedTradesEndpoint, HttpMethod.Get);
+            return ExecuteRequestAsync<Binance.AggTrade[]>(requestMessage, GetAggregatedTradesWeight, contentPath: $"aggTrades-{symbol}");
         }
 
         public IObservable<ApiResult<Binance.Trade[]>> ObserveRecentTrades(string symbol, int limit = 500)
@@ -1106,8 +1109,8 @@ namespace Binance
         public long tradeId { get; set; }
         public decimal price { get; set; }
         public decimal qty { get; set; }
-        public decimal comission { get; set; }
-        public string comissionAsset { get; set; }
+        public decimal commission { get; set; }
+        public string commissionAsset { get; set; }
     }
 
     public class AccountTrade : OrderFill

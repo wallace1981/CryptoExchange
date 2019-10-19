@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -80,13 +81,85 @@ namespace Terminal.WPF
 
         private void CollectionViewSource_Filter(object sender, FilterEventArgs e)
         {
+            var ticker = e.Item as PriceTicker;
             e.Accepted =
-                (e.Item as PriceTicker).SymbolInformation.Status != "BREAK" &&
-                (e.Item as PriceTicker).SymbolInformation.QuoteAsset == cmbQuoteAsset.SelectedValue as string &&
-                (e.Item as PriceTicker).SymbolInformation.BaseAsset.StartsWith(tb.Text, StringComparison.CurrentCultureIgnoreCase);
+                ticker.SymbolInformation.Status != "BREAK" &&
+                ticker.SymbolInformation.QuoteAsset == cmbQuoteAsset.SelectedValue as string &&
+                IsPairMatch(ticker.SymbolInformation, tb.Text.Trim()) && 
+                FilterByPrice(ticker, tbPriceFilter.Tag as string, tbPriceFilter.Text.Trim()) &&
+                FilterByPrice(ticker, tbPriceUsdFilter.Tag as string, tbPriceUsdFilter.Text.Trim()) &&
+                FilterByPrice(ticker, tbVolumeFilter.Tag as string, tbVolumeFilter.Text.Trim());
+                //(e.Item as PriceTicker).SymbolInformation.BaseAsset.StartsWith(tb.Text, StringComparison.CurrentCultureIgnoreCase);
+        }
+
+        private bool IsPairMatch(SymbolInformation market, string filter)
+        {
+            if (filter.All(ch => char.IsLetterOrDigit(ch)))
+            {
+                return market.BaseAsset.StartsWith(tb.Text, StringComparison.CurrentCultureIgnoreCase);
+            }
+            else
+            {
+                try
+                {
+                    var re = new Regex(filter, RegexOptions.IgnoreCase | RegexOptions.Singleline);
+                    return re.IsMatch(market.BaseAsset);
+                }
+                catch (ArgumentException e)
+                {
+                    return true;
+                }
+            }
+        }
+
+        private bool FilterByPrice(PriceTicker ticker, string property, string filter)
+        {
+            var opers = new char[] { '<', '>', '=' };
+            // filter could be:
+            // LastPrice  = 0.45
+            // LastPrice <  0.45
+            // LastPrice >= 0.45
+            if (string.IsNullOrWhiteSpace(filter) || string.IsNullOrWhiteSpace(property) || ticker == null)
+                return true;
+            var oper = new string(filter.Where(ch => opers.Contains(ch)).ToArray());
+            if (string.IsNullOrWhiteSpace(oper))
+                oper = "=";
+            decimal filterValue = decimal.Zero;
+            if (!decimal.TryParse(filter.Replace(oper, string.Empty), out filterValue))
+                return true;
+            var value = (decimal) ticker.GetType().GetProperty(property).GetValue(ticker);
+            switch (oper)
+            {
+                case ">=":
+                    return value >= filterValue;
+                case "<=":
+                    return value <= filterValue;
+                case ">":
+                    return value > filterValue;
+                case "<":
+                    return value < filterValue;
+                case "=":
+                    return value == filterValue;
+                default:
+                    return true;
+            }
         }
 
         private ICollectionView MarketSummaries => (Resources["csvMarketSummaries"] as CollectionViewSource).View;
+
+        private void Button_Click(object sender, RoutedEventArgs e)
+        {
+            if (Keyboard.Modifiers == ModifierKeys.Control)
+            {
+                var str = string.Join(Environment.NewLine, grdMarketSummaries.Columns.Select(x => x.ActualWidth));
+                MessageBox.Show(str, "DEBUG");
+            }
+        }
+
+        private void Button_Click_1(object sender, RoutedEventArgs e)
+        {
+            MarketSummaries.Refresh();
+        }
     }
 
 }

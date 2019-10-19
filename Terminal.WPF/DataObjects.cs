@@ -360,7 +360,9 @@ namespace Exchange.Net
         public string ImageUrl => $"https://s2.coinmarketcap.com/static/img/coins/32x32/{CmcId}.png";
         public string ProperSymbol => (BaseAsset + QuoteAsset).ToUpper();
         public string Caption => $"{BaseAsset}/{QuoteAsset}";
-		public string Status { get; set; }
+        public string SymbolUniversal => BaseAsset + QuoteAsset;
+        public string Status { get; set; }
+        public SymbolInformation[] QuoteSymbols { get; set; } = new SymbolInformation[] { };
 
         public decimal ClampQuantity(decimal quantity)
         {

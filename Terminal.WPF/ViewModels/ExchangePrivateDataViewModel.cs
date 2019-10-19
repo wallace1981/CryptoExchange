@@ -24,6 +24,7 @@ namespace Exchange.Net
             Client = client;
             OpenOrders = new SourceCache<Order, string>(x => x.OrderId);
             OrdersHistory = new SourceCache<Order, string>(x => x.OrderId);
+            TradesHistory = new SourceCache<OrderTrade, string>(x => x.Id);
             Deposits = new SourceCache<Transfer, string>(x => x.Id);
             Withdrawals = new SourceCache<Transfer, string>(x => x.Id);
             BalanceManager = new BalanceManager();
@@ -34,6 +35,7 @@ namespace Exchange.Net
         public SourceCache<Transfer, string> Withdrawals { get; }
         public SourceCache<Order, string> OpenOrders { get; }
         public SourceCache<Order, string> OrdersHistory { get; }
+        public SourceCache<OrderTrade, string> TradesHistory { get; }
         public BalanceManager BalanceManager { get; }   
 
         public ExchangeApiCore Client { get; }
@@ -47,6 +49,7 @@ namespace Exchange.Net
         public ReadOnlyObservableCollection<Transfer> Withdrawals => withdrawals;
         public ReadOnlyObservableCollection<Order> OpenOrders => openOrders;
         public ReadOnlyObservableCollection<Order> OrdersHistory => ordersHistory;
+        public ReadOnlyObservableCollection<OrderTrade> TradesHistory => tradesHistory;
         public ReadOnlyObservableCollection<Balance> Balances => balances;
 
         [ObservableAsProperty] public decimal TotalBtc { get; }
@@ -77,8 +80,16 @@ namespace Exchange.Net
                 .DisposeWith(disposables);
 
             Account.OrdersHistory.Connect()
+                .Sort(SortExpressionComparer<Order>.Descending(x => x.Created))
                 .ObserveOnDispatcher()
                 .Bind(out ordersHistory)
+                .Subscribe()
+                .DisposeWith(disposables);
+
+            Account.TradesHistory.Connect()
+                .Sort(SortExpressionComparer<OrderTrade>.Descending(x => x.Timestamp))
+                .ObserveOnDispatcher()
+                .Bind(out tradesHistory)
                 .Subscribe()
                 .DisposeWith(disposables);
 
@@ -99,6 +110,7 @@ namespace Exchange.Net
         private ReadOnlyObservableCollection<Transfer> withdrawals;
         private ReadOnlyObservableCollection<Order> openOrders;
         private ReadOnlyObservableCollection<Order> ordersHistory;
+        private ReadOnlyObservableCollection<OrderTrade> tradesHistory;
         private ReadOnlyObservableCollection<Balance> balances;
         private CompositeDisposable disposables = new CompositeDisposable();
 

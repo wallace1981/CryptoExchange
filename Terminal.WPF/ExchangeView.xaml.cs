@@ -86,8 +86,8 @@ namespace Terminal.WPF
                                 Content = interaction.Input,
                                 Header = "Trading Bot Alert"
                             };
-                            Dispatcher.Invoke(() => alertManager.ShowAlert(alert));
-                            //MessageBox.Show(Application.Current.MainWindow, interaction.Input, ViewModel.ExchangeName, MessageBoxButton.OK, MessageBoxImage.Exclamation);
+                            //Dispatcher.Invoke(() => alertManager.ShowAlert(alert));
+                            MessageBox.Show(Application.Current.MainWindow, interaction.Input, ViewModel.ExchangeName, MessageBoxButton.OK, MessageBoxImage.Exclamation);
                             interaction.SetOutput(Unit.Default);
                         }).DisposeWith(disposables);
             });

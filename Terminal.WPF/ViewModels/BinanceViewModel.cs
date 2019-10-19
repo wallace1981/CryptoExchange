@@ -85,14 +85,25 @@ namespace Exchange.Net
                 .Select(x => Unit.Default)
                 .InvokeCommand(GetServerTime)
                 .DisposeWith(Disposables);
-            return;
-            var pairs = Markets.Where(x => x.QuoteAsset == "BTC" || x.QuoteAsset == "USDT").Select(x => x.Symbol);
+        }
 
-            string[] intervals = { "15m", "1h", "6h", "12h", "1d", "3d", "1w" };
-            foreach (var x in intervals)
+        protected override void SetTickersSubscriptionWebSocket(bool isEnabled)
+        {
+            base.SetTickersSubscriptionWebSocket(isEnabled);
+            if (isEnabled)
             {
-                var kline = client.SubscribeKlinesAsync(pairs, x);
-                kline.ObserveOnDispatcher().Subscribe(OnKline).DisposeWith(disposables);
+                klineSubscriptions = new CompositeDisposable();
+                var pairs = Markets.Where(x => x.QuoteAsset == "BTC" || x.QuoteAsset == "USDT").Select(x => x.Symbol);
+                string[] intervals = { "1m", "5m", "1h" };
+                foreach (var x in intervals)
+                {
+                    var kline = client.SubscribeKlinesAsync(pairs, x);
+                    kline.ObserveOnDispatcher().Subscribe(OnKline).DisposeWith(klineSubscriptions);
+                }
+            }
+            else
+            {
+                klineSubscriptions.Dispose();
             }
         }
 
@@ -231,17 +242,19 @@ namespace Exchange.Net
             if (CurrentSymbol == null)
                 return;
             var si = CurrentSymbolInformation;
+            //long? lastTradeId = RecentTradesCache.Count > 0 ? RecentTradesCache.Items.Select(x => x.Id).FirstOrDefault() : (long?)null;
+            //var resultTrades = await client.GetAggregatedTradesAsync(si.Symbol, TradesMaxItemCount, lastTradeId).ConfigureAwait(false);
             var resultTrades = await client.GetRecentTradesAsync(si.Symbol, TradesMaxItemCount).ConfigureAwait(false);
             if (resultTrades.Success)
             {
                 GetTradesElapsed = resultTrades.ElapsedMilliseconds;
-                var trades = resultTrades.Data.Select(x => Convert(x, si)).Reverse().ToList();// pair is <symbol,trades>
+                var trades = resultTrades.Data.Select(x => Convert(x, si)).Reverse().ToList();
                 ProcessPublicTrades(trades);
                 UpdateStatus(ServerStatus);
             }
             else
             {
-                UpdateStatus(ServerStatus, $"GetTrades: {resultTrades.Error.ToString()}");
+                UpdateStatus(ServerStatus, $"GetAggTrades: {resultTrades.Error.ToString()}");
             }
         }
 
@@ -304,7 +317,7 @@ namespace Exchange.Net
                 mngr.AddUpdateBalance(b);
             }
             foreach (var ticker in MarketSummaries)
-                mngr.UpdateWithLastPrice(ticker.Symbol, ticker.LastPrice.GetValueOrDefault());
+                mngr.UpdateWithLastPrice(ticker.Symbol, ticker.Bid.GetValueOrDefault());
         }
 
         protected override async Task GetOpenOrdersImpl()
@@ -370,18 +383,22 @@ namespace Exchange.Net
             {
                 var orders = ordersResult.Data
                     .Where(x => x.status != Binance.OrderStatus.NEW.ToString())
-                    .Select(Convert)
-                    .OrderByDescending(x => x.Created);
+                    .Select(Convert);
+                CurrentAccount.OrdersHistory.Clear();
                 CurrentAccount.OrdersHistory.AddOrUpdate(orders);
             }
         }
 
         protected override async Task GetTradesHistoryImpl()
         {
-            var ordersResult = await client.GetAccountTradesAsync(CurrentSymbol).ConfigureAwait(false);
+            var tradesResult = await client.GetAccountTradesAsync(CurrentSymbol).ConfigureAwait(false);
             UpdateStatus();
-            if (ordersResult.Success)
+            if (tradesResult.Success)
             {
+                var trades = tradesResult.Data
+                    .Select(Convert);
+                CurrentAccount.TradesHistory.Clear();
+                CurrentAccount.TradesHistory.AddOrUpdate(trades);
             }
         }
 
@@ -476,6 +493,23 @@ namespace Exchange.Net
             return result;
         }
 
+        public OrderTrade Convert(Binance.AccountTrade x)
+        {
+            var si = GetSymbolInformation(x.symbol);
+            var result = new OrderTrade(si)
+            {
+                Id = x.id.ToString(),
+                OrderId = x.orderId.ToString(),
+                Price = x.price,
+                Quantity = x.qty,
+                Side = (x.isBuyer) ? TradeSide.Buy : TradeSide.Sell,
+                Timestamp = x.time.FromUnixTimestamp(),
+                Comission = x.commission,
+                ComissionAsset = x.commissionAsset
+            };
+            return result;
+        }
+
         public Order Convert(Binance.NewOrderResponseResult x)
         {
             var si = GetSymbolInformation(x.symbol);
@@ -498,8 +532,8 @@ namespace Exchange.Net
                     {
                         Id = t.tradeId.ToString(),
                         OrderId = x.orderId.ToString(),
-                        Comission = t.comission,
-                        ComissionAsset = t.comissionAsset,
+                        Comission = t.commission,
+                        ComissionAsset = t.commissionAsset,
                         Price = t.price,
                         Quantity = t.qty
                     })
@@ -705,11 +739,14 @@ namespace Exchange.Net
                 return;
             if (candleCache.ContainsKey(candle.Symbol) && candleCache[candle.Symbol] == candle.CloseTime.Ticks)
                 return;
+            if (candle.Close - candle.Open == 0.00000001m)
+                return;
             decimal delta = candle.Close / candle.Open;
             if (delta >= 1.04m)
             {
                 candleCache[candle.Symbol] = candle.CloseTime.Ticks;
-                await Alert.Handle($"{candle.Symbol}: price raised {delta-1m:p2}");
+                //await Alert.Handle($"{candle.Symbol}: price raised {delta-1m:p2}");
+                await TelegramNotifier.Notify($"[{ExchangeName}] {candle.Symbol} price raised {delta - 1m:p2}");
             }
         }
 
@@ -842,7 +879,7 @@ namespace Exchange.Net
         }
 
         #endregion
-
+        private CompositeDisposable klineSubscriptions;
         private readonly ReactiveCommand<long, DateTime> getServerTimeCommand;
         private Binance.ExchangeInfo currentExchangeInfo;
         private DateTime ticker24hrLastRun = DateTime.MinValue;

@@ -107,6 +107,7 @@ namespace Exchange.Net
         public ReactiveCommand<Unit, Unit> GetWithdrawals { get; private set; }
         public ReactiveCommand<Unit, Unit> GetOrdersHistory { get; private set; }
         public ReactiveCommand<Unit, Unit> GetTradesHistory { get; private set; }
+        public ReactiveCommand<Unit, Unit> GetTradesStatistics { get; private set; }
         public ReactiveCommand<Unit, Unit> GetBalance { get; private set; }
         public ReactiveCommand<string, Unit> CancelOrderCommand { get; private set; }
         public ReactiveCommand<NewOrder, Unit> SubmitOrderCommand { get; private set; }
@@ -193,6 +194,7 @@ namespace Exchange.Net
                 GetOpenOrders = ReactiveCommand.CreateFromTask(GetOpenOrdersImpl, signedDependableCommandCanExecute).DisposeWith(disposables);
                 GetOrdersHistory = ReactiveCommand.CreateFromTask(GetOrdersHistoryImpl, signedDependableCommandCanExecute).DisposeWith(disposables);
                 GetTradesHistory = ReactiveCommand.CreateFromTask(GetTradesHistoryImpl, symbolDependableCommandCanExecute).DisposeWith(disposables);
+                GetTradesStatistics = ReactiveCommand.CreateFromTask(GetTradesStatisticsImpl, symbolDependableCommandCanExecute).DisposeWith(disposables);
                 GetDeposits = ReactiveCommand.CreateFromTask(GetDepositsImpl, signedDependableCommandCanExecute).DisposeWith(disposables);
                 GetWithdrawals = ReactiveCommand.CreateFromTask(GetWithdrawalsImpl, signedDependableCommandCanExecute).DisposeWith(disposables);
                 GetBalance = ReactiveCommand.CreateFromTask(GetBalanceImpl, signedDependableCommandCanExecute).DisposeWith(disposables);
@@ -590,72 +592,108 @@ namespace Exchange.Net
 
         protected void ProcessExchangeInfo(IEnumerable<SymbolInformation> markets)
         {
-            if (this.marketsMapping.Count == 0)
+            var sw = Stopwatch.StartNew();
+            try
             {
-                // a small optimization - since we know it is empty,
-                // do not check every symbol to be in here.
-                foreach (var market in markets)
+                var qassets = new HashSet<string>(marketAssets);
+                var usdassets = new HashSet<string>(UsdAssets);
+
+                if (this.marketsMapping.Count == 0)
                 {
-                    this.marketsMapping.TryAdd(market.Symbol, market);
-                }
-            }
-            else
-            {
-                foreach (var market in markets)
-                {
-                    var id = market.Symbol;
-                    if (this.marketsMapping.TryGetValue(id, out SymbolInformation oldMarket))
+                    // a small optimization - since we know it is empty,
+                    // do not check every symbol to be in here.
+                    foreach (var market in markets)
                     {
-                        // update.
-                        oldMarket.Status = market.Status;
-                    }
-                    else
-                    {
-                        // add new.
                         this.marketsMapping.TryAdd(market.Symbol, market);
+                        qassets.Add(market.QuoteAsset);
+                        if (market.QuoteAsset == Balance.USD || market.QuoteAsset == Balance.USDT)
+                            usdassets.Add(market.BaseAsset);
+                        //market.QuoteSymbols = markets.Where(x => x.BaseAsset == market.BaseAsset && x != market).ToArray();
                     }
                 }
+                else
+                {
+                    foreach (var market in markets)
+                    {
+                        var id = market.Symbol;
+                        if (this.marketsMapping.TryGetValue(id, out SymbolInformation oldMarket))
+                        {
+                            // update.
+                            oldMarket.Status = market.Status;
+                            // NOTE: if symbol got removed/status=BREAK -- remove it from any dependencies like QuoteSymbols.
+                        }
+                        else
+                        {
+                            // add new.
+                            this.marketsMapping.TryAdd(market.Symbol, market);
+                            qassets.Add(market.QuoteAsset);
+                            if (market.QuoteAsset == Balance.USD || market.QuoteAsset == Balance.USDT)
+                                usdassets.Add(market.BaseAsset);
+                            //market.QuoteSymbols = markets.Where(x => x.BaseAsset == market.BaseAsset && x != market).ToArray();
+                        }
+                    }
+                }
+                //marketAssets.AddRange(markets.Where(IsValidMarket).Select(x => x.QuoteAsset).Distinct().Except(marketAssets));
+                if (qassets.Count != MarketAssets.Count)
+                {
+                    marketAssets.Clear();
+                    marketAssets.AddRange(qassets);
+                }
+                //UsdAssets = markets.Where(m => m.QuoteAsset == Balance.USD || m.QuoteAsset == Balance.USDT).Select(m => m.BaseAsset).ToList();
+                if (usdassets.Count != UsdAssets.Count)
+                {
+                    UsdAssets.Clear();
+                    UsdAssets.AddRange(usdassets);
+                }
             }
-            marketAssets.AddRange(markets.Where(IsValidMarket).Select(x => x.QuoteAsset).Distinct().Except(marketAssets));
-            UsdAssets = markets.Where(m => m.QuoteAsset == Balance.USD || m.QuoteAsset == Balance.USDT).Select(m => m.BaseAsset).ToList();
+            finally
+            {
+                Debug.Print($"ProcessExchangeInfo took {sw.ElapsedMilliseconds}ms.");
+            }
         }
 
         protected void ProcessPriceTicker(IEnumerable<PriceTicker> priceTicker)
         {
             var sw = Stopwatch.StartNew();
-            if (MarketSummaries.IsEmpty)
+            try
             {
-                var idCache = new HashSet<string>(marketsMapping.Values.Where(IsValidMarket).Select(si => si.Symbol));
-                MarketSummaries.AddRange(priceTicker.Where(t => idCache.Contains(t.Symbol)));
-                for (int idx = 0; idx < MarketSummaries.Count; idx += 1)
+                if (MarketSummaries.IsEmpty)
                 {
-                    var ticker = MarketSummaries[idx];
-                    Debug.Assert(tickersMapping.TryAdd(ticker.Symbol, idx));
+                    var idCache = new HashSet<string>(marketsMapping.Values.Where(IsValidMarket).Select(si => si.Symbol));
+                    MarketSummaries.AddRange(priceTicker.Where(t => idCache.Contains(t.Symbol)));
+                    for (int idx = 0; idx < MarketSummaries.Count; idx += 1)
+                    {
+                        var ticker = MarketSummaries[idx];
+                        Debug.Assert(tickersMapping.TryAdd(ticker.Symbol, idx));
+                    }
+                }
+                else
+                {
+                    var iter = marketSummaries.GetEnumerator();
+                    foreach (var ticker in priceTicker)
+                    {
+                        OnRefreshMarketSummary2(ticker);
+                    }
                 }
             }
-            else
+            finally
             {
-                var iter = marketSummaries.GetEnumerator();
-                foreach (var ticker in priceTicker)
-                {
-                    OnRefreshMarketSummary2(ticker);
-                }
+                Debug.Print($"ProcessPriceTicker took {sw.ElapsedMilliseconds}ms.");
             }
-            Debug.Print($"ProcessPriceTicker took {sw.ElapsedMilliseconds}ms.");
         }
 
         protected void ProcessPublicTrades(IEnumerable<PublicTrade> trades)
         {
             var tradesList = trades as List<PublicTrade> ?? trades.ToList();
-            if (RecentTrades.All(x => x.SymbolInformation.Symbol != CurrentSymbol))
-            {
-                RecentTrades.Clear();
-                RecentTradesCache.Clear();
-            }
+            //if (RecentTrades.All(x => x.SymbolInformation.Symbol != CurrentSymbol))
+            //{
+            //    RecentTrades.Clear();
+            //    RecentTradesCache.Clear();
+            //}
             RecentTradesCache.AddOrUpdate(trades);
             if (RecentTradesCache.Count > TradesMaxItemCount)
             {
-                RecentTradesCache.Remove(RecentTradesCache.Items.Skip(TradesMaxItemCount));
+                RecentTradesCache.Remove(RecentTradesCache.Items.OrderByDescending(x => x.Id).Skip(TradesMaxItemCount));
             }
             CalcQuantityPercentageTotal(RecentTradesCache.Items);
             return;
@@ -1016,7 +1054,10 @@ namespace Exchange.Net
         private void DeleteRuleImpl(TradingRuleProxy proxy)
         {
             if (proxy != null)
+            {
                 TradingRuleProxies.Remove(proxy);
+                proxy.Rule.Delete();
+            }
         }
 
         private void NavigateToTradingViewImpl()
@@ -1091,7 +1132,7 @@ namespace Exchange.Net
             {
                 var si = NewOrder.SymbolInformation;
                 var direction = NewOrder.Side == TradeSide.Buy ? 100m : -100m;
-                var rule = new TradingRule();
+                var rule = new TradingRule { Id = DateTime.Now.Ticks.ToString() };
                 rule.Exchange = ExchangeName;
                 rule.Market = NewOrder.SymbolInformation.Symbol;
                 rule.Property = ThresholdType.LastPrice;
@@ -1111,7 +1152,7 @@ namespace Exchange.Net
                 //rule.OrderType = NewOrder.OrderType;
                 AddRule(rule);
                 var json = JsonConvert.SerializeObject(rule);
-                File.WriteAllText(Path.ChangeExtension(DateTime.Now.Ticks.ToString(), ".rule"), json);
+                File.WriteAllText(Path.ChangeExtension(rule.Id, ".rule"), json);
             }
         }
 
@@ -1254,6 +1295,7 @@ namespace Exchange.Net
                 var json = File.ReadAllText(file);
                 //var rule = JsonConvert.DeserializeObject<TrailingTakeProfit>(json);
                 var rule = JsonConvert.DeserializeObject<TradingRule>(json);
+                rule.Id = Path.ChangeExtension(file, null);
                 if (rule.Exchange.Equals(ExchangeName, StringComparison.OrdinalIgnoreCase))
                 {
                     AddRule(rule);
@@ -1315,7 +1357,20 @@ namespace Exchange.Net
         {
             return Task.CompletedTask;
         }
-
+        protected virtual async Task GetTradesStatisticsImpl()
+        {
+            var totalBuy = CurrentAccountViewModel.TradesHistory.Where(x => x.Side == TradeSide.Buy).Sum(x => x.Total);
+            var totalSell = CurrentAccountViewModel.TradesHistory.Where(x => x.Side == TradeSide.Sell).Sum(x => x.Total);
+            if (totalBuy > decimal.Zero)
+            {
+                var si = await GetFullSymbolInformation();
+                totalSell += si.BaseAssetBalance.Total * si.PriceTicker.Bid.GetValueOrDefault();
+                var diff = totalSell - totalBuy;
+                var diffPercent = (totalSell / totalBuy);
+                await Alert.Handle($"Profit: {diff:N4} BTC, {diffPercent:p2}");
+            }
+            //return Task.CompletedTask;
+        }
         protected virtual Task<bool> CancelOrderImpl(string orderId)
         {
             return Task.FromResult(false);
@@ -1344,12 +1399,11 @@ namespace Exchange.Net
                 getTickersSubscription.Dispose();
         }
 
-        protected void SetTickersSubscriptionWebSocket(bool isEnabled)
+        protected virtual void SetTickersSubscriptionWebSocket(bool isEnabled)
         {
             if (isEnabled)
                 getTickersSubscription = ObserveTickers123()
                                         .Subscribe(OnRefreshMarketSummary2);
-
             else if (getTickersSubscription != null)
                 getTickersSubscription.Dispose();
         }
@@ -1471,6 +1525,8 @@ namespace Exchange.Net
 
     public class TradingRule
     {
+        [JsonIgnore]
+        public string Id { get; set; }
         public string Exchange { get; set; }
         public string Market { get; set; }
         public decimal ThresholdRate { get; set; }
@@ -1534,6 +1590,11 @@ namespace Exchange.Net
         public virtual string GetStatus()
         {
             return "Waiting...";
+        }
+
+        public void Delete()
+        {
+            File.Delete(Path.ChangeExtension(Id.ToString(), ".rule"));
         }
     }
 
