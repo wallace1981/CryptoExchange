@@ -7,15 +7,9 @@
              mc:Ignorable="d" 
              d:DesignHeight="450" d:DesignWidth="800">
     <DataGrid
+        ColumnHeaderStyle="{StaticResource DataGridColumnHeaderLeftAlign}"
         ItemsSource="{Binding Path=CurrentAccountViewModel.OrdersHistory}"
         >
-        <DataGrid.ColumnHeaderStyle>
-            <Style TargetType="DataGridColumnHeader">
-                <Setter Property="Padding" Value="0"/>
-                <Setter Property="FontFamily" Value="{StaticResource RobotoCondensed}"/>
-                <Setter Property="FontSize" Value="12"/>
-            </Style>
-        </DataGrid.ColumnHeaderStyle>
         <DataGrid.Columns>
 
             <DataGridTemplateColumn Header="Time" x:Name="clTime">
@@ -23,7 +17,7 @@
                     <DataTemplate>
                         <TextBlock
                             Text="{Binding Path=Created, Mode=OneWay, StringFormat='yyyy-MM-dd HH:mm:ss'}"
-                            Padding="0"/>
+                            Style="{StaticResource TextBlockLeftAlignStyle}"/>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
@@ -33,7 +27,7 @@
                     <DataTemplate>
                         <TextBlock
                             Text="{Binding Path=SymbolInformation.Caption, Mode=OneWay}"
-                            Padding="0"/>
+                            Style="{StaticResource TextBlockLeftAlignStyle}"/>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
@@ -43,7 +37,7 @@
                     <DataTemplate>
                         <TextBlock
                             Text="{Binding Path=Type, Mode=OneWay}"
-                            Padding="0"/>
+                            Style="{StaticResource TextBlockLeftAlignStyle}"/>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
@@ -53,7 +47,7 @@
                     <DataTemplate>
                         <TextBlock
                             Text="{Binding Path=Side, Mode=OneWay}"
-                            Padding="0"
+                            Style="{StaticResource TextBlockLeftAlignStyle}"
                             Foreground="{Binding Path=Side, Mode=OneWay, Converter={StaticResource convOrderSide}}"/>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
@@ -64,12 +58,12 @@
                     <DataTemplate>
                         <TextBlock
                             Text="{Binding Path=Price, Mode=OneWay}"
-                            Padding="0"/>
+                            Style="{StaticResource TextBlockLeftAlignStyle}"/>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
 
-            <DataGridTemplateColumn Header="Amount" x:Name="clQuantity">
+            <DataGridTemplateColumn Header="Amount" x:Name="clQuantity" HeaderStyle="{StaticResource DataGridColumnHeaderRightAlign}">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
                         <Grid>
@@ -85,7 +79,8 @@
                                 Opacity="0.5"/>
                             <ContentControl
                                 Content="{Binding Path=Quantity, Mode=OneWay}"
-                                ContentStringFormat="{Binding Path=SymbolInformation.QuantityFmt, Mode=OneWay}"/>
+                                ContentStringFormat="{Binding Path=SymbolInformation.QuantityFmt, Mode=OneWay}"
+                                Style="{StaticResource ContentRightAlignStyle}"/>
                         </Grid>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
@@ -100,7 +95,7 @@
                             <ContentControl
                                 Content="{Binding Path=Total, Mode=OneWay}"
                                 ContentStringFormat="{Binding Path=SymbolInformation.PriceFmt, Mode=OneWay}"
-                                HorizontalAlignment="Right"/>
+                                Style="{StaticResource ContentLeftAlignStyle}"/>
                             <TextBlock
                                 Margin="3 0 0 0"
                                 Text="{Binding Path=SymbolInformation.QuoteAsset, Mode=OneWay}"/>
@@ -114,7 +109,7 @@
                     <DataTemplate>
                         <TextBlock
                             Text="{Binding Path=Status, Mode=OneWay}"
-                            Padding="0"/>
+                            Style="{StaticResource TextBlockLeftAlignStyle}"/>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>

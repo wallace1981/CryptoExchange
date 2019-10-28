@@ -73,9 +73,9 @@ namespace Exchange.Net
             }
         }
 
-        protected async override Task<bool> CancelOrder(OrderTask order)
+        protected async override Task<bool> CancelOrder(OrderTask task)
         {
-            var result = await client.CancelOrderAsync(order.Symbol, long.Parse(order.ExchangeOrder.OrderId));
+            var result = await client.CancelOrderAsync(task.Symbol, long.Parse(task.ExchangeOrder.OrderId));
             return result.Success;
         }
 

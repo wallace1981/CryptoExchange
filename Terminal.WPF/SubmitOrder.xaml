@@ -92,7 +92,7 @@
         </Label>
         <Label Grid.Column="1" Grid.Row="6">
             <TextBlock>
-                <Run Text="{Binding Path=NewOrder.Total, Mode=OneWay, StringFormat=N2}"/>
+                <Run Text="{Binding Path=NewOrder.Total, Mode=OneWay, StringFormat=N8}"/>
                 <Run Text="{Binding Path=NewOrder.SymbolInformation.QuoteAsset, Mode=OneTime}"/>
             </TextBlock>
         </Label>

@@ -12,11 +12,11 @@
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <!--<ResourceDictionary Source="/Telerik.Windows.Themes.Office_Black;component/Themes/System.Windows.xaml"/>
-                <ResourceDictionary Source="/Telerik.Windows.Themes.Office_Black;component/Themes/Telerik.Windows.Controls.xaml"/>
-                <ResourceDictionary Source="/Telerik.Windows.Themes.Office_Black;component/Themes/Telerik.Windows.Controls.GridView.xaml"/>
-                <ResourceDictionary Source="/Telerik.Windows.Themes.Office_Black;component/Themes/Telerik.Windows.Controls.Input.xaml"/>
-                <ResourceDictionary Source="/Telerik.Windows.Themes.Office_Black;component/Themes/Telerik.Windows.Controls.Navigation.xaml"/>-->
+                <!--<ResourceDictionary Source="/Telerik.Windows.Themes.Fluent;component/Themes/System.Windows.xaml"/>
+                <ResourceDictionary Source="/Telerik.Windows.Themes.Fluent;component/Themes/Telerik.Windows.Controls.xaml"/>
+                <ResourceDictionary Source="/Telerik.Windows.Themes.Fluent;component/Themes/Telerik.Windows.Controls.GridView.xaml"/>
+                <ResourceDictionary Source="/Telerik.Windows.Themes.Fluent;component/Themes/Telerik.Windows.Controls.Input.xaml"/>
+                <ResourceDictionary Source="/Telerik.Windows.Themes.Fluent;component/Themes/Telerik.Windows.Controls.Navigation.xaml"/>-->
 
                 <!--<ResourceDictionary Source="pack://application:,,,/MaterialDesignThemes.Wpf;component/Themes/MaterialDesignTheme.Light.xaml" />
                 <ResourceDictionary Source="pack://application:,,,/MaterialDesignThemes.Wpf;component/Themes/MaterialDesignTheme.Defaults.xaml" />
@@ -47,6 +47,7 @@
             <local:SymbolToBrushConverter x:Key="convSymbolToBrush"/>
             <local:BalanceToVisibilityConverter x:Key="convBalanceVisib"/>
             <local:PercentToGradientConverter x:Key="convPercentToGradient" Color="Green"/>
+            <local:PercentToGradientConverterEx x:Key="convPercentToGradientEx" BearColor="{StaticResource BearCandleColor}" BullColor="{StaticResource BullCandleColor}"/>
             <local:NullableDecimalToDoubleConverter x:Key="convDecimalToDouble"/>
             <local:MultiplierConvertor x:Key="convMultiplier"/>
             <local:OrderStatusToBrushConverter x:Key="convOrderStatusToBrush"
@@ -126,6 +127,15 @@
                 <Setter Property="BorderThickness" Value="0 0 0 1"/>
                 <Setter Property="Padding" Value="6"/>
             </Style>
+            <Style TargetType="DataGridColumnHeader" x:Key="DataGridColumnHeaderLeftAlign">
+                <Setter Property="FontFamily" Value="{StaticResource RobotoCondensedBold}"/>
+                <Setter Property="FontSize" Value="{StaticResource FontSizeListHeader}"/>
+            </Style>
+            <Style TargetType="DataGridColumnHeader" x:Key="DataGridColumnHeaderRightAlign">
+                <Setter Property="FontFamily" Value="{StaticResource RobotoCondensedBold}"/>
+                <Setter Property="FontSize" Value="{StaticResource FontSizeListHeader}"/>
+                <Setter Property="HorizontalContentAlignment" Value="Right"/>
+            </Style>
 
             <Style TargetType="{x:Type ContentControl}" x:Key="ContentControlRightAligned">
                 <Setter Property="FontFamily" Value="{StaticResource RobotoCondensed}"/>
@@ -148,6 +158,32 @@
                         />
             </DataTemplate>
             <BooleanToVisibilityConverter x:Key="convBoolToVisib"/>
+
+            <Style TargetType="ContentControl" x:Key="ContentLeftAlignStyle">
+                <Setter Property="TextBlock.FontFamily" Value="{StaticResource RobotoCondensed}"/>
+                <Setter Property="TextBlock.FontSize" Value="{StaticResource FontSizeList}"/>
+                <Setter Property="TextBlock.HorizontalAlignment" Value="Left"/>
+                <Setter Property="TextBlock.Margin" Value="0 2 6 1"/>
+            </Style>
+            <Style TargetType="ContentControl" x:Key="ContentRightAlignStyle">
+                <Setter Property="FontFamily" Value="{StaticResource RobotoCondensed}"/>
+                <Setter Property="FontSize" Value="{StaticResource FontSizeList}"/>
+                <Setter Property="HorizontalAlignment" Value="Right"/>
+                <Setter Property="Margin" Value="6 2 0 1"/>
+            </Style>
+            <Style TargetType="TextBlock" x:Key="TextBlockLeftAlignStyle">
+                <Setter Property="FontFamily" Value="{StaticResource RobotoCondensed}"/>
+                <Setter Property="FontSize" Value="{StaticResource FontSizeList}"/>
+                <Setter Property="HorizontalAlignment" Value="Left"/>
+                <Setter Property="Margin" Value="0 2 6 1"/>
+            </Style>
+            <Style TargetType="TextBlock" x:Key="TextBlockRightAlignStyle">
+                <Setter Property="FontFamily" Value="{StaticResource RobotoCondensed}"/>
+                <Setter Property="FontSize" Value="{StaticResource FontSizeList}"/>
+                <Setter Property="HorizontalAlignment" Value="Right"/>
+                <Setter Property="Margin" Value="6 2 0 1"/>
+            </Style>
+
         </ResourceDictionary>
     </Application.Resources>
 </Application>

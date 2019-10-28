@@ -109,7 +109,7 @@ namespace Exchange.Net
         public ReactiveCommand<Unit, Unit> GetTradesHistory { get; private set; }
         public ReactiveCommand<Unit, Unit> GetTradesStatistics { get; private set; }
         public ReactiveCommand<Unit, Unit> GetBalance { get; private set; }
-        public ReactiveCommand<string, Unit> CancelOrderCommand { get; private set; }
+        public ReactiveCommand<Order, Unit> CancelOrderCommand { get; private set; }
         public ReactiveCommand<NewOrder, Unit> SubmitOrderCommand { get; private set; }
         public ReactiveCommand<int, Unit> RefreshCommand { get; private set; }
         public ReactiveCommand<Unit, Unit> RefreshPrivateDataCommand { get; private set; }
@@ -198,8 +198,8 @@ namespace Exchange.Net
                 GetDeposits = ReactiveCommand.CreateFromTask(GetDepositsImpl, signedDependableCommandCanExecute).DisposeWith(disposables);
                 GetWithdrawals = ReactiveCommand.CreateFromTask(GetWithdrawalsImpl, signedDependableCommandCanExecute).DisposeWith(disposables);
                 GetBalance = ReactiveCommand.CreateFromTask(GetBalanceImpl, signedDependableCommandCanExecute).DisposeWith(disposables);
-                CancelOrderCommand = ReactiveCommand.CreateFromTask<string>(CancelOrderImpl).DisposeWith(disposables);
-                SubmitOrderCommand = ReactiveCommand.CreateFromTask<NewOrder>(SubmitOrder).DisposeWith(disposables);
+                CancelOrderCommand = ReactiveCommand.CreateFromTask<Order>(CancelOrderImpl).DisposeWith(disposables);
+                SubmitOrderCommand = ReactiveCommand.CreateFromTask<NewOrder>(SubmitOrderImpl).DisposeWith(disposables);
 
                 EnableTradeTask = ReactiveCommand.Create(EnableTradeTaskImpl, tradeTaskCommandCanExecute).DisposeWith(disposables);
                 PanicSellTradeTask = ReactiveCommand.CreateFromTask(PanicSellTradeTaskImpl, tradeTaskCommandCanExecute).DisposeWith(disposables);
@@ -246,6 +246,8 @@ namespace Exchange.Net
         bool isActive = false;
         public void Activate(CompositeDisposable disposables)
         {
+            disposablesHandle.DisposeWith(disposables);
+            getTickersSubscription.DisposeWith(disposables);
             Initialize(disposables);
             //if (isActive)
             //    DoDispose();
@@ -826,6 +828,8 @@ namespace Exchange.Net
             {
                 PriceTicker oldTicker = MarketSummaries[idx];
                 Debug.Assert(oldTicker.Symbol == ticker.Symbol);
+                if (oldTicker.Candle1m != null && oldTicker.Candle1m.CloseTime >= DateTime.Now)
+                    ticker.LastPrice = oldTicker.Candle1m.Close;
                 bool tickerChanged = IsTickerChanged(oldTicker, ticker);
 #if GTK
                 ticker.PrevLastPrice = oldTicker.LastPrice;
@@ -879,6 +883,79 @@ namespace Exchange.Net
             }
         }
 
+        protected void OnKline(Candle candle)
+        {
+            var ticker = GetPriceTicker(candle.Symbol);
+            if (ticker != null)
+            {
+                switch (candle.Interval)
+                {
+                    case "1m":
+                        ticker.Candle1m = candle;
+                        break;
+                    case "5m":
+                        ticker.Candle5m = candle;
+                        AnalyzeCandle(ticker.Candle5m, 1.04m, "5m");
+                        break;
+                    case "15m":
+                        ticker.Candle15m = candle;
+                        AnalyzeCandle(ticker.Candle15m, 1.08m, "15m");
+                        break;
+                    case "30m":
+                        ticker.Candle30m = candle;
+                        AnalyzeCandle(ticker.Candle30m, 1.10m, "30m");
+                        break;
+                    case "1h":
+                        ticker.Candle1h = candle;
+                        AnalyzeCandle(ticker.Candle1h, 1.12m, "1h");
+                        break;
+                    case "6h":
+                        ticker.Candle6h = candle;
+                        break;
+                    case "12h":
+                        ticker.Candle12h = candle;
+                        break;
+                    case "1d":
+                        ticker.Candle1d = candle;
+                        break;
+                    case "3d":
+                        ticker.Candle3d = candle;
+                        break;
+                    case "1w":
+                        ticker.Candle1w = candle;
+                        break;
+                }
+            }
+        }
+
+        private Dictionary<string, long> candleCache = new Dictionary<string, long>();
+        private async void AnalyzeCandle(Candle candle, decimal changePercent, string interval)
+        {
+            if (candle.Close == decimal.Zero || candle.Open == decimal.Zero)
+                return;
+            var key = candle.Symbol + "@" + interval;
+            if (candleCache.ContainsKey(key) && candleCache[key] == candle.OpenTime.Ticks)
+                return;
+            // ignore 1sat changes.
+            if (candle.Close - candle.Open == 0.00000001m)
+                return;
+            if (candle.Open - candle.Close == 0.00000001m)
+                return;
+            decimal positiveDelta = candle.Close / candle.Open;
+            decimal negativeDelta = candle.Open / candle.Close;
+            if (positiveDelta >= changePercent)
+            {
+                candleCache[key] = candle.OpenTime.Ticks;
+                //await Alert.Handle($"{candle.Symbol}: price raised {delta-1m:p2}");
+                await TelegramNotifier.Notify($"[{ExchangeName}] {key} price +{positiveDelta - 1m:p2}");
+            }
+            else if (negativeDelta >= changePercent)
+            {
+                candleCache[key] = candle.OpenTime.Ticks;
+                await TelegramNotifier.Notify($"[{ExchangeName}] {key} price -{negativeDelta - 1m:p2}");
+            }
+        }
+
         protected void UpdateWithTicker(PriceTicker ticker)
         {
             //foreach (var order in CurrentAccount?.OrdersHistory?.Items?.Where(x => x.SymbolInformation.Symbol == ticker.Symbol))
@@ -919,24 +996,24 @@ namespace Exchange.Net
 
         private async Task ProcessTradingRule(TradingRuleProxy proxy, PriceTicker ticker)
         {
-
-            const int MAX_CONFIRMS = 5;
+            //const int MAX_CONFIRMS = 5;
             try
             {
                 var rule = proxy.Rule;
                 await @lock.WaitAsync();
-                if (rule.IsApplicable(ticker))
+                if (rule.IsApplicable(ticker, proxy.SymbolInformation))
                 {
-                    if (proxy.Confirmations == 0)
+                    proxy.Confirmations += 1;
+                    proxy.Status = $"Triggered #{proxy.Confirmations}/{proxy.Rule.RequiredConfirmations} times";
+                    if (proxy.Confirmations < proxy.Rule.RequiredConfirmations)
+                        return;
+                    if (proxy.Rule.OrderVolume == 0m || string.IsNullOrEmpty(proxy.Rule.OrderType))
                     {
                         Notify(proxy);
+                        proxy.Status += "; Notification sent";
                         rule.IsActive = false;
                     }
-                    proxy.Confirmations += 1;
-                    proxy.Status = $"Triggered #{proxy.Confirmations}/{MAX_CONFIRMS} times";
-                    if (proxy.Confirmations < MAX_CONFIRMS)
-                        return;
-                    try
+                    else try
                     {
                         Debug.Print("{4} Placing {0} {3} {1} by {2}.", rule.OrderSide, ticker.Symbol, rule.OrderRate, rule.OrderVolume, DateTime.Now);
                         rule.Order = await PlaceOrder(rule).ConfigureAwait(false);
@@ -995,7 +1072,7 @@ namespace Exchange.Net
 
         protected void AddRule(TradingRule rule)
         {
-            TradingRuleProxies.Add(new TradingRuleProxy(rule));
+            TradingRuleProxies.Add(new TradingRuleProxy(rule, GetSymbolInformation(rule.Market)));
         }
 
         protected virtual Task RefreshCommandExecute(int x)
@@ -1016,7 +1093,7 @@ namespace Exchange.Net
                 Content = new Terminal.WPF.CreateRule() { Margin = new System.Windows.Thickness(6) },
                 Owner = System.Windows.Application.Current.MainWindow,
                 SizeToContent = System.Windows.SizeToContent.WidthAndHeight,
-                Title = "Create Rule",
+                Title = $"Create ${param}",
                 WindowStartupLocation = System.Windows.WindowStartupLocation.CenterOwner,
                 WindowStyle = System.Windows.WindowStyle.ToolWindow
             };
@@ -1028,6 +1105,7 @@ namespace Exchange.Net
                 OrderType = si.OrderTypes.FirstOrDefault()
             };
             viewModel.NewOrder = order;
+            viewModel.RuleType = param;
             wnd.DataContext = viewModel;
             wnd.ShowDialog();
         }
@@ -1131,28 +1209,56 @@ namespace Exchange.Net
             if (NewOrder != null)
             {
                 var si = NewOrder.SymbolInformation;
-                var direction = NewOrder.Side == TradeSide.Buy ? 100m : -100m;
-                var rule = new TradingRule { Id = DateTime.Now.Ticks.ToString() };
-                rule.Exchange = ExchangeName;
-                rule.Market = NewOrder.SymbolInformation.Symbol;
-                rule.Property = ThresholdType.LastPrice;
-                rule.OrderVolume = NewOrder.Quantity;
-                rule.OrderSide = NewOrder.Side;
-                rule.OrderType = NewOrder.OrderType;
-                rule.Operator = si.PriceTicker.LastPrice > NewOrder.Price ? ThresholdOperator.LessOrEqual : ThresholdOperator.GreaterOrEqual;
-                rule.ThresholdRate = NewOrder.Price;
-
-
-
-                //var rule = new TrailingTakeProfit(NewOrder.Price, NewOrder.QuantityPercentage / direction);
-                //rule.Market = NewOrder.SymbolInformation.Symbol;
-                //rule.Property = ThresholdType.LastPrice;
-                //rule.OrderVolume = NewOrder.Quantity;
-                //rule.OrderSide = NewOrder.Side;
-                //rule.OrderType = NewOrder.OrderType;
-                AddRule(rule);
-                var json = JsonConvert.SerializeObject(rule);
-                File.WriteAllText(Path.ChangeExtension(rule.Id, ".rule"), json);
+                switch (param?.ToString())
+                {
+                    case "Alert":
+                        {
+                            var rule = new TradingRule();
+                            rule.Exchange = ExchangeName;
+                            rule.Market = NewOrder.SymbolInformation.Symbol;
+                            rule.Property = ThresholdType.LastPrice;
+                            rule.OrderVolume = 0;
+                            rule.OrderSide = NewOrder.Side;
+                            rule.OrderType = null;
+                            rule.Operator = si.PriceTicker.LastPrice > NewOrder.Price ? ThresholdOperator.LessOrEqual : ThresholdOperator.GreaterOrEqual;
+                            rule.ThresholdRate = NewOrder.Price;
+                            rule.RequiredConfirmations = 1;
+                            rule.Save();
+                            AddRule(rule);
+                        }
+                        break;
+                    case "Regular":
+                        {
+                            var rule = new TradingRule();
+                            rule.Exchange = ExchangeName;
+                            rule.Market = NewOrder.SymbolInformation.Symbol;
+                            rule.Property = (NewOrder.Side == TradeSide.Buy) ? ThresholdType.AskPrice : ThresholdType.BidPrice;
+                            rule.OrderVolume = NewOrder.Quantity;
+                            rule.OrderSide = NewOrder.Side;
+                            rule.OrderType = NewOrder.OrderType;
+                            rule.Operator = si.PriceTicker.LastPrice > NewOrder.Price ? ThresholdOperator.LessOrEqual : ThresholdOperator.GreaterOrEqual;
+                            rule.ThresholdRate = NewOrder.Price;
+                            rule.RequiredConfirmations = 1;
+                            rule.Save();
+                            AddRule(rule);
+                        }
+                        break;
+                    case "TTP":
+                        {
+                            var direction = NewOrder.Side == TradeSide.Buy ? 1m : -1m;
+                            var rule = new TrailingTakeProfit(NewOrder.Price, NewOrder.QuantityPercentage / direction);
+                            rule.Exchange = ExchangeName;
+                            rule.Market = NewOrder.SymbolInformation.Symbol;
+                            //rule.Property = ThresholdType.LastPrice;
+                            rule.Property = (NewOrder.Side == TradeSide.Buy) ? ThresholdType.AskPrice : ThresholdType.BidPrice;
+                            rule.OrderVolume = NewOrder.Quantity;
+                            rule.OrderSide = NewOrder.Side;
+                            rule.OrderType = NewOrder.OrderType;
+                            rule.Save();
+                            AddRule(rule);
+                        }
+                        break;
+                }
             }
         }
 
@@ -1290,12 +1396,16 @@ namespace Exchange.Net
 
         private void LoadRules()
         {
-            foreach (var file in Directory.EnumerateFiles(".", "*.rule"))
+            foreach (var file in Directory.EnumerateFiles(".", "*.rule*"))
             {
-                var json = File.ReadAllText(file);
-                //var rule = JsonConvert.DeserializeObject<TrailingTakeProfit>(json);
-                var rule = JsonConvert.DeserializeObject<TradingRule>(json);
-                rule.Id = Path.ChangeExtension(file, null);
+                //var json = File.ReadAllText(file);
+                //var isTTP = file.EndsWith(".ttp");
+                ////var rule = JsonConvert.DeserializeObject<TrailingTakeProfit>(json);
+                //var rule = isTTP ?
+                //    JsonConvert.DeserializeObject<TrailingTakeProfit>(json) :
+                //    JsonConvert.DeserializeObject<TradingRule>(json);
+                //rule.Id = Path.ChangeExtension(file, null);
+                var rule = TradingRule.Load(file);
                 if (rule.Exchange.Equals(ExchangeName, StringComparison.OrdinalIgnoreCase))
                 {
                     AddRule(rule);
@@ -1371,12 +1481,12 @@ namespace Exchange.Net
             }
             //return Task.CompletedTask;
         }
-        protected virtual Task<bool> CancelOrderImpl(string orderId)
+        protected virtual Task<bool> CancelOrderImpl(Order order)
         {
             return Task.FromResult(false);
         }
 
-        protected virtual Task<bool> SubmitOrder(NewOrder order)
+        protected virtual Task<bool> SubmitOrderImpl(NewOrder order)
         {
             return Task.FromResult(false);
         }
@@ -1390,22 +1500,22 @@ namespace Exchange.Net
             }
 
             if (isEnabled)
-                getTickersSubscription =
+                getTickersSubscription.Disposable =
                     Observable.Timer(TimeSpan.Zero, TimeSpan.FromSeconds(2))
                               .Select(x => Unit.Default)
                               .ObserveOnDispatcher()
                               .InvokeCommand(GetTickers);
-            else if (getTickersSubscription != null)
-                getTickersSubscription.Dispose();
+            else if (getTickersSubscription.Disposable != null)
+                getTickersSubscription.Disposable = null;
         }
 
         protected virtual void SetTickersSubscriptionWebSocket(bool isEnabled)
         {
             if (isEnabled)
-                getTickersSubscription = ObserveTickers123()
+                getTickersSubscription.Disposable = ObserveTickers123()
                                         .Subscribe(OnRefreshMarketSummary2);
-            else if (getTickersSubscription != null)
-                getTickersSubscription.Dispose();
+            else if (getTickersSubscription.Disposable != null)
+                getTickersSubscription.Disposable = null;
         }
 
         protected void SetTradesSubscriptionWebSocket(bool isEnabled)
@@ -1510,10 +1620,11 @@ namespace Exchange.Net
         public virtual string[] OrderTypes => new string[] { };
 
         public NewOrder NewOrder { get; set; }
+        [Reactive] public string RuleType { get; set; }
 
         protected IEnumerable<SymbolInformation> ValidPairs => marketsMapping.Values.Where(IsValidMarket);
 
-        IDisposable getTickersSubscription;
+        SerialDisposable getTickersSubscription = new SerialDisposable();
         IDisposable getTradesSubscription;
         IDisposable getDepthSubscription;
         IDisposable getPrivateDataSubscription;
@@ -1526,7 +1637,7 @@ namespace Exchange.Net
     public class TradingRule
     {
         [JsonIgnore]
-        public string Id { get; set; }
+        public string Id { get; set; } = DateTime.Now.Ticks.ToString();
         public string Exchange { get; set; }
         public string Market { get; set; }
         public decimal ThresholdRate { get; set; }
@@ -1537,11 +1648,12 @@ namespace Exchange.Net
         public decimal OrderRate { get; set; } // Sell or Buy using this rate. 0 for Market Order.
         public decimal OrderVolume { get; set; }
         public decimal RemainingVolume { get; set; }
+        public int RequiredConfirmations { get; set; } = 5;
 
         public Order Order { get; set; } // <null> if not yet placed.
         public bool IsActive { get; set; } = true;
 
-        public virtual bool IsApplicable(PriceTicker ticker)
+        public virtual bool IsApplicable(PriceTicker ticker, SymbolInformation si)
         {
             if (!Market.Equals(ticker.Symbol, StringComparison.CurrentCultureIgnoreCase))
                 return false;
@@ -1594,8 +1706,30 @@ namespace Exchange.Net
 
         public void Delete()
         {
-            File.Delete(Path.ChangeExtension(Id.ToString(), ".rule"));
+            File.Delete(Path.ChangeExtension(Id.ToString(), GetFileExtension));
         }
+        public void Save()
+        {
+            var json = JsonConvert.SerializeObject(this);
+            File.WriteAllText(Path.ChangeExtension(Id, GetFileExtension), json);
+        }
+
+        public static TradingRule Load(string path)
+        {
+            var json = File.ReadAllText(path);
+            var isTTP = path.EndsWith(".ttp");
+            var rule = isTTP ?
+                JsonConvert.DeserializeObject<TrailingTakeProfit>(json) :
+                JsonConvert.DeserializeObject<TradingRule>(json);
+            rule.Id = Path.ChangeExtension(path, null);
+            rule.Initialize();
+            return rule;
+        }
+        protected virtual void Initialize()
+        {
+        }
+
+        protected virtual string GetFileExtension => ".rule";
     }
 
     public class TrailingTakeProfit : TradingRule
@@ -1603,20 +1737,22 @@ namespace Exchange.Net
         public decimal TakeProfitPrice { get; set; }
         public decimal TrailingPercent { get; set; }
 
-        public override bool IsApplicable(PriceTicker ticker)
+        public override bool IsApplicable(PriceTicker ticker, SymbolInformation si)
         {
             // if current Ask/Bid/LastPrice >= TakeProfitPrice then
             // activate Trailing.
             // TrailingPrice starts with TakeProfitPrice - (TakeProfitPrice * TrailingPercent)
             decimal? value = GetPropertyValue(ticker);
             value = value + value * TrailingPercent;
+            value = si.ClampPrice(value.Value);
             if (!trailingActivated)
             {
-                if (base.IsApplicable(ticker))
+                if (base.IsApplicable(ticker, si))
                 {
                     // we reached TakeProfitPrice. Activate Trailing.
                     trailingActivated = true;
-                    Operator = TrailingPercent > 0 ? ThresholdOperator.Greater : ThresholdOperator.Less;
+                    //Operator = TrailingPercent > 0 ? ThresholdOperator.Greater : ThresholdOperator.Less;
+                    Operator = TrailingPercent > 0 ? ThresholdOperator.GreaterOrEqual : ThresholdOperator.LessOrEqual;
                     ThresholdRate = value.GetValueOrDefault();
                 }
                 return false;
@@ -1633,7 +1769,7 @@ namespace Exchange.Net
                     if (value > ThresholdRate)
                         ThresholdRate = value.GetValueOrDefault();
                 }
-                return base.IsApplicable(ticker);
+                return base.IsApplicable(ticker, si);
             }
         }
 
@@ -1649,30 +1785,34 @@ namespace Exchange.Net
         {
             TakeProfitPrice = tpp;
             TrailingPercent = tp;
-            Operator = tp > 0 ? ThresholdOperator.LessOrEqual : ThresholdOperator.GreaterOrEqual;
-            ThresholdRate = TakeProfitPrice;
-            OrderRate = TakeProfitPrice;
             OrderSide = TradeSide.Sell;
+            Initialize();
         }
 
+        protected override void Initialize()
+        {
+            Operator = TrailingPercent > 0 ? ThresholdOperator.LessOrEqual : ThresholdOperator.GreaterOrEqual;
+            ThresholdRate = TakeProfitPrice;
+            OrderRate = TakeProfitPrice;
+        }
+
+        protected override string GetFileExtension => ".rule.ttp";
         private bool trailingActivated;
     }
 
     public class TradingRuleProxy : ReactiveObject
     {
         TradingRule rule;
+        public SymbolInformation SymbolInformation { get; }
 
-        public TradingRuleProxy(TradingRule rule)
+        public TradingRuleProxy(TradingRule rule, SymbolInformation si)
         {
             this.rule = rule;
+            this.SymbolInformation = si;
         }
 
         public int Confirmations { get; set; }
-        public string Status
-        {
-            get { return _status; }
-            set { this.RaiseAndSetIfChanged(ref _status, value); }
-        }
+        [Reactive] public string Status { get; set; }
 
         public TradingRule Rule => rule;
         public string Symbol => rule.Market;
@@ -1697,8 +1837,14 @@ namespace Exchange.Net
                 }
             }
         }
+    }
 
-        private string _status;
+    public enum RuleType
+    {
+        Alert,      // no orders, no confirmations, just notify
+        StopLoss,   // pass 5 confirmations before execute order
+        Trailing,
+        Regular
     }
 
     public enum ThresholdType

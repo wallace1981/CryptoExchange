@@ -159,19 +159,19 @@ namespace Exchange.Net
             }
         }
 
-        protected override async Task<bool> CancelOrderImpl(string orderId)
+        protected override async Task<bool> CancelOrderImpl(Order order)
         {
-            var result = await client.CancelOrderAsync(long.Parse(orderId)).ConfigureAwait(false);
+            var result = await client.CancelOrderAsync(long.Parse(order.OrderId)).ConfigureAwait(false);
             if (result.Success)
             {
                 UpdateFunds(result.Data.funds);
-                CurrentAccount.OpenOrders.Remove(orderId);
+                CurrentAccount.OpenOrders.Remove(order.OrderId);
                 return true;
             }
             return false;
         }
 
-        protected override async Task<bool> SubmitOrder(NewOrder order)
+        protected override async Task<bool> SubmitOrderImpl(NewOrder order)
         {
             var result = await client.NewOrderAsync(order.Side.ToString(), order.SymbolInformation.Symbol, order.Price, order.Quantity, order.OrderType);
             if (result.Success)
@@ -437,7 +437,7 @@ namespace Exchange.Net
             UpdateStatus();
             if (ordersResult.Success)
             {
-                var orders = ordersResult.Data.Select(Convert).OrderByDescending(x => x.Created);
+                var orders = ordersResult.Data.Select(Convert);
                 CurrentAccount.OpenOrders.Clear();
                 CurrentAccount.OpenOrders.AddOrUpdate(orders);
             }

@@ -54,6 +54,7 @@ namespace Exchange.Net
 
         [ObservableAsProperty] public decimal TotalBtc { get; }
         [ObservableAsProperty] public decimal TotalUsd { get; }
+        [Reactive] public bool CancelledOrdersVisible { get; set; } = true;
 
         public ExchangeAccountViewModel(ExchangeAccount acc)
         {
@@ -73,7 +74,7 @@ namespace Exchange.Net
                 .DisposeWith(disposables);
 
             Account.OpenOrders.Connect()
-                .Sort(SortExpressionComparer<Order>.Descending(x => x.OrderId))
+                .Sort(SortExpressionComparer<Order>.Descending(x => x.Created))
                 .ObserveOnDispatcher()
                 .Bind(out openOrders)
                 .Subscribe()
@@ -81,6 +82,7 @@ namespace Exchange.Net
 
             Account.OrdersHistory.Connect()
                 .Sort(SortExpressionComparer<Order>.Descending(x => x.Created))
+                .Filter(x => CancelledOrdersVisible || x.Status != OrderStatus.Cancelled)
                 .ObserveOnDispatcher()
                 .Bind(out ordersHistory)
                 .Subscribe()

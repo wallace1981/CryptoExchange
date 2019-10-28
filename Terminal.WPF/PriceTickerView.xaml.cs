@@ -85,6 +85,7 @@ namespace Terminal.WPF
             e.Accepted =
                 ticker.SymbolInformation.Status != "BREAK" &&
                 ticker.SymbolInformation.QuoteAsset == cmbQuoteAsset.SelectedValue as string &&
+                (!chkAllowMargin.IsChecked.HasValue || ticker.SymbolInformation.IsMarginTradingAllowed == chkAllowMargin.IsChecked.Value) &&
                 IsPairMatch(ticker.SymbolInformation, tb.Text.Trim()) && 
                 FilterByPrice(ticker, tbPriceFilter.Tag as string, tbPriceFilter.Text.Trim()) &&
                 FilterByPrice(ticker, tbPriceUsdFilter.Tag as string, tbPriceUsdFilter.Text.Trim()) &&
@@ -159,6 +160,11 @@ namespace Terminal.WPF
         private void Button_Click_1(object sender, RoutedEventArgs e)
         {
             MarketSummaries.Refresh();
+        }
+
+        private void chkAllowMargin_Click(object sender, RoutedEventArgs e)
+        {
+            //MarketSummaries.Refresh();
         }
     }
 

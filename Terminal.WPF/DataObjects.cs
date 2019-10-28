@@ -362,7 +362,7 @@ namespace Exchange.Net
         public string Caption => $"{BaseAsset}/{QuoteAsset}";
         public string SymbolUniversal => BaseAsset + QuoteAsset;
         public string Status { get; set; }
-        public SymbolInformation[] QuoteSymbols { get; set; } = new SymbolInformation[] { };
+        public bool IsMarginTradingAllowed { get; set; }
 
         public decimal ClampQuantity(decimal quantity)
         {
@@ -497,6 +497,7 @@ namespace Exchange.Net
     public class Candle
     {
         public string Symbol { get; set; }
+        public string Interval { get; set; }
         public DateTime OpenTime { get; set; }
         public DateTime CloseTime { get; set; }
         public decimal Open { get; set; }
@@ -507,6 +508,23 @@ namespace Exchange.Net
         public decimal QuoteVolume { get; set; }
         public decimal BuyVolume { get; set; }
         public decimal BuyQuoteVolume { get; set; }
+        public double VolumePercentage
+        {
+            get
+            {
+                if (Volume == decimal.Zero)
+                    return 0.0;
+                if (Symbol.EndsWith("BTC") && QuoteVolume < 0.01m)
+                    return 0.0;
+                if (Symbol.EndsWith("USDT") && QuoteVolume < 1m)
+                    return 0.0;
+                var sellVolume = BuyVolume - Volume;
+                if (Math.Abs(sellVolume) > BuyVolume)
+                    return (double) (sellVolume / Volume);
+                else
+                    return (double) (BuyVolume / Volume);
+            }
+        }
     }
 
     public enum TransferType

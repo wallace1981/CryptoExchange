@@ -91,10 +91,10 @@
                 </ProgressBar>
                 <Label VerticalAlignment="Top" HorizontalAlignment="Center">
                     <TextBlock>
-                    <Run Text="{Binding Path=NewOrder.Total, Mode=OneWay, StringFormat=N3}"/>
-                    <Run Text="/"/>
-                    <Run Text="{Binding Path=NewOrder.Balance, Mode=OneWay, StringFormat=N3}"/>
-                    <Run Text="{Binding Path=NewOrder.SymbolInformation.QuoteAsset, Mode=OneWay}"/>
+                        <Run Text="{Binding Path=NewOrder.Total, Mode=OneWay, StringFormat=N4}"/>
+                        <Run Text="/"/>
+                        <Run Text="{Binding Path=NewOrder.Balance, Mode=OneWay, StringFormat=N4}"/>
+                        <Run Text="{Binding Path=NewOrder.TotalAsset, Mode=OneWay}"/>
                     </TextBlock>
                 </Label>
                 <Slider
@@ -163,7 +163,8 @@
 
             <Button
                 Grid.Column="1" Grid.Row="9" Padding="6 5"
-                Command="{Binding Path=SubmitRuleCommand}">
+                Command="{Binding Path=SubmitRuleCommand, Mode=OneTime}"
+                CommandParameter="{Binding Path=RuleType, Mode=OneTime}">
                 <TextBlock
                     Text="CREATE"
                     FontFamily="{StaticResource RobotoCondensedBold}"/>

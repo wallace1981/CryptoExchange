@@ -21,7 +21,6 @@ namespace Exchange.Net
         protected string ClientStatus => $"Weight is {client.Weight}, expiration in {client.WeightReset.TotalSeconds} secs.";
 
         public override string ExchangeName => "Binance";
-
         protected override string DefaultMarket => "BTC";
         protected override bool HasMarketSummariesPull => false;
         protected override bool HasMarketSummariesPush => true;
@@ -76,6 +75,7 @@ namespace Exchange.Net
             //ProcessPriceTicker(tickers);
             //});
             this.HasSignedAccount = client.IsSigned;
+            Disposables.Add(klineSubscriptions);
         }
 
         protected override void InitializeAsyncImpl(CompositeDisposable disposables)
@@ -92,18 +92,19 @@ namespace Exchange.Net
             base.SetTickersSubscriptionWebSocket(isEnabled);
             if (isEnabled)
             {
-                klineSubscriptions = new CompositeDisposable();
+                var collector = new CompositeDisposable();
+                klineSubscriptions.Disposable = collector;
                 var pairs = Markets.Where(x => x.QuoteAsset == "BTC" || x.QuoteAsset == "USDT").Select(x => x.Symbol);
-                string[] intervals = { "1m", "5m", "1h" };
+                string[] intervals = { "1m", "5m", "15m", "30m", "1h" };
                 foreach (var x in intervals)
                 {
                     var kline = client.SubscribeKlinesAsync(pairs, x);
-                    kline.ObserveOnDispatcher().Subscribe(OnKline).DisposeWith(klineSubscriptions);
+                    kline.ObserveOnDispatcher().Select(Convert).Subscribe(OnKline).DisposeWith(collector);
                 }
             }
             else
             {
-                klineSubscriptions.Dispose();
+                klineSubscriptions.Disposable = null;
             }
         }
 
@@ -326,7 +327,9 @@ namespace Exchange.Net
             UpdateStatus();
             if (ordersResult.Success)
             {
-                var orders = ordersResult.Data.Select(Convert).OrderByDescending(x => x.Created);
+                var orders = ordersResult.Data.Select(Convert);
+                var obsoleteOrders = CurrentAccount.OpenOrders.Items.Select(x => x.OrderId).Except(orders.Select(x => x.OrderId));
+                CurrentAccount.OpenOrders.Remove(obsoleteOrders);
                 CurrentAccount.OpenOrders.AddOrUpdate(orders);
             }
         }
@@ -461,6 +464,7 @@ namespace Exchange.Net
                 QuantityDecimals = DigitsCount(lotSizeFilter.stepSize),
                 MinNotional = minNotionalFilter.minNotional,
                 TotalDecimals = DigitsCount(minNotionalFilter.minNotional),
+                IsMarginTradingAllowed = market.isMarginTradingAllowed,
                 CmcId = cmcEntry != null ? cmcEntry.id : -1,
                 CmcName = cmcEntry != null ? cmcEntry.name : market.baseAsset,
                 CmcSymbol = cmcEntry != null ? cmcEntry.symbol : market.symbol
@@ -483,7 +487,7 @@ namespace Exchange.Net
                 OrderId = x.orderId.ToString(),
                 Price = x.price,
                 Quantity = x.origQty,
-                ExecutedQuantity = x.cummulativeQuoteQty,
+                ExecutedQuantity = x.executedQty,
                 Side = (x.side == Binance.TradeSide.BUY.ToString()) ? TradeSide.Buy : TradeSide.Sell,
                 Created = x.time.FromUnixTimestamp(),
                 Updated = x.updateTime.FromUnixTimestamp(),
@@ -631,21 +635,23 @@ namespace Exchange.Net
             };
         }*/
 
-        public Candle Convert(Binance.WsCandlestick ticker)
+        public Candle Convert(Binance.WsCandlestick candlestick)
         {
+            var kline = candlestick.kline;
             return new Candle()
             {
-                Open = ticker.kline.openPrice,
-                High = ticker.kline.highPrice,
-                Low = ticker.kline.lowPrice,
-                Close = ticker.kline.closePrice,
-                QuoteVolume = ticker.kline.quoteVolume,
-                BuyQuoteVolume = ticker.kline.takerBuyQuoteVolume,
-                Volume = ticker.kline.volume,
-                BuyVolume = ticker.kline.quoteVolume,
-                Symbol = ticker.symbol,
-                OpenTime = ticker.kline.openTime.FromUnixTimestamp(),
-                CloseTime = ticker.kline.closeTime.FromUnixTimestamp()
+                Open = kline.openPrice,
+                High = kline.highPrice,
+                Low = kline.lowPrice,
+                Close = kline.closePrice,
+                QuoteVolume = kline.quoteVolume,
+                BuyQuoteVolume = kline.takerBuyQuoteVolume,
+                Volume = kline.volume,
+                BuyVolume = kline.takerBuyVolume,
+                Symbol = candlestick.symbol,
+                Interval = candlestick.kline.interval,
+                OpenTime = kline.openTime.FromUnixTimestamp(),
+                CloseTime = kline.closeTime.FromUnixTimestamp()
             };
         }
 
@@ -690,7 +696,7 @@ namespace Exchange.Net
 
         private void OnKline(Binance.WsCandlestick candlestick)
         {
-            var ticker = GetPriceTicker(candlestick.symbol);
+            /*var ticker = GetPriceTicker(candlestick.symbol);
             if (ticker != null)
             {
                 var candle = Convert(candlestick);
@@ -701,16 +707,19 @@ namespace Exchange.Net
                         break;
                     case "5m":
                         ticker.Candle5m = candle;
-                        AnalyzeCandle(ticker.Candle5m);
+                        AnalyzeCandle(ticker.Candle5m, 1.04m, "5m");
                         break;
                     case "15m":
                         ticker.Candle15m = candle;
+                        AnalyzeCandle(ticker.Candle15m, 1.08m, "15m");
                         break;
                     case "30m":
                         ticker.Candle30m = candle;
+                        AnalyzeCandle(ticker.Candle30m, 1.10m, "30m");
                         break;
                     case "1h":
                         ticker.Candle1h = candle;
+                        AnalyzeCandle(ticker.Candle1h, 1.12m, "1h");
                         break;
                     case "6h":
                         ticker.Candle6h = candle;
@@ -728,39 +737,31 @@ namespace Exchange.Net
                         ticker.Candle1w = candle;
                         break;
                 }
-            }
-        }
-
-        private Dictionary<string, long> candleCache = new Dictionary<string, long>();
-
-        private async void AnalyzeCandle(Candle candle)
-        {
-            if (candle.Close == decimal.Zero || candle.Open == decimal.Zero)
-                return;
-            if (candleCache.ContainsKey(candle.Symbol) && candleCache[candle.Symbol] == candle.CloseTime.Ticks)
-                return;
-            if (candle.Close - candle.Open == 0.00000001m)
-                return;
-            decimal delta = candle.Close / candle.Open;
-            if (delta >= 1.04m)
-            {
-                candleCache[candle.Symbol] = candle.CloseTime.Ticks;
-                //await Alert.Handle($"{candle.Symbol}: price raised {delta-1m:p2}");
-                await TelegramNotifier.Notify($"[{ExchangeName}] {candle.Symbol} price raised {delta - 1m:p2}");
-            }
+            }*/
         }
 
         // TODO: below FUNC is EXACT COPY of ExecuteOrder(), so do home work and refactor.
         protected override async Task<Order> PlaceOrder(TradingRule rule)
         {
+            var si = GetSymbolInformation(rule.Market);
             var orderType = Binance.OrderType.MARKET;
             Enum.TryParse<Binance.OrderType>(rule.OrderType, ignoreCase: true, result: out orderType);
+            decimal? price = null;
+            if (orderType == Binance.OrderType.LIMIT)
+            {
+                if (rule.OrderSide == TradeSide.Buy)
+                    price = si.ClampPrice(rule.ThresholdRate * 1.01m);
+                else
+                    price = si.ClampPrice(rule.ThresholdRate * 0.99m);
+            }
             var result = await client.PlaceOrderAsync(
                 rule.Market,
                 rule.OrderSide == TradeSide.Buy ? Binance.TradeSide.BUY : Binance.TradeSide.SELL,
                 orderType,
                 rule.OrderVolume,
-                orderType == Binance.OrderType.LIMIT ? rule.ThresholdRate : default(decimal?)
+                price,
+                null,
+                orderType == Binance.OrderType.LIMIT ? Binance.TimeInForce.IOC : Binance.TimeInForce.GTC
                 ).ConfigureAwait(false);
             if (result.Success)
             {
@@ -768,6 +769,39 @@ namespace Exchange.Net
             }
             else
             {
+                throw new ApiException(result.Error);
+            }
+        }
+
+        protected async override Task<bool> CancelOrderImpl(Order order)
+        {
+            var result = await client.CancelOrderAsync(order.SymbolInformation.Symbol, long.Parse(order.OrderId));
+            if (result.Success)
+            {
+                CurrentAccount.OpenOrders.Remove(order.OrderId);
+            }
+            return result.Success;
+        }
+
+        protected async override Task<bool> SubmitOrderImpl(NewOrder order)
+        {
+            var orderType = Binance.OrderType.MARKET;
+            Enum.TryParse<Binance.OrderType>(order.OrderType, ignoreCase: true, result: out orderType);
+            var result = await client.PlaceOrderAsync(
+                order.SymbolInformation.Symbol,
+                order.Side == TradeSide.Buy ? Binance.TradeSide.BUY : Binance.TradeSide.SELL,
+                orderType,
+                order.Quantity,
+                orderType == Binance.OrderType.LIMIT ? order.Price : default(decimal?)
+                ).ConfigureAwait(false);
+            if (result.Success)
+            {
+                CurrentAccount.OpenOrders.AddOrUpdate(Convert(result.Data));
+                return true;
+            }
+            else
+            {
+                await Alert.Handle(result.Error.Msg);
                 throw new ApiException(result.Error);
             }
         }
@@ -879,7 +913,7 @@ namespace Exchange.Net
         }
 
         #endregion
-        private CompositeDisposable klineSubscriptions;
+        SerialDisposable klineSubscriptions = new SerialDisposable();
         private readonly ReactiveCommand<long, DateTime> getServerTimeCommand;
         private Binance.ExchangeInfo currentExchangeInfo;
         private DateTime ticker24hrLastRun = DateTime.MinValue;

@@ -229,6 +229,35 @@ namespace Terminal.WPF
         }
     }
 
+    public class PercentToGradientConverterEx : IValueConverter
+    {
+        public Color BullColor { get; set; } = Colors.Transparent;
+        public Color BearColor { get; set; } = Colors.Transparent;
+
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            var percentage = (double)value;
+            var color = Colors.Black;
+            if (percentage >= 0.5)
+                color = BullColor;
+            else if (percentage <= -0.5)
+                color = BearColor;
+            else
+                percentage = 0.5;
+            if (Math.Abs(percentage) < 0.1)
+                percentage = 0.5;
+            var newBrush = new SolidColorBrush(color) { Opacity = Math.Abs(percentage) };
+            if (newBrush.CanFreeze)
+                newBrush.Freeze();
+            return newBrush;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
     public class NullableDecimalToDoubleConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)

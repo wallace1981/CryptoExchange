@@ -9,7 +9,7 @@
              d:DesignHeight="450" d:DesignWidth="1250">
     <Grid>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="Auto" MinWidth="480"/>
+            <ColumnDefinition Width="660"/>
             <ColumnDefinition/>
             <ColumnDefinition Width="390"/>
         </Grid.ColumnDefinitions>
@@ -135,13 +135,21 @@
                         <ToolBar DockPanel.Dock="Top">
                             <Button
                                 Command="{Binding Path=CreateRule, Mode=OneWay}"
-                                CommandParameter="TakeProfit"
-                                Content="Создать правило"/>
+                                CommandParameter="Alert"
+                                Content="Alert"/>
+                            <Button
+                                Command="{Binding Path=CreateRule, Mode=OneWay}"
+                                CommandParameter="Regular"
+                                Content="Regular"/>
+                            <Button
+                                Command="{Binding Path=CreateRule, Mode=OneWay}"
+                                CommandParameter="TTP"
+                                Content="Trailing"/>
                             <Button
                                 Command="{Binding Path=DeleteRule, Mode=OneWay}"
                                 CommandParameter="{Binding ElementName=lstRules, Path=SelectedItem}"
                                 >
-                                <TextBlock Text="Удалить правило"/>
+                                <TextBlock Text="Delete"/>
                             </Button>
                         </ToolBar>
                         <!--<telerik:RadTileList ItemsSource="{Binding Path=TradingRuleProxies, Mode=OneWay}">
@@ -160,15 +168,16 @@
                         <!--<local:TestTradesView/>-->
 
                         <DataGrid
-                            FontFamily="{StaticResource Roboto}"
+                            FontFamily="{StaticResource RobotoCondensed}"
                             ItemsSource="{Binding Path=TradingRuleProxies, Mode=OneWay}"
+                            ColumnHeaderStyle="{StaticResource DataGridColumnHeaderLeftAlign}"
                             x:Name="lstRules">
                             <DataGrid.Columns>
-                                <DataGridTextColumn Header="Symbol" Binding="{Binding Path=Rule.Market}"/>
-                                <DataGridTextColumn Header="Trigger" Binding="{Binding Path=Condition}"/>
-                                <DataGridTextColumn Header="Volume" Binding="{Binding Path=Rule.OrderVolume}"/>
-                                <DataGridTextColumn Header="Price" Binding="{Binding Path=Rule.OrderRate}"/>
-                                <DataGridTextColumn Header="Status" Width="*" Binding="{Binding Path=Status}"/>
+                                <DataGridTextColumn Header="Pair" Binding="{Binding Path=SymbolInformation.Caption, Mode=OneTime}"/>
+                                <DataGridTextColumn Header="Trigger" Binding="{Binding Path=Condition, Mode=OneWay}"/>
+                                <DataGridTextColumn Header="Volume" Binding="{Binding Path=Rule.OrderVolume, Mode=OneWay}"/>
+                                <DataGridTextColumn Header="Price" Binding="{Binding Path=Rule.OrderRate, Mode=OneWay}"/>
+                                <DataGridTextColumn Header="Status" Width="*" Binding="{Binding Path=Status, Mode=OneWay}"/>
                             </DataGrid.Columns>
                         </DataGrid>
                     </DockPanel>
@@ -177,7 +186,7 @@
                     <local:TradeTasksListView/>
                 </TabItem>
                 <TabItem Header="Orders">
-                    <DockPanel>
+                    <DockPanel Background="Yellow">
                         <ToolBar DockPanel.Dock="Top">
                             <Button
                                 Command="{Binding Path=GetOpenOrders, Mode=OneWay}">
@@ -186,7 +195,7 @@
                         </ToolBar>
                         <xceed:BusyIndicator
                             IsBusy="{Binding Path=IsGetOpenOrdersExecuting, Mode=OneWay}"
-                            DisplayAfter="0">
+                            DisplayAfter="0" BusyContent="Loading orders...">
                             <local:OpenOrdersView/>
                         </xceed:BusyIndicator>
                     </DockPanel>
@@ -198,12 +207,16 @@
                                 Command="{Binding Path=GetOrdersHistory, Mode=OneWay}"
                                 Content="Refresh"
                                 />
+                            <ToggleButton
+                                IsChecked="{Binding Path=CurrentAccountViewModel.CancelledOrdersVisible, Mode=TwoWay}"
+                                Content="Display Cancelled"
+                                />
                         </ToolBar>
                         <local:OrdersHistory />
                     </DockPanel>
                 </TabItem>
                 <TabItem Header="Trade History">
-                    <DockPanel>
+                    <DockPanel Background="Yellow">
                         <ToolBar DockPanel.Dock="Top">
                             <Button
                                 Command="{Binding Path=GetTradesHistory, Mode=OneWay}"
@@ -214,7 +227,11 @@
                                 Content="Statistics"
                                 />
                         </ToolBar>
-                        <local:TradesHistory />
+                        <xceed:BusyIndicator
+                            IsBusy="{Binding Path=IsGetTradesHistoryExecuting, Mode=OneWay}"
+                            DisplayAfter="0" BusyContent="Loading trades...">
+                            <local:TradesHistory />
+                        </xceed:BusyIndicator>
                     </DockPanel>
                 </TabItem>
                 <TabItem Header="Wallet">
@@ -246,8 +263,9 @@
                                     </TextBlock>
                                     <TextBlock Grid.Column="4" Text="{Binding Path=CurrentAccountViewModel.TotalUsd, Mode=OneWay, StringFormat={StaticResource StringFormatPriceUsd}}" FontWeight="Normal" HorizontalAlignment="Right" TextAlignment="Right" Padding="2 1 3 1"/>
                                 </Grid>
-                                <ItemsControl ItemsSource="{Binding Path=CurrentAccountViewModel.Balances, Mode=OneWay}"
-                                          FontWeight="Normal" ScrollViewer.VerticalScrollBarVisibility="Auto">
+                                <ItemsControl
+                                    ItemsSource="{Binding Path=CurrentAccountViewModel.Balances, Mode=OneWay}"
+                                    FontWeight="Normal" ScrollViewer.VerticalScrollBarVisibility="Auto">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
                                             <Grid Visibility="{Binding Path=Total, Mode=OneWay, Converter={StaticResource convBalanceVisib}}"
@@ -324,7 +342,9 @@
                 </TabItem>
             </TabControl>
             <Border Grid.Row="0" BorderThickness="1 1 1 1" BorderBrush="LightGray" Background="White">
-                <!--<local:TradingViewChart Symbol="{Binding Path=CurrentSymbolInformation.SymbolUniversal, Mode=OneWay}" Exchange="{Binding Path=ExchangeName, Mode=OneWay}"/>-->
+                <!--<local:TradingViewChart
+                    Symbol="{Binding Path=CurrentSymbolInformation.SymbolUniversal, Mode=OneWay}"
+                    Exchange="{Binding Path=ExchangeName, Mode=OneWay}"/>-->
             </Border>
         </Grid>
         

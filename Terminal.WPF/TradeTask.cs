@@ -524,10 +524,10 @@ namespace Exchange.Net
 
     public class NewOrder : OrderBookEntry
     {
-        public string OrderType { get; set; } = "limit";
+        public string OrderType { get; set; }
         public decimal Balance => Side == TradeSide.Buy ? SymbolInformation.QuoteAssetBalance.Free : SymbolInformation.BaseAssetBalance.Free;
         [Reactive] public double BalancePercent { get; set; }
-
+        public string TotalAsset => (Side == TradeSide.Buy) ? SymbolInformation.QuoteAsset : SymbolInformation.BaseAsset;
 
         public NewOrder(SymbolInformation si, OrderBookEntry entry = null) : base(si)
         {
@@ -541,7 +541,7 @@ namespace Exchange.Net
             {
                 Price = si.PriceTicker.LastPrice.GetValueOrDefault();
             }
-            this.WhenAnyValue(x => x.Side).Subscribe(y => this.RaisePropertyChanged(nameof(Balance)));
+            this.WhenAnyValue(x => x.Side).Subscribe(OrderSideDependantActions);
             this.WhenAnyValue(x => x.BalancePercent).Subscribe(y => CalcQuantity());
             BalancePercent = 0.05;
         }
@@ -551,6 +551,12 @@ namespace Exchange.Net
             var total = Math.Round(Balance * (decimal)BalancePercent, 8);
             Quantity = SymbolInformation.ClampQuantity(total / Price);
             this.RaisePropertyChanged(nameof(Total));
+        }
+
+        private void OrderSideDependantActions(TradeSide side)
+        {
+            this.RaisePropertyChanged(nameof(Balance));
+            this.RaisePropertyChanged(nameof(TotalAsset));
         }
     }
 

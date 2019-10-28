@@ -248,7 +248,7 @@ namespace Exchange.Net
         public Task<ApiResult<Binance.ServerTime>> GetServerTimeAsync()
         {
             var requestMessage = CreateRequestMessage(new BlankPublicRequest(), GetServerTimeEndpoint, HttpMethod.Get);
-            return ExecuteRequestAsync<Binance.ServerTime>(requestMessage, GetServerTimeWeight);
+            return ExecuteRequestAsync<Binance.ServerTime>(requestMessage, GetServerTimeWeight, logCall: false);
         }
 
         public IObservable<ApiResult<Binance.ServerTime>> ObserveServerTime()
@@ -705,7 +705,7 @@ namespace Exchange.Net
         protected const int RateLimitStatusCode = 429;
         protected const int BannedStatusCode = 418;
 
-        protected async Task<ApiResult<T>> ExecuteRequestAsync<T>(HttpRequestMessage requestMessage, int endpointWeight, string contentPath = null)
+        protected async Task<ApiResult<T>> ExecuteRequestAsync<T>(HttpRequestMessage requestMessage, int endpointWeight, string contentPath = null, bool logCall = true)
         {
             ApiResult<T> result = null;
             try
@@ -716,14 +716,15 @@ namespace Exchange.Net
                 sw.Stop();
 
                 var uri = responseMessage.RequestMessage.RequestUri.ToString();
-                Debug.Print($"{requestMessage.Method} {uri} : {responseMessage.StatusCode}");
+                //Debug.Print($"{requestMessage.Method} {uri} : {responseMessage.StatusCode}");
 
                 DumpJson(contentPath, content);
 
                 if (responseMessage.IsSuccessStatusCode)
                 {
                     UpdateWeight(endpointWeight);
-                    Log.DebugFormat("{0} {1} - {2}ms : {3} ({4}).", requestMessage.Method, uri, sw.ElapsedMilliseconds, responseMessage.ReasonPhrase, (int)responseMessage.StatusCode);
+                    if (logCall)
+                        Log.DebugFormat("{0} {1} - {2}ms : {3} ({4}).", requestMessage.Method, uri, sw.ElapsedMilliseconds, responseMessage.ReasonPhrase, (int)responseMessage.StatusCode);
                     DumpJson(contentPath, content);
                     result = new ApiResult<T>(JsonConvert.DeserializeObject<T>(content.Replace(",[]", string.Empty)), null, sw.ElapsedMilliseconds);
                 }
