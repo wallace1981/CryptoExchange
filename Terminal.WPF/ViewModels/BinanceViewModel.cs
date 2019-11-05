@@ -4,6 +4,7 @@ using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Linq;
 using System.Reactive;
@@ -18,7 +19,7 @@ namespace Exchange.Net
     public partial class BinanceViewModel : ExchangeViewModel
     {
         protected string ServerStatus;
-        protected string ClientStatus => $"Weight is {client.Weight}, expiration in {client.WeightReset.TotalSeconds} secs.";
+        protected string ClientStatus => $"Weight is {client.Weight}, expiration in {client.WeightReset.TotalSeconds:F0} secs.";
 
         public override string ExchangeName => "Binance";
         protected override string DefaultMarket => "BTC";
@@ -36,6 +37,7 @@ namespace Exchange.Net
         //public ICommand GetServerTimeCommand => getServerTimeCommand;
         [Reactive] public string CurrentInterval { get; set; } = "1d";
         private ReactiveCommand<Unit, Unit> GetServerTime { get; }
+        private ReactiveCommand<string, Unit> KeepAliveUserDataStream { get; }
 
         public IList<string> KlineIntervals
         {
@@ -57,6 +59,7 @@ namespace Exchange.Net
 
             //getServerTimeCommand = ReactiveCommand.CreateFromTask<long, DateTime>(x => GetServerTimeAsync());
             GetServerTime = ReactiveCommand.CreateFromTask(GetServerTimeImpl);
+            KeepAliveUserDataStream = ReactiveCommand.CreateFromTask<string>(KeepAliveUserDataStreamImpl);
 
             FetchKlines = ReactiveCommand.CreateFromTask<int>(FetchKlinesImpl);
             ConvertKlines = ReactiveCommand.Create(ConvertKlinesImpl);
@@ -76,6 +79,14 @@ namespace Exchange.Net
             //});
             this.HasSignedAccount = client.IsSigned;
             Disposables.Add(klineSubscriptions);
+
+            StatusItems = new ReadOnlyCollection<StatusItem>(new StatusItem[] {
+                new StatusItem(),
+                new StatusItem(),
+                new StatusItem(),
+                new StatusItem(),
+                new StatusItem()
+            });
         }
 
         protected override void InitializeAsyncImpl(CompositeDisposable disposables)
@@ -85,6 +96,45 @@ namespace Exchange.Net
                 .Select(x => Unit.Default)
                 .InvokeCommand(GetServerTime)
                 .DisposeWith(Disposables);
+            SubscribeUserDataStream();
+        }
+
+        private async void SubscribeUserDataStream()
+        {
+            var result = await client.StartUserDataStream();
+            if (result.Success)
+            {
+                var listenKey = result.Data.listenKey;
+                client.ObserveUserDataStream(listenKey)
+                    .Subscribe(
+                    x =>
+                    {
+                        // TODO: run corresponding handlers!
+                        Console.WriteLine(x.eventType);
+                    })
+                    .DisposeWith(Disposables);
+                // keep-alive "listen key" routine
+                Observable
+                    .Interval(TimeSpan.FromMinutes(30))
+                    .Select(x => listenKey)
+                    .InvokeCommand(KeepAliveUserDataStream)
+                    .DisposeWith(Disposables);
+            }
+        }
+
+        protected override Task ProcessTradingRuleOnPriceTicker(TradingRuleProxy proxy, PriceTicker ticker)
+        {
+            return Task.CompletedTask;
+        }
+
+        protected override Task ProcessTradingRuleOnBookTicker(TradingRuleProxy proxy, BookTicker ticker)
+        {
+            return ProcessTradingRule(proxy, new PriceTicker { Symbol = proxy.Symbol, Ask = ticker.AskPrice, Bid = ticker.BidPrice });
+        }
+
+        protected override Task ProcessTradingRuleOnPrice(TradingRuleProxy proxy, decimal price)
+        {
+            return ProcessTradingRule(proxy, new PriceTicker { Symbol = proxy.Symbol, LastPrice = price });
         }
 
         protected override void SetTickersSubscriptionWebSocket(bool isEnabled)
@@ -96,11 +146,20 @@ namespace Exchange.Net
                 klineSubscriptions.Disposable = collector;
                 var pairs = Markets.Where(x => x.QuoteAsset == "BTC" || x.QuoteAsset == "USDT").Select(x => x.Symbol);
                 string[] intervals = { "1m", "5m", "15m", "30m", "1h" };
-                foreach (var x in intervals)
+                foreach (var i in intervals)
                 {
-                    var kline = client.SubscribeKlinesAsync(pairs, x);
-                    kline.ObserveOnDispatcher().Select(Convert).Subscribe(OnKline).DisposeWith(collector);
+                    var kline = client.SubscribeKlinesAsync(pairs, i);
+                    kline.ObserveOnDispatcher()
+                        .Do(x => { if (x.kline.interval == "1m") UpdateStatus($"{x.symbol}: {x.kline.closePrice}", 3); })
+                        .Select(Convert)
+                        .Subscribe(OnKline)
+                        .DisposeWith(collector);
                 }
+                client.ObserveOrderBookTickers()
+                    .Select(Convert)
+                    .Do(x => UpdateStatus(x.ToString(), 4))
+                    .Subscribe(x => BookTickers[x.Symbol].OnNext(x))
+                    .DisposeWith(collector);
             }
             else
             {
@@ -108,10 +167,10 @@ namespace Exchange.Net
             }
         }
 
-        protected void UpdateStatus(string serverStatus, string clientMsg = null)
+        protected void UpdateStatus(string status, int index)
         {
-            Status = string.Join("  ", serverStatus, clientMsg ?? ClientStatus);
-            ServerStatus = serverStatus;
+            if (StatusItems != null && index < StatusItems.Count)
+                StatusItems[index].Text = status;
         }
 
         private async Task GetServerTimeImpl()
@@ -124,7 +183,13 @@ namespace Exchange.Net
             }
             else
                 ServerTime = DateTime.UtcNow;
-            UpdateStatus($"Server Time: {ServerTime}");
+            UpdateStatus($"Server Time: {ServerTime}", 0);
+        }
+
+        private async Task KeepAliveUserDataStreamImpl(string listenKey)
+        {
+            var result = await client.KeepAliveUserDataStream(listenKey);
+            return;
         }
 
         private async Task FetchKlinesImpl(int limit)
@@ -168,11 +233,13 @@ namespace Exchange.Net
                 var symbols = resultExchangeInfo.Data.symbols.Select(CreateSymbolInformation);
                 ProcessExchangeInfo(symbols);
                 var serverTime = resultExchangeInfo.Data.serverTime.FromUnixTimestamp();
-                UpdateStatus($"Server Time: {serverTime}; Number of trading pairs: {symbols.Count()}");
+                UpdateStatus($"Server Time: {serverTime}", 0);
+                UpdateStatus($"# of trading pairs: {symbols.Count()}", 1);
+                UpdateStatus(ClientStatus, 2);
             }
             else
             {
-                UpdateStatus(ServerStatus, $"GetExchangeInfo: {resultExchangeInfo.Error.ToString()}");
+                UpdateStatus($"GetExchangeInfo: {resultExchangeInfo.Error.ToString()}", 2);
             }
         }
 
@@ -199,11 +266,11 @@ namespace Exchange.Net
                 GetTickersElapsed = resultTickers.ElapsedMilliseconds;
                 var tickers = resultTickers.Data.Select(Convert);
                 ProcessPriceTicker(tickers);
-                UpdateStatus(ServerStatus);
+                UpdateStatus(ClientStatus, 2);
             }
             else
             {
-                UpdateStatus(ServerStatus, $"GetTickers: {resultTickers.Error.ToString()}");
+                UpdateStatus($"GetTickers: {resultTickers.Error.ToString()}", 2);
             }
         }
 
@@ -228,12 +295,12 @@ namespace Exchange.Net
                         }
                     }
                     ProcessPriceTicker(tickers);
-                    UpdateStatus(ServerStatus);
+                    UpdateStatus(ClientStatus, 2);
                 }
                 else
                 {
                     var err = priceTickersTask.Result.Success ? bookTickersTask.Result.Error : priceTickersTask.Result.Error;
-                    UpdateStatus(ServerStatus, $"GetTickers: {err.ToString()}");
+                    UpdateStatus($"GetTickers: {err.ToString()}", 2);
                 }
             }
         }
@@ -251,11 +318,11 @@ namespace Exchange.Net
                 GetTradesElapsed = resultTrades.ElapsedMilliseconds;
                 var trades = resultTrades.Data.Select(x => Convert(x, si)).Reverse().ToList();
                 ProcessPublicTrades(trades);
-                UpdateStatus(ServerStatus);
+                UpdateStatus(ClientStatus, 2);
             }
             else
             {
-                UpdateStatus(ServerStatus, $"GetAggTrades: {resultTrades.Error.ToString()}");
+                UpdateStatus($"GetAggTrades: {resultTrades.Error.ToString()}", 2);
             }
         }
 
@@ -272,11 +339,11 @@ namespace Exchange.Net
                 var asks = depth.asks.Select(a => new OrderBookEntry(si) { Price = decimal.Parse(a[0]), Quantity = decimal.Parse(a[1]), Side = TradeSide.Sell });
                 var bids = depth.bids.Select(b => new OrderBookEntry(si) { Price = decimal.Parse(b[0]), Quantity = decimal.Parse(b[1]), Side = TradeSide.Buy });
                 ProcessOrderBook(asks.Reverse().Concat(bids));
-                UpdateStatus(ServerStatus);
+                UpdateStatus(ClientStatus, 2);
             }
             else
             {
-                UpdateStatus(ServerStatus, $"GetDepth: {resultDepth.Error.ToString()}");
+                UpdateStatus($"GetDepth: {resultDepth.Error.ToString()}", 2);
             }
         }
 
@@ -433,7 +500,7 @@ namespace Exchange.Net
 
         protected override IObservable<PriceTicker> ObserveTickers123()
         {
-            return client.SubscribeMarketSummariesAsync(null).Select(Convert).Where(x => x != null);
+            return client.SubscribeMarketSummaries(null).Select(Convert).Where(x => x != null);
         }
 
         protected override IObservable<PublicTrade> ObserveTrades(string market)
@@ -623,6 +690,24 @@ namespace Exchange.Net
             } : null;
         }
 
+        public PriceTicker Convert(Binance.Ws24hrMiniTicker ticker)
+        {
+            var si = GetSymbolInformation(ticker.symbol);
+            return si != null ? new PriceTicker()
+            {
+                BuyVolume = 0m,
+                HighPrice = Math.Round(ticker.high, si.PriceDecimals),
+                LastPrice = Math.Round(ticker.close, si.PriceDecimals),
+                LowPrice = Math.Round(ticker.low, si.PriceDecimals),
+                PriceChange = Math.Round(ticker.close - ticker.open, si.PriceDecimals),
+                PriceChangePercent = ticker.close / ticker.open,
+                QuoteVolume = ticker.quoteVolume,
+                Symbol = ticker.symbol,
+                SymbolInformation = si,
+                Volume = Math.Round(ticker.volume, si.QuantityDecimals),
+            } : null;
+        }
+
         /*public PriceTicker ToPriceTicker(Binance.WsCandlestick ticker)
         {
             return new PriceTicker()
@@ -691,6 +776,17 @@ namespace Exchange.Net
                 Quantity = x.quantity,
                 Side = !x.isBuyerMaker ? TradeSide.Buy : TradeSide.Sell,
                 Time = x.tradeTime.FromUnixTimestamp()
+            };
+        }
+        public BookTicker Convert(Binance.WsBookTicker x)
+        {
+            return new BookTicker
+            {
+                AskPrice = x.askPrice,
+                AskQty = x.askQty,
+                BidPrice = x.bidPrice,
+                BidQty = x.bidQty,
+                Symbol = x.symbol
             };
         }
 

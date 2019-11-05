@@ -494,6 +494,20 @@ namespace Exchange.Net
         [Reactive] public Candle Candle1w { get; set; }
     }
 
+    public class BookTicker
+    {
+        public string Symbol { get; set; }
+        public decimal AskPrice { get; set; }
+        public decimal AskQty { get; set; }
+        public decimal BidPrice { get; set; }
+        public decimal BidQty { get; set; }
+
+        public override string ToString()
+        {
+            return $"{Symbol}: {AskPrice} -- {BidPrice}";
+        }
+    }
+
     public class Candle
     {
         public string Symbol { get; set; }

@@ -238,7 +238,7 @@ namespace Exchange.Net
                 }).DisposeWith(Disposables);
             Observable.Interval(TimeSpan.FromSeconds(1)).InvokeCommand(GetServerTimeCommand).DisposeWith(Disposables);
 
-            var sub24hrPriceTickerWs = client.SubscribeMarketSummariesAsync(null);
+            var sub24hrPriceTickerWs = client.SubscribeMarketSummaries(null);
             sub24hrPriceTickerWs.Subscribe(
                 (Binance.WsPriceTicker24hr ticker) =>
                 {

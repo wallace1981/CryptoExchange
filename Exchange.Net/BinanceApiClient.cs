@@ -64,6 +64,15 @@ namespace Exchange.Net
 
     }
 
+    public class UserDataStreamRequest : PublicRequest
+    {
+        public string listenKey { get; set; }
+        public override bool Validate()
+        {
+            return !string.IsNullOrEmpty(listenKey);
+        }
+    }
+
     public class BlankPublicRequest : PublicRequest
     {
         public override bool Validate()
@@ -166,6 +175,31 @@ namespace Exchange.Net
                 Price above market price: STOP_LOSS BUY, TAKE_PROFIT SELL
                 Price below market price: STOP_LOSS SELL, TAKE_PROFIT BUY
                 */
+            return false;
+        }
+    }
+
+    public class NewOCORequest : SignedRequest
+    {
+        public string symbol { get; set; }
+        public string listClientOrderId { get; set; }
+        public Binance.TradeSide side { get; set; }
+        public decimal quantity { get; set; }
+        public decimal price { get; set; }
+        public decimal? limitIcebergQty { get; set; }
+        public string stopClientOrderId { get; set; }
+        public decimal stopPrice { get; set; }
+        public decimal? stopLimitPrice { get; set; }
+        public decimal? stopIcebergQty { get; set; }
+        public Binance.TimeInForce? stopLimitTimeInForce { get; set; }
+        public Binance.OrderRespType? newOrderRespType { get; set; } // Set the response JSON. ACK, RESULT, or FULL; MARKET and LIMIT order types default to FULL, all other orders default to ACK.
+
+        public NewOCORequest()
+        {
+        }
+
+        public override bool Validate()
+        {
             return false;
         }
     }
@@ -394,6 +428,8 @@ namespace Exchange.Net
         private const int QueryOrderWeight = 1;
         private const string CancelOrderEndpoint = "/api/v3/order";
         private const int CancelOrderWeight = 1;
+        private const string PlaceOCOEndpoint = "/api/v3/order/oco";
+        private const int PlaceOCOWeight = 1;
         private const string GetOpenOrdersEndpoint = "/api/v3/openOrders";
         private const int GetOpenOrdersWeight = 40;
         private const string GetAllOrdersEndpoint = "/api/v3/allOrders";
@@ -407,6 +443,9 @@ namespace Exchange.Net
         private const int GetDepositHistoryWeight = 1;
         private const string GetWithdrawHistoryEndpoint = "/wapi/v3/withdrawHistory.html";
         private const int GetWithdrawHistoryWeight = 1;
+
+        private const string UserDataStreamEndpoint = "/api/v3/userDataStream";
+        private const int UserDataStreamWeight = 1;
 
         public Task<ApiResult<Binance.AccountInfo>> GetAccountInfoAsync()
         {
@@ -475,6 +514,25 @@ namespace Exchange.Net
             return ExecuteRequestAsync<Binance.NewOrderResponseResult>(requestMessage, PlaceOrderWeight, $"newOrder-{symbol}");
         }
 
+        public Task<ApiResult<Binance.OCO>> PlaceOCOAsync(string symbol, Binance.TradeSide side, decimal amount, decimal takeProfitPrice, decimal stopPrice, decimal? stopLimitPrice = null, Binance.TimeInForce? tif = null, Binance.OrderRespType? newOrderRespType = null)
+        {
+            if (stopLimitPrice != null && tif == null)
+                tif = Binance.TimeInForce.GTC;
+            var request = new NewOCORequest()
+            {
+                newOrderRespType = newOrderRespType,
+                price = takeProfitPrice,
+                stopPrice = stopPrice,
+                stopLimitPrice = stopLimitPrice,
+                quantity = amount,
+                side = side,
+                symbol = symbol,
+                stopLimitTimeInForce = tif,
+            };
+            var requestMessage = CreateRequestMessage(request, PlaceOCOEndpoint, HttpMethod.Post);
+            return ExecuteRequestAsync<Binance.OCO>(requestMessage, PlaceOCOWeight, $"newOCO-{symbol}");
+        }
+
         public Task<ApiResult<Binance.Blank>> TestPlaceOrderAsync(string symbol, Binance.TradeSide side, Binance.OrderType type, decimal amount, decimal? price = null, decimal? stopPrice = null, Binance.TimeInForce? tif = null, string newClientOrderId = null)
         {
             var request = new NewOrderRequest()
@@ -520,6 +578,23 @@ namespace Exchange.Net
             return ExecuteRequestAsync<Binance.CancelOrderResponseResult>(requestMessage, CancelOrderWeight, $"cancelOrder-{symbol}");
         }
 
+        public Task<ApiResult<Binance.UserDataStreamInfo>> StartUserDataStream()
+        {
+            var requestMessage = CreateRequestMessage(new BlankPublicRequest(), UserDataStreamEndpoint, HttpMethod.Post, passApiKey: true);
+            return ExecuteRequestAsync<Binance.UserDataStreamInfo>(requestMessage, UserDataStreamWeight, "userDataStream");
+        }
+
+        public Task<ApiResult<Binance.Blank>> KeepAliveUserDataStream(string listenKey)
+        {
+            var requestMessage = CreateRequestMessage(new UserDataStreamRequest { listenKey = listenKey }, UserDataStreamEndpoint, HttpMethod.Put, passApiKey: true);
+            return ExecuteRequestAsync<Binance.Blank>(requestMessage, UserDataStreamWeight);
+        }
+
+        public Task<ApiResult<Binance.Blank>> DeleteUserDataStream(string listenKey)
+        {
+            var requestMessage = CreateRequestMessage(new UserDataStreamRequest { listenKey = listenKey }, UserDataStreamEndpoint, HttpMethod.Delete, passApiKey: true);
+            return ExecuteRequestAsync<Binance.Blank>(requestMessage, UserDataStreamWeight);
+        }
         #endregion
 
         #region WebSocket API
@@ -528,7 +603,7 @@ namespace Exchange.Net
         /// 24hr Ticker statistics for all symbols that changed in an array pushed every second.
         /// </summary>
         /// <param name="symbols">Symbols.</param>
-        public IObservable<Binance.WsPriceTicker24hr> SubscribeMarketSummariesAsync(IEnumerable<string> symbols)
+        public IObservable<Binance.WsPriceTicker24hr> SubscribeMarketSummaries(IEnumerable<string> symbols)
         {
             // A single connection to stream.binance.com is only valid for 24 hours; expect to be disconnected at the 24 hour mark
             const string url = "wss://stream.binance.com:9443";
@@ -539,6 +614,14 @@ namespace Exchange.Net
             var uri2 = url + req2;
             var ws = new WebSocketWrapper(uri2, "ticker");
             return ws.Observe().SelectMany(OnTickerSocketMessage);
+        }
+
+        public IObservable<Binance.Ws24hrMiniTicker> Subscribe24hrMiniPriceTicker(IEnumerable<string> symbols)
+        {
+            // A single connection to stream.binance.com is only valid for 24 hours; expect to be disconnected at the 24 hour mark
+            const string url = "wss://stream.binance.com:9443/ws/!miniTicker@arr";
+            var ws = new WebSocketWrapper(url, "24hrMiniTicker");
+            return ws.Observe().SelectMany(On24hrMiniTickerSocketMessage);
         }
 
         public IObservable<Binance.WsCandlestick> SubscribeKlinesAsync(IEnumerable<string> symbols, string interval)
@@ -599,6 +682,22 @@ namespace Exchange.Net
             return ws.Observe().Select(OnDepthSocketMessage2);
         }
 
+        public IObservable<Binance.WsBookTicker> ObserveOrderBookTickers()
+        {
+            // All symbols for streams are lowercase
+            // A single connection to stream.binance.com is only valid for 24 hours; expect to be disconnected at the 24 hour mark
+            const string req = "/!bookTicker";
+            var ws = new WebSocketWrapper(wssUrl + req, $"AllBookTicker");
+            return ws.Observe().Select(OnBookTickerSocketMessage);
+        }
+
+        public IObservable<Binance.WsBaseResponse> ObserveUserDataStream(string listenKey)
+        {
+            const string req = "/ws/";
+            var ws = new WebSocketWrapper(wssUrl + req + listenKey, $"UserDataStream@{listenKey}");
+            return ws.Observe().Select(OnUserDataStreamMessage);
+        }
+
         private void Ws_Error(object sender, SuperSocket.ClientEngine.ErrorEventArgs e)
         {
             Debug.Print(e.Exception.ToString());
@@ -624,6 +723,12 @@ namespace Exchange.Net
             return tickers;
         }
 
+        IEnumerable<Binance.Ws24hrMiniTicker> On24hrMiniTickerSocketMessage(string message)
+        {
+            var tickers = JsonConvert.DeserializeObject<IEnumerable<Binance.Ws24hrMiniTicker>>(message);
+            return tickers;
+        }
+
         Binance.WsDepth OnDepthSocketMessage(EventPattern<object, MessageReceivedEventArgs> p)
         {
             return OnDepthSocketMessage2(p.EventArgs.Message);
@@ -636,22 +741,44 @@ namespace Exchange.Net
             return depth;
         }
 
-        internal Binance.WsTrade OnTradeSocketMessage(EventPattern<object, MessageReceivedEventArgs> p)
+        Binance.WsBookTicker OnBookTickerSocketMessage(string message)
+        {
+            return JsonConvert.DeserializeObject<Binance.WsBookTicker>(message);
+        }
+
+        Binance.WsTrade OnTradeSocketMessage(EventPattern<object, MessageReceivedEventArgs> p)
         {
             return OnTradeSocketMessage(p.EventArgs.Message);
         }
 
-        internal Binance.WsTrade OnTradeSocketMessage(string message)
+        Binance.WsTrade OnTradeSocketMessage(string message)
         {
             var trade = JsonConvert.DeserializeObject<Binance.WsTrade>(message);
             //Debug.Print($"Trade: {trade.tradeId} {trade.symbol} {trade.price} {trade.quantity} {trade.isBuyerMaker}");
             return trade;
         }
 
-        internal Binance.WsCandlestick OnKlineSocketMessage(string message)
+        Binance.WsCandlestick OnKlineSocketMessage(string message)
         {
             var result = JsonConvert.DeserializeObject<Binance.WsResponse<Binance.WsCandlestick>>(message);
             return result.data;
+        }
+
+        Binance.WsBaseResponse OnUserDataStreamMessage(string message)
+        {
+            var tmp = JsonConvert.DeserializeObject<Binance.WsBaseResponse>(message);
+            DumpJson(string.Join("-", tmp.eventTime, tmp.eventType), message);
+            switch (tmp.eventType)
+            {
+                case "outboundAccountInfo":
+                    return JsonConvert.DeserializeObject<Binance.WsAccountUpdate>(message);
+                case "outboundAccountPosition":
+                    return JsonConvert.DeserializeObject<Binance.WsAccountUpdate>(message);
+                case "executionReport":
+                    return JsonConvert.DeserializeObject<Binance.WsOrderUpdate>(message);
+                default:
+                    return tmp;
+            }
         }
 
         #endregion
@@ -675,7 +802,7 @@ namespace Exchange.Net
             return requestMessage;
         }
 
-        protected HttpRequestMessage CreateRequestMessage(PublicRequest requestParams, string endpoint, HttpMethod method)
+        protected HttpRequestMessage CreateRequestMessage(PublicRequest requestParams, string endpoint, HttpMethod method, bool passApiKey = false)
         {
             var query = requestParams.GetQueryString();
             HttpContent content = null;
@@ -686,6 +813,8 @@ namespace Exchange.Net
             var requestMessage = new HttpRequestMessage(method, endpoint) { Content = content };
             requestMessage.Properties.Add("QUERY", query);
             requestMessage.Headers.Add("Keep-Alive", "6000");
+            if (passApiKey)
+                requestMessage.Headers.Add("X-MBX-APIKEY", ApiKey.ToManagedString());
             return requestMessage;
         }
 
@@ -738,6 +867,8 @@ namespace Exchange.Net
                 }
                 else if (responseMessage.StatusCode >= HttpStatusCode.BadRequest && responseMessage.StatusCode < HttpStatusCode.InternalServerError)
                 {
+                    if (logCall)
+                        Log.ErrorFormat("{0} {1} - {2}ms : {3} ({4}).", requestMessage.Method, uri, sw.ElapsedMilliseconds, responseMessage.ReasonPhrase, (int)responseMessage.StatusCode);
                     // HTTP 4XX return codes are used for for malformed requests; the issue is on the sender's side.
                     var err = JsonConvert.DeserializeObject<Binance.Error>(content);
                     result = new ApiResult<T>(default(T), new ApiError(err.code, err.msg), sw.ElapsedMilliseconds);
@@ -782,7 +913,7 @@ namespace Exchange.Net
 
         #endregion
 
-        internal void CalcServerTimeOffset(long serverTime, double callDelayMilliseconds)
+        void CalcServerTimeOffset(long serverTime, double callDelayMilliseconds)
         {
             var diff = serverTime.FromUnixTimestamp(convertToLocalTime: false) - DateTime.UtcNow;
             var offset = diff.TotalMilliseconds - callDelayMilliseconds / 2.0;
@@ -897,11 +1028,30 @@ namespace Binance
         LIMIT_MAKER
     }
 
+    public enum OcoStatus       // listStatusType
+    {
+        RESPONSE,
+        EXEC_STARTED,
+        ALL_DONE
+    }
+
+    public enum OcoOrderStatus  // listOrderStatus
+    {
+        EXECUTING,
+        ALL_DONE,
+        REJECT
+    }
+
     public enum TimeInForce
     {
         GTC, // GoodTillCancel
         IOC, // ImmidiateOrCancel
         FOK  // FillOrKill
+    }
+
+    public enum ContingencyType
+    {
+        OCO
     }
 
     public enum OrderRespType
@@ -1054,11 +1204,16 @@ namespace Binance
         public int status { get; set; }
     }
 
-    public class Order
+    public class OrderBase
     {
         public string symbol { get; set; }
         public long orderId { get; set; }
         public string clientOrderId { get; set; }
+    }
+
+    public class Order : OrderBase
+    {
+        public long orderListId { get; set; }       // Unless OCO, the value will always be -1
         public decimal price { get; set; }
         public decimal origQty { get; set; }
         public decimal executedQty { get; set; }
@@ -1073,6 +1228,18 @@ namespace Binance
         public long updateTime { get; set; }
         public bool isWorking { get; set; }
         public AccountTrade[] fills { get; set; }
+    }
+
+    public class OCO
+    {
+        public long orderListId { get; set; }
+        public string contingencyType { get; set; }
+        public string listStatusType { get; set; }
+        public string listOrderStatus { get; set; }
+        public string listClientOrderId { get; set; }
+        public long transactionTime { get; set; }
+        public string symbol { get; set; }
+        public OrderBase[] orders { get; set; }
     }
 
     public class NewOrderResponseResult
@@ -1187,6 +1354,16 @@ namespace Binance
         //"B": "123456"   // Ignore
     }
 
+    public class Ws24hrMiniTicker : WsBaseResponse
+    {
+        [JsonProperty("c")] public decimal close { get; set; }
+        [JsonProperty("o")] public decimal open { get; set; }
+        [JsonProperty("h")] public decimal high { get; set; }
+        [JsonProperty("l")] public decimal low { get; set; }
+        [JsonProperty("v")] public decimal volume { get; set; } // Total traded base asset volume
+        [JsonProperty("q")] public decimal quoteVolume { get; set; } // Total traded quote asset volume
+    }
+
     public class WsPriceTicker24hr
     {
         [JsonProperty("e")]
@@ -1273,6 +1450,77 @@ namespace Binance
         public List<List<string>> bids { get; set; }
         [JsonProperty("a")]
         public List<List<string>> asks { get; set; }
+    }
+
+    public class WsBookTicker
+    {
+        [JsonProperty("u")]
+        public long updateId { get; set; }
+        [JsonProperty("s")]
+        public string symbol { get; set; }
+        [JsonProperty("b")]
+        public decimal bidPrice { get; set; }
+        [JsonProperty("B")]
+        public decimal bidQty { get; set; }
+        [JsonProperty("a")]
+        public decimal askPrice { get; set; }
+        [JsonProperty("A")]
+        public decimal askQty { get; set; }
+    }
+
+    public class WsAccountUpdate : WsBaseResponse
+    {
+        [JsonProperty("m")] public decimal makerComissionRate { get; set; }
+        [JsonProperty("t")] public decimal takerComissionRate { get; set; }
+        [JsonProperty("b")] public decimal buyerComissionRate { get; set; }
+        [JsonProperty("s")] public decimal sellerComissionRate { get; set; }
+        [JsonProperty("T")] public bool canTrade { get; set; }
+        [JsonProperty("W")] public bool canWithdraw { get; set; }
+        [JsonProperty("d")] public bool canDeposit { get; set; }
+        [JsonProperty("u")] public long lastUpdate { get; set; }
+        [JsonProperty("B")] public WsBalance[] balances { get; set; }
+    }
+
+    public class WsBalance
+    {
+        [JsonProperty("a")] public string asset { get; set; }
+        [JsonProperty("f")] public decimal free { get; set; }
+        [JsonProperty("l")] public decimal locked { get; set; }
+    }
+
+    public class WsOrderUpdate : WsBaseResponse
+    {
+        [JsonProperty("c")] public string clientOrderId { get; set; }
+        [JsonProperty("S")] public TradeSide side { get; set; }
+        [JsonProperty("o")] public OrderType type { get; set; }
+        [JsonProperty("f")] public TimeInForce tif { get; set; }
+        [JsonProperty("q")] public decimal quantity { get; set; }
+        [JsonProperty("p")] public decimal price { get; set; }
+        [JsonProperty("P")] public decimal stopPrice { get; set; }
+        [JsonProperty("F")] public decimal iceberqQuantity { get; set; }
+        [JsonProperty("g")] public long orderListId { get; set; }
+        [JsonProperty("C")] public string origClientOrderId { get; set; }// Original client order ID; This is the ID of the order being canceled
+        [JsonProperty("x")] public string executionType { get; set; }
+        [JsonProperty("X")] public OrderStatus status { get; set; }
+        [JsonProperty("r")] public string rejectReason { get; set; }// Order reject reason; will be an error code.
+        [JsonProperty("i")] public long id { get; set; }
+        [JsonProperty("l")] public decimal lastExecutedQuantity { get; set; }
+        [JsonProperty("z")] public decimal cumulativeFilledQuantity { get; set; }
+        [JsonProperty("L")] public decimal lastExecutedPrice { get; set; }
+        [JsonProperty("n")] public decimal comission { get; set; }
+        [JsonProperty("N")] public string comissionAsset { get; set; }
+        [JsonProperty("T")] public long transactionTime { get; set; }
+        [JsonProperty("t")] public long tradeId { get; set; }
+        [JsonProperty("w")] public bool isWorking { get; set; } // Is the order working? Stops will have
+        [JsonProperty("m")] public bool isMaker { get; set; } // Is this trade the maker side?
+        [JsonProperty("O")] public long created { get; set; } // Order creation time
+        [JsonProperty("Z")] public decimal cumulativeQuoteQuantity { get; set; } // Cumulative quote asset transacted quantity
+        [JsonProperty("Y")] public decimal lastExecutedQuoteQuantity { get; set; } // Last quote asset transacted quantity (i.e. lastPrice * lastQty)
+    }
+
+    public class UserDataStreamInfo
+    {
+        public string listenKey { get; set; }
     }
 
     #endregion

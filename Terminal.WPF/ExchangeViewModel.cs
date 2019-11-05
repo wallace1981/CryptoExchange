@@ -15,6 +15,7 @@ using System.Linq;
 using System.Reactive;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
+using System.Reactive.Subjects;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Data;
@@ -59,6 +60,7 @@ namespace Exchange.Net
         public ReactiveList<TradingRuleProxy> TradingRuleProxies => tradingRuleProxies;
         public SourceCache<ExchangeAccount, string> Accounts { get; }
         public ReadOnlyObservableCollection<ExchangeAccountViewModel> AccountsViewModels => accViewModels;
+        public ReadOnlyCollection<StatusItem> StatusItems { get; protected set; }
 
         [Reactive] public bool IsActive { get; set; }
         [Reactive] public bool IsInitializing { get; set; }
@@ -89,6 +91,7 @@ namespace Exchange.Net
 
         protected abstract string DefaultMarket { get; }
         protected List<string> UsdAssets = new List<string>();
+        protected Dictionary<string, Subject<BookTicker>> BookTickers { get; } = new Dictionary<string, Subject<BookTicker>>();
 
         protected virtual bool HasMarketSummariesPull => true;
         protected virtual bool HasMarketSummariesPush => false;
@@ -611,6 +614,7 @@ namespace Exchange.Net
                         if (market.QuoteAsset == Balance.USD || market.QuoteAsset == Balance.USDT)
                             usdassets.Add(market.BaseAsset);
                         //market.QuoteSymbols = markets.Where(x => x.BaseAsset == market.BaseAsset && x != market).ToArray();
+                        BookTickers.Add(market.Symbol, new Subject<BookTicker>());
                     }
                 }
                 else
@@ -622,6 +626,7 @@ namespace Exchange.Net
                         {
                             // update.
                             oldMarket.Status = market.Status;
+                            oldMarket.IsMarginTradingAllowed = market.IsMarginTradingAllowed;
                             // NOTE: if symbol got removed/status=BREAK -- remove it from any dependencies like QuoteSymbols.
                         }
                         else
@@ -632,6 +637,7 @@ namespace Exchange.Net
                             if (market.QuoteAsset == Balance.USD || market.QuoteAsset == Balance.USDT)
                                 usdassets.Add(market.BaseAsset);
                             //market.QuoteSymbols = markets.Where(x => x.BaseAsset == market.BaseAsset && x != market).ToArray();
+                            BookTickers.Add(market.Symbol, new Subject<BookTicker>());
                         }
                     }
                 }
@@ -883,7 +889,7 @@ namespace Exchange.Net
             }
         }
 
-        protected void OnKline(Candle candle)
+        protected async void OnKline(Candle candle)
         {
             var ticker = GetPriceTicker(candle.Symbol);
             if (ticker != null)
@@ -892,6 +898,7 @@ namespace Exchange.Net
                 {
                     case "1m":
                         ticker.Candle1m = candle;
+                        await ProcessTradingRules(candle);
                         break;
                     case "5m":
                         ticker.Candle5m = candle;
@@ -990,16 +997,41 @@ namespace Exchange.Net
         {
             foreach (var proxy in TradingRuleProxies.Where(x => x.Rule.Market.Equals(ticker.Symbol, StringComparison.CurrentCultureIgnoreCase)))
             {
-                await ProcessTradingRule(proxy, ticker);
+                await ProcessTradingRuleOnPriceTicker(proxy, ticker);
             }
         }
 
-        private async Task ProcessTradingRule(TradingRuleProxy proxy, PriceTicker ticker)
+        private async Task ProcessTradingRules(Candle candle)
+        {
+            foreach (var proxy in TradingRuleProxies.Where(x => x.Rule.Property == ThresholdType.LastPrice && x.Rule.Market.Equals(candle.Symbol, StringComparison.CurrentCultureIgnoreCase)))
+            {
+                await ProcessTradingRuleOnPrice(proxy, candle.Close);
+            }
+        }
+
+        protected virtual Task ProcessTradingRuleOnPriceTicker(TradingRuleProxy proxy, PriceTicker ticker)
+        {
+            return ProcessTradingRule(proxy, ticker);
+        }
+
+        protected virtual Task ProcessTradingRuleOnBookTicker(TradingRuleProxy proxy, BookTicker ticker)
+        {
+            return Task.CompletedTask;
+        }
+
+        protected virtual Task ProcessTradingRuleOnPrice(TradingRuleProxy proxy, decimal price)
+        {
+            return Task.CompletedTask;
+        }
+
+
+        protected async Task ProcessTradingRule(TradingRuleProxy proxy, PriceTicker ticker)
         {
             //const int MAX_CONFIRMS = 5;
             try
             {
                 var rule = proxy.Rule;
+                proxy.Distance = (double)(rule.GetPropertyValue(ticker).Value / rule.ThresholdRate) - 1.0;
                 await @lock.WaitAsync();
                 if (rule.IsApplicable(ticker, proxy.SymbolInformation))
                 {
@@ -1072,7 +1104,14 @@ namespace Exchange.Net
 
         protected void AddRule(TradingRule rule)
         {
-            TradingRuleProxies.Add(new TradingRuleProxy(rule, GetSymbolInformation(rule.Market)));
+            var proxy = new TradingRuleProxy(rule, GetSymbolInformation(rule.Market));
+            TradingRuleProxies.Add(proxy);
+            if (rule.Property != ThresholdType.LastPrice)
+            {
+                BookTickers[rule.Market]
+                    .Subscribe(async x => await ProcessTradingRuleOnBookTicker(proxy, x))
+                    .DisposeWith(Disposables);
+            }
         }
 
         protected virtual Task RefreshCommandExecute(int x)
@@ -1129,12 +1168,13 @@ namespace Exchange.Net
             wnd.ShowDialog();
         }
 
+        private string RulesPath => $@"{ExchangeName}\rules\";
         private void DeleteRuleImpl(TradingRuleProxy proxy)
         {
             if (proxy != null)
             {
                 TradingRuleProxies.Remove(proxy);
-                proxy.Rule.Delete();
+                proxy.Rule.Delete(RulesPath);
             }
         }
 
@@ -1223,7 +1263,7 @@ namespace Exchange.Net
                             rule.Operator = si.PriceTicker.LastPrice > NewOrder.Price ? ThresholdOperator.LessOrEqual : ThresholdOperator.GreaterOrEqual;
                             rule.ThresholdRate = NewOrder.Price;
                             rule.RequiredConfirmations = 1;
-                            rule.Save();
+                            rule.Save(RulesPath);
                             AddRule(rule);
                         }
                         break;
@@ -1239,7 +1279,7 @@ namespace Exchange.Net
                             rule.Operator = si.PriceTicker.LastPrice > NewOrder.Price ? ThresholdOperator.LessOrEqual : ThresholdOperator.GreaterOrEqual;
                             rule.ThresholdRate = NewOrder.Price;
                             rule.RequiredConfirmations = 1;
-                            rule.Save();
+                            rule.Save(RulesPath);
                             AddRule(rule);
                         }
                         break;
@@ -1254,7 +1294,7 @@ namespace Exchange.Net
                             rule.OrderVolume = NewOrder.Quantity;
                             rule.OrderSide = NewOrder.Side;
                             rule.OrderType = NewOrder.OrderType;
-                            rule.Save();
+                            rule.Save(RulesPath);
                             AddRule(rule);
                         }
                         break;
@@ -1396,7 +1436,7 @@ namespace Exchange.Net
 
         private void LoadRules()
         {
-            foreach (var file in Directory.EnumerateFiles(".", "*.rule*"))
+            foreach (var file in Directory.EnumerateFiles(RulesPath, "*.rule*"))
             {
                 //var json = File.ReadAllText(file);
                 //var isTTP = file.EndsWith(".ttp");
@@ -1681,7 +1721,7 @@ namespace Exchange.Net
             }
         }
 
-        protected virtual decimal? GetPropertyValue(PriceTicker ticker)
+        public virtual decimal? GetPropertyValue(PriceTicker ticker)
         {
             decimal? value = null;
             switch (Property)
@@ -1704,14 +1744,16 @@ namespace Exchange.Net
             return "Waiting...";
         }
 
-        public void Delete()
+        public void Delete(string path = ".")
         {
-            File.Delete(Path.ChangeExtension(Id.ToString(), GetFileExtension));
+            path = Path.Combine(path, Id);
+            File.Delete(Path.ChangeExtension(path, GetFileExtension));
         }
-        public void Save()
+        public void Save(string path = ".")
         {
             var json = JsonConvert.SerializeObject(this);
-            File.WriteAllText(Path.ChangeExtension(Id, GetFileExtension), json);
+            path = Path.Combine(path, Id);
+            File.WriteAllText(Path.ChangeExtension(path, GetFileExtension), json);
         }
 
         public static TradingRule Load(string path)
@@ -1813,6 +1855,7 @@ namespace Exchange.Net
 
         public int Confirmations { get; set; }
         [Reactive] public string Status { get; set; }
+        [Reactive] public double Distance { get; set; }
 
         public TradingRule Rule => rule;
         public string Symbol => rule.Market;
@@ -1869,5 +1912,10 @@ namespace Exchange.Net
         {
             BindingOperations.EnableCollectionSynchronization(list, (list as ICollection).SyncRoot);
         }
+    }
+
+    public class StatusItem : ReactiveObject
+    {
+        [Reactive] public string Text { get; set; }
     }
 }
