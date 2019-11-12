@@ -258,21 +258,21 @@ namespace Exchange.Net
 
         #region  Public API
 
-        const string GetServerTimeEndpoint = "/api/v1/time";
+        const string GetServerTimeEndpoint = "/api/v3/time";
         const int GetServerTimeWeight = 1;
-        const string GetExchangeInfoEndpoint = "/api/v1/exchangeInfo";
+        const string GetExchangeInfoEndpoint = "/api/v3/exchangeInfo";
         const int GetExchangeInfoWeight = 1;
         const string GetPriceTickerEndpoint = "/api/v3/ticker/price";
         const int GetPriceTickerWeight = 1;
-        const string Get24hrPriceTickerEndpoint = "/api/v1/ticker/24hr";
+        const string Get24hrPriceTickerEndpoint = "/api/v3/ticker/24hr";
         const int Get24hrPriceTickerWeight = 40;
-        const string GetRecentTradesEndpoint = "/api/v1/trades";
+        const string GetRecentTradesEndpoint = "/api/v3/trades";
         const int GetRecentTradesWeight = 1;
-        const string GetAggregatedTradesEndpoint = "/api/v1/aggTrades";
+        const string GetAggregatedTradesEndpoint = "/api/v3/aggTrades";
         const int GetAggregatedTradesWeight = 1;
-        const string GetDepthEndpoint = "/api/v1/depth";
+        const string GetDepthEndpoint = "/api/v3/depth";
         const int GetDepthWeight = 100;
-        const string GetKlinesEndpoint = "/api/v1/klines";
+        const string GetKlinesEndpoint = "/api/v3/klines";
         const int GetKlinesWeight = 1;
         const string GetBookTickerEndpoint = "/api/v3/ticker/bookTicker";
         const int GetBookTickerWeight = 2;
@@ -447,6 +447,9 @@ namespace Exchange.Net
         private const string UserDataStreamEndpoint = "/api/v3/userDataStream";
         private const int UserDataStreamWeight = 1;
 
+        private const string QueryAssetDividendEndpoint = "/sapi/v1/asset/assetDividend";
+        private const int QueryAssetDividendWeight = 1;
+
         public Task<ApiResult<Binance.AccountInfo>> GetAccountInfoAsync()
         {
             var requestMessage = CreateRequestMessage(new BlankSignedRequest(), GetAccountInfoEndpoint, HttpMethod.Get);
@@ -595,6 +598,13 @@ namespace Exchange.Net
             var requestMessage = CreateRequestMessage(new UserDataStreamRequest { listenKey = listenKey }, UserDataStreamEndpoint, HttpMethod.Delete, passApiKey: true);
             return ExecuteRequestAsync<Binance.Blank>(requestMessage, UserDataStreamWeight);
         }
+
+        public Task<ApiResult<Binance.Dividends>> QueryDividendsAsync(string asset = null)
+        {
+            var requestMessage = CreateRequestMessage(new BlankSignedRequest(), QueryAssetDividendEndpoint, HttpMethod.Get);
+            return ExecuteRequestAsync<Binance.Dividends>(requestMessage, QueryAssetDividendWeight);
+        }
+
         #endregion
 
         #region WebSocket API
@@ -606,33 +616,31 @@ namespace Exchange.Net
         public IObservable<Binance.WsPriceTicker24hr> SubscribeMarketSummaries(IEnumerable<string> symbols)
         {
             // A single connection to stream.binance.com is only valid for 24 hours; expect to be disconnected at the 24 hour mark
-            const string url = "wss://stream.binance.com:9443";
             const string req2 = "/ws/!ticker@arr";
             //const string req = "/stream?streams=";
 
             //var uri = url + req + string.Join("/", symbols.Select(s => s.ToLower() + "@ticker"));
-            var uri2 = url + req2;
-            var ws = new WebSocketWrapper(uri2, "ticker");
+            var uri2 = wssUrl + req2;
+            var ws = new WebSocketWrapper(uri2, "ticker", Log);
             return ws.Observe().SelectMany(OnTickerSocketMessage);
         }
 
         public IObservable<Binance.Ws24hrMiniTicker> Subscribe24hrMiniPriceTicker(IEnumerable<string> symbols)
         {
             // A single connection to stream.binance.com is only valid for 24 hours; expect to be disconnected at the 24 hour mark
-            const string url = "wss://stream.binance.com:9443/ws/!miniTicker@arr";
-            var ws = new WebSocketWrapper(url, "24hrMiniTicker");
+            const string url = wssUrl + "/ws/!miniTicker@arr";
+            var ws = new WebSocketWrapper(url, "24hrMiniTicker", Log);
             return ws.Observe().SelectMany(On24hrMiniTickerSocketMessage);
         }
 
         public IObservable<Binance.WsCandlestick> SubscribeKlinesAsync(IEnumerable<string> symbols, string interval)
         {
             // A single connection to stream.binance.com is only valid for 24 hours; expect to be disconnected at the 24 hour mark
-            const string url = "wss://stream.binance.com:9443";
             const string req = "/stream?streams=";
 
             var streamId = string.Join("-", symbols) + "@kline_" + interval;
-            var uri = url + req + string.Join("/", symbols.Select(s => s.ToLower() + "@kline_" + interval));
-            var ws = new WebSocketWrapper(uri, streamId);
+            var uri = wssUrl + req + string.Join("/", symbols.Select(s => s.ToLower() + "@kline_" + interval));
+            var ws = new WebSocketWrapper(uri, streamId, Log);
             return ws.Observe().Select(OnKlineSocketMessage);
         }
 
@@ -644,9 +652,9 @@ namespace Exchange.Net
         {
             // All symbols for streams are lowercase
             // A single connection to stream.binance.com is only valid for 24 hours; expect to be disconnected at the 24 hour mark
-            const string req = "/{0}@trade";
+            const string req = "/ws/{0}@trade";
 
-            var ws = new WebSocketWrapper(wssUrl + string.Format(req, symbol.ToLower()), $"{symbol} trades");
+            var ws = new WebSocketWrapper(wssUrl + string.Format(req, symbol.ToLower()), $"{symbol} trades", Log);
             return ws.Observe().Select(OnTradeSocketMessage);
             //var ws = new WebSocket(url + string.Format(req, symbol.ToLower()));
             ////ws.Security.EnabledSslProtocols = System.Security.Authentication.SslProtocols.Tls12;
@@ -676,9 +684,9 @@ namespace Exchange.Net
         {
             // All symbols for streams are lowercase
             // A single connection to stream.binance.com is only valid for 24 hours; expect to be disconnected at the 24 hour mark
-            const string req = "/{0}@depth";
+            const string req = "/ws/{0}@depth";
 
-            var ws = new WebSocketWrapper(wssUrl + string.Format(req, symbol.ToLower()), $"{symbol} depth");
+            var ws = new WebSocketWrapper(wssUrl + string.Format(req, symbol.ToLower()), $"{symbol} depth", Log);
             return ws.Observe().Select(OnDepthSocketMessage2);
         }
 
@@ -686,15 +694,15 @@ namespace Exchange.Net
         {
             // All symbols for streams are lowercase
             // A single connection to stream.binance.com is only valid for 24 hours; expect to be disconnected at the 24 hour mark
-            const string req = "/!bookTicker";
-            var ws = new WebSocketWrapper(wssUrl + req, $"AllBookTicker");
+            const string req = "/ws/!bookTicker";
+            var ws = new WebSocketWrapper(wssUrl + req, $"AllBookTicker", Log);
             return ws.Observe().Select(OnBookTickerSocketMessage);
         }
 
         public IObservable<Binance.WsBaseResponse> ObserveUserDataStream(string listenKey)
         {
-            const string req = "/ws/";
-            var ws = new WebSocketWrapper(wssUrl + req + listenKey, $"UserDataStream@{listenKey}");
+            string req = $"/ws/{listenKey}";
+            var ws = new WebSocketWrapper(wssUrl + req, $"UserDataStream@{listenKey}", Log);
             return ws.Observe().Select(OnUserDataStreamMessage);
         }
 
@@ -792,7 +800,7 @@ namespace Exchange.Net
             var query = requestParams.GetQueryString(); // Query w/o signature
             requestParams.signature = ByteArrayToHexString(SignString(query.TrimStart('?')));
             HttpContent content = null;
-            if (method == HttpMethod.Get)
+            if (method != HttpMethod.Post)
                 endpoint = endpoint + requestParams.GetQueryString(); // Take query string with signature.
             else
                 content = new StringContent(requestParams.GetQueryString().TrimStart('?')); // Take query string with signature.
@@ -806,7 +814,7 @@ namespace Exchange.Net
         {
             var query = requestParams.GetQueryString();
             HttpContent content = null;
-            if (method == HttpMethod.Get)
+            if (method != HttpMethod.Post)
                 endpoint = endpoint + query;
             else
                 content = new StringContent(query);
@@ -855,7 +863,7 @@ namespace Exchange.Net
                     if (logCall)
                         Log.DebugFormat("{0} {1} - {2}ms : {3} ({4}).", requestMessage.Method, uri, sw.ElapsedMilliseconds, responseMessage.ReasonPhrase, (int)responseMessage.StatusCode);
                     DumpJson(contentPath, content);
-                    result = new ApiResult<T>(JsonConvert.DeserializeObject<T>(content.Replace(",[]", string.Empty)), null, sw.ElapsedMilliseconds);
+                    result = new ApiResult<T>(JsonConvert.DeserializeObject<T>(content.Replace(",[]", string.Empty)), null, sw.ElapsedMilliseconds, content, requestMessage.RequestUri.ToString());
                 }
                 else if ((int)responseMessage.StatusCode == RateLimitStatusCode)
                 {
@@ -867,16 +875,19 @@ namespace Exchange.Net
                 }
                 else if (responseMessage.StatusCode >= HttpStatusCode.BadRequest && responseMessage.StatusCode < HttpStatusCode.InternalServerError)
                 {
-                    if (logCall)
-                        Log.ErrorFormat("{0} {1} - {2}ms : {3} ({4}).", requestMessage.Method, uri, sw.ElapsedMilliseconds, responseMessage.ReasonPhrase, (int)responseMessage.StatusCode);
                     // HTTP 4XX return codes are used for for malformed requests; the issue is on the sender's side.
                     var err = JsonConvert.DeserializeObject<Binance.Error>(content);
-                    result = new ApiResult<T>(default(T), new ApiError(err.code, err.msg), sw.ElapsedMilliseconds);
+                    if (logCall)
+                    {
+                        Log.ErrorFormat("{0} {1} - {2}ms : {3} ({4}).", requestMessage.Method, uri, sw.ElapsedMilliseconds, responseMessage.ReasonPhrase, (int)responseMessage.StatusCode);
+                        Log.ErrorFormat(err.ToString());
+                    }
+                    result = new ApiResult<T>(default(T), new ApiError(err.code, err.msg), sw.ElapsedMilliseconds, content, requestMessage.RequestUri.ToString());
                 }
                 else
                 {
                     Debug.Print($"{content}");
-                    result = new ApiResult<T>(default(T), new ApiError((int)responseMessage.StatusCode, responseMessage.ReasonPhrase), sw.ElapsedMilliseconds);
+                    result = new ApiResult<T>(default(T), new ApiError((int)responseMessage.StatusCode, responseMessage.ReasonPhrase), sw.ElapsedMilliseconds, content, requestMessage.RequestUri.ToString());
                 }
 
                 responseMessage.Content.Dispose();
@@ -891,18 +902,18 @@ namespace Exchange.Net
                     {
                         // An existing connection was forcibly closed by the remote host (10054)
                         // because of Keep-Alive=true. Retry.
-                        result = new ApiResult<T>(default(T), new ApiError(socketEx.ErrorCode, socketEx.Message));
+                        result = new ApiResult<T>(default(T), new ApiError(socketEx.ErrorCode, socketEx.Message), 0, null, requestMessage.RequestUri.ToString());
                         break;
                     }
                 }
                 if (result == null)
                 {
-                    result = new ApiResult<T>(default(T), new ApiError(ex.HResult, ex.Message));
+                    result = new ApiResult<T>(default(T), new ApiError(ex.HResult, ex.Message), 0, null, requestMessage.RequestUri.ToString());
                 }
             }
             catch (Exception ex)
             {
-                result = new ApiResult<T>(default(T), new ApiError(ex.HResult, ex.Message));
+                result = new ApiResult<T>(default(T), new ApiError(ex.HResult, ex.Message), 0, null, requestMessage.RequestUri.ToString());
             }
             finally
             {
@@ -922,7 +933,7 @@ namespace Exchange.Net
         }
 
         private const string apiUrl = "https://api.binance.com";
-        private const string wssUrl = "wss://stream.binance.com:9443/ws";
+        private const string wssUrl = "wss://stream.binance.com:9443";
         private static HttpClient httpClient = new HttpClient() { BaseAddress = new Uri(apiUrl) };
         private long serverTimeOffsetMilliseconds;
     }
@@ -946,6 +957,11 @@ namespace Binance
     {
         public int code { get; set; }
         public string msg { get; set; }
+
+        public override string ToString()
+        {
+            return $"{code}: {msg}";
+        }
     }
 
     public class ServerTime
@@ -1199,7 +1215,7 @@ namespace Binance
         public string txId { get; set; }
         public long insertTime { get; set; }
         public long applyTime { get; set; }
-        // for Deposit: 0:pending,1:success
+        // for Deposit: 0:pending, 6:credited but cannot withdraw, 1:success
         // for Withdraw: 0:Email Sent,1:Cancelled,2:Awaiting Approval,3:Rejected,4:Processing,5:Failure 6:Completed
         public int status { get; set; }
     }
@@ -1495,6 +1511,7 @@ namespace Binance
         [JsonProperty("o")] public OrderType type { get; set; }
         [JsonProperty("f")] public TimeInForce tif { get; set; }
         [JsonProperty("q")] public decimal quantity { get; set; }
+        [JsonProperty("Q")] public decimal quoteOrderQty { get; set; }
         [JsonProperty("p")] public decimal price { get; set; }
         [JsonProperty("P")] public decimal stopPrice { get; set; }
         [JsonProperty("F")] public decimal iceberqQuantity { get; set; }
@@ -1521,6 +1538,21 @@ namespace Binance
     public class UserDataStreamInfo
     {
         public string listenKey { get; set; }
+    }
+
+    public class Dividends
+    {
+        public DividendRecord[] rows { get; set; }
+        public int total { get; set; }
+    }
+
+    public class DividendRecord
+    {
+        public decimal amount { get; set; }
+        public string asset { get; set; }
+        public long divTime { get; set; }
+        public string enInfo { get; set; }
+        public long tranId { get; set; }
     }
 
     #endregion

@@ -11,10 +11,13 @@ namespace Exchange.Net
 {
     public class WebSocketWrapper
     {
-        public WebSocketWrapper(string url, string id = null, System.Security.Authentication.SslProtocols sslProtocols = System.Security.Authentication.SslProtocols.Default)
+        protected log4net.ILog Log { get; }
+
+        public WebSocketWrapper(string url, string id = null, log4net.ILog log = null, System.Security.Authentication.SslProtocols sslProtocols = System.Security.Authentication.SslProtocols.Default)
         {
             this.url = url;
             this.id = id;
+            this.Log = log;
             this.sslProtocols = sslProtocols;
         }
 
@@ -47,6 +50,7 @@ namespace Exchange.Net
             catch (Exception ex)
             {
                 Debug.Print($"Socket {id} open exception: {ex.Message}");
+                Log.Error($"Socket {id} open failed: {ex.Message}");
                 Task.Delay(TimeSpan.FromMilliseconds(250)).ContinueWith((x) => Open());
             }
         }
@@ -58,6 +62,7 @@ namespace Exchange.Net
                 webSocket.Closed -= Ws_Closed;
                 webSocket.Close();
                 Debug.Print($"Socket {id} closed");
+                Log.Info($"Socket {id} closed");
             }
             if (dispose)
                 DisposeSocket(ref webSocket);
@@ -91,6 +96,7 @@ namespace Exchange.Net
         void Ws_Closed(object sender, EventArgs e)
         {
             Debug.Print($"Socket {id} closed; reconnecting...");
+            Log.Warn($"Socket {id} closed; reconnecting...");
             DisposeSocket(ref webSocket);
             Task.Delay(TimeSpan.FromMilliseconds(250)).ContinueWith((x) => Open());
         }
@@ -98,6 +104,7 @@ namespace Exchange.Net
         void Ws_Error(object sender, SuperSocket.ClientEngine.ErrorEventArgs e)
         {
             Debug.Print($"Socket {id} error: {e.Exception.Message}");
+            Log.Error($"Socket {id}: {e.Exception.Message}");
         }
 
         void Ws_MessageReceived(object sender, MessageReceivedEventArgs e)
@@ -113,6 +120,7 @@ namespace Exchange.Net
         void Ws_Opened(object sender, EventArgs e)
         {
             Debug.Print($"Socket {id} opened");
+            Log.Info($"Socket {id} opened");
             while (!sendQueue.IsEmpty)
             {
                 if (sendQueue.TryDequeue(out string text))

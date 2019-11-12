@@ -25,6 +25,9 @@ namespace Terminal.WPF
     {
         private void Application_Startup(object sender, StartupEventArgs e)
         {
+            AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
+            Dispatcher.UnhandledException += Dispatcher_UnhandledException;
+            TaskScheduler.UnobservedTaskException += TaskScheduler_UnobservedTaskException;
             SetIEFeature(IE_FEATURE_BROWSER_EMULATION, 0x2AF8);
             //CrystalPalette.Palette.AccentPressedColor = Colors.Bisque;
             //CrystalPalette.Palette.MouseOverHighColor = Colors.Bisque;
@@ -50,14 +53,31 @@ namespace Terminal.WPF
             Locator.CurrentMutable.Register(() => new CreateTrade(), typeof(IViewFor<TradeTaskViewModel>));
             Locator.CurrentMutable.Register(() => new CreateExchangeAccount(), typeof(IViewFor<CreateExchangeAccountViewModel>));
 
-            ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls11 | SecurityProtocolType.Tls12;
+            //orig:ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls11 | SecurityProtocolType.Tls12;
+            ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12 | SecurityProtocolType.Tls11 | SecurityProtocolType.Tls | SecurityProtocolType.Ssl3;
 
             TelegramNotifier.Initialize();
         }
 
+        private void TaskScheduler_UnobservedTaskException(object sender, UnobservedTaskExceptionEventArgs e)
+        {
+            MessageBox.Show(e.Exception.ToString());
+        }
+
+        private void Dispatcher_UnhandledException(object sender, System.Windows.Threading.DispatcherUnhandledExceptionEventArgs e)
+        {
+            MessageBox.Show(e.Exception.ToString());
+            e.Handled = true;
+        }
+
+        private void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
+        {
+            MessageBox.Show(e.ExceptionObject.ToString());
+        }
+
         private void Application_DispatcherUnhandledException(object sender, System.Windows.Threading.DispatcherUnhandledExceptionEventArgs e)
         {
-            //MessageBox.Show(e.Exception.ToString());
+            MessageBox.Show(e.Exception.ToString());
             Debug.Print(e.Exception.Message);
             e.Handled = true;
         }

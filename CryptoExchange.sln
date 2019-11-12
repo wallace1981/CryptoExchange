@@ -1,6 +1,6 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.28010.2003
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.29503.13
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CryptoExchange", "CryptoExchange\CryptoExchange.csproj", "{7CE6959A-DAD6-464D-A0BB-2FAED87AE0CD}"
 EndProject
@@ -11,6 +11,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tests", "Tests\Tests.csproj", "{E28D80C8-4365-4429-9802-E5BCE1BF9C46}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WpfApp1", "WpfApp1\WpfApp1.csproj", "{62CF6BE0-2677-4568-A77E-04EF2BC5D6BB}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BinanceApiTester", "BinanceApiTester\BinanceApiTester.csproj", "{49ED5717-B2D2-4724-B9F6-724B999B5592}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -58,6 +60,14 @@ Global
 		{62CF6BE0-2677-4568-A77E-04EF2BC5D6BB}.Release|Any CPU.Build.0 = Release|Any CPU
 		{62CF6BE0-2677-4568-A77E-04EF2BC5D6BB}.Release|x86.ActiveCfg = Release|Any CPU
 		{62CF6BE0-2677-4568-A77E-04EF2BC5D6BB}.Release|x86.Build.0 = Release|Any CPU
+		{49ED5717-B2D2-4724-B9F6-724B999B5592}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{49ED5717-B2D2-4724-B9F6-724B999B5592}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{49ED5717-B2D2-4724-B9F6-724B999B5592}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{49ED5717-B2D2-4724-B9F6-724B999B5592}.Debug|x86.Build.0 = Debug|Any CPU
+		{49ED5717-B2D2-4724-B9F6-724B999B5592}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{49ED5717-B2D2-4724-B9F6-724B999B5592}.Release|Any CPU.Build.0 = Release|Any CPU
+		{49ED5717-B2D2-4724-B9F6-724B999B5592}.Release|x86.ActiveCfg = Release|Any CPU
+		{49ED5717-B2D2-4724-B9F6-724B999B5592}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

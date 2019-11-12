@@ -45,7 +45,7 @@ namespace Terminal.WPF
         private void Button_Click(object sender, RoutedEventArgs e)
         {
             Dispose();
-            Application.Current.Shutdown();
+            //Application.Current.Shutdown();
         }
 
         private void RadButton_Click(object sender, RoutedEventArgs e)

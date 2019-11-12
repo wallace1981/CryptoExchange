@@ -181,7 +181,9 @@ namespace Exchange.Net
                 SetActiveCommand = ReactiveCommand.Create<bool>(x => Run(x)).DisposeWith(disposables);
                 GetMarketsCommand = ReactiveCommand.CreateFromTask<long, IEnumerable<SymbolInformation>>(x => GetMarketsAsync()).DisposeWith(disposables);
                 //getTickersCommand = ReactiveCommand.CreateFromTask<long, IEnumerable<PriceTicker>>(x => GetTickersAsync()).DisposeWith(disposables);
-                RefreshCommand = ReactiveCommand.CreateFromTask<int>(RefreshCommandExecute).DisposeWith(disposables);
+                RefreshCommand = ReactiveCommand.CreateFromTask<int>(RefreshCommandExecute);
+                RefreshCommand.ThrownExceptions.Subscribe(OnCommandException).DisposeWith(disposables);
+                RefreshCommand.DisposeWith(disposables);
                 // TODO: Make below as ReactiveCommand instead of ICommand
                 // and add DisposeWith to WhenActivated() section.
                 RefreshPrivateDataCommand = ReactiveCommand.CreateFromTask(RefreshPrivateDataExecute).DisposeWith(disposables);
@@ -194,7 +196,9 @@ namespace Exchange.Net
                 GetTradesCommand = ReactiveCommand.CreateFromTask(GetTradesImpl).DisposeWith(disposables);
                 GetDepthCommand = ReactiveCommand.CreateFromTask(GetDepthImpl).DisposeWith(disposables);
                 // signed data
-                GetOpenOrders = ReactiveCommand.CreateFromTask(GetOpenOrdersImpl, signedDependableCommandCanExecute).DisposeWith(disposables);
+                GetOpenOrders = ReactiveCommand.CreateFromTask(GetOpenOrdersImpl, signedDependableCommandCanExecute);
+                GetOpenOrders.ThrownExceptions.Subscribe(OnCommandException).DisposeWith(disposables);
+                GetOpenOrders.DisposeWith(disposables);
                 GetOrdersHistory = ReactiveCommand.CreateFromTask(GetOrdersHistoryImpl, signedDependableCommandCanExecute).DisposeWith(disposables);
                 GetTradesHistory = ReactiveCommand.CreateFromTask(GetTradesHistoryImpl, symbolDependableCommandCanExecute).DisposeWith(disposables);
                 GetTradesStatistics = ReactiveCommand.CreateFromTask(GetTradesStatisticsImpl, symbolDependableCommandCanExecute).DisposeWith(disposables);
@@ -226,11 +230,8 @@ namespace Exchange.Net
                 subSI.DisposeWith(disposables);
                 subMD.DisposeWith(disposables);
 
-                RefreshCommand.ThrownExceptions.Subscribe(OnCommandException).DisposeWith(disposables);
-                GetOpenOrders.ThrownExceptions.Subscribe(OnCommandException).DisposeWith(disposables);
-
-                this.WhenAnyValue(vm => vm.CurrentAccount).Subscribe(x => CurrentAccountViewModel = AccountsViewModels.FirstOrDefault(y => y.Account == x));
-                this.WhenAnyValue(vm => vm.CurrentSymbolTickerPrice).Where(x => x != null).Select(x => x.Symbol).InvokeCommand(SetCurrentSymbolCommand);
+                this.WhenAnyValue(vm => vm.CurrentAccount).Subscribe(x => CurrentAccountViewModel = AccountsViewModels.FirstOrDefault(y => y.Account == x)).DisposeWith(disposables);
+                this.WhenAnyValue(vm => vm.CurrentSymbolTickerPrice).Where(x => x != null).Select(x => x.Symbol).InvokeCommand(SetCurrentSymbolCommand).DisposeWith(disposables);
 
                 this.ObservableForProperty(x => x.TickersSubscribed).Subscribe(x => SetTickersSubscription(x.Value)).DisposeWith(disposables);
                 this.ObservableForProperty(x => x.TradesSubscribed).Subscribe(x => SetTradesSubscription(x.Value)).DisposeWith(disposables);
@@ -834,8 +835,6 @@ namespace Exchange.Net
             {
                 PriceTicker oldTicker = MarketSummaries[idx];
                 Debug.Assert(oldTicker.Symbol == ticker.Symbol);
-                if (oldTicker.Candle1m != null && oldTicker.Candle1m.CloseTime >= DateTime.Now)
-                    ticker.LastPrice = oldTicker.Candle1m.Close;
                 bool tickerChanged = IsTickerChanged(oldTicker, ticker);
 #if GTK
                 ticker.PrevLastPrice = oldTicker.LastPrice;
@@ -898,6 +897,7 @@ namespace Exchange.Net
                 {
                     case "1m":
                         ticker.Candle1m = candle;
+                        AnalyzeCandle(ticker.Candle1m, 1.025m, "1m");
                         await ProcessTradingRules(candle);
                         break;
                     case "5m":
@@ -980,6 +980,7 @@ namespace Exchange.Net
 
         #region Trading Rules
         private readonly SemaphoreSlim @lock = new SemaphoreSlim(1, 1);
+        [Reactive] public bool IsTradingRulesEnabled { get; set; } = true;
 
         private async Task ProcessTradingRules(IEnumerable<PriceTicker> tickers)
         {
@@ -1047,27 +1048,34 @@ namespace Exchange.Net
                     }
                     else try
                     {
-                        Debug.Print("{4} Placing {0} {3} {1} by {2}.", rule.OrderSide, ticker.Symbol, rule.OrderRate, rule.OrderVolume, DateTime.Now);
-                        rule.Order = await PlaceOrder(rule).ConfigureAwait(false);
-                        if (rule.Order != null)
+                        if (!IsTradingRulesEnabled)
                         {
-                            switch (rule.Order.Status)
+                            proxy.Status += $"; Order not placed because trading disabled";
+                        }
+                        else
+                        {
+                            Debug.Print("{4} Placing {0} {3} {1} by {2}.", rule.OrderSide, ticker.Symbol, rule.OrderRate, rule.OrderVolume, DateTime.Now);
+                            rule.Order = await PlaceOrder(rule).ConfigureAwait(false);
+                            if (rule.Order != null)
                             {
-                                case OrderStatus.Filled:
-                                    var avgPrice = rule.Order.Fills.Sum(x => x.Total) / rule.Order.Fills.Sum(x => x.Quantity);
-                                    var si = GetSymbolInformation(rule.Market);
-                                    proxy.Status += $"; Order #{rule.Order.OrderId} filled with price {avgPrice.ToString(si.PriceFmt)}";
-                                    break;
-                                case OrderStatus.Cancelled:
-                                    proxy.Status += $"; Order cancelled";
-                                    break;
-                                case OrderStatus.Rejected:
-                                    proxy.Status += $"; Order rejected";
-                                    break;
-                                case OrderStatus.Active:
-                                case OrderStatus.PartiallyFilled:
-                                    proxy.Status += $"; Placed order #{rule.Order.OrderId}";
-                                    break;
+                                switch (rule.Order.Status)
+                                {
+                                    case OrderStatus.Filled:
+                                        var avgPrice = rule.Order.Fills.Sum(x => x.Total) / rule.Order.Fills.Sum(x => x.Quantity);
+                                        var si = GetSymbolInformation(rule.Market);
+                                        proxy.Status += $"; Order #{rule.Order.OrderId} filled with price {avgPrice.ToString(si.PriceFmt)}";
+                                        break;
+                                    case OrderStatus.Cancelled:
+                                        proxy.Status += $"; Order cancelled";
+                                        break;
+                                    case OrderStatus.Rejected:
+                                        proxy.Status += $"; Order rejected";
+                                        break;
+                                    case OrderStatus.Active:
+                                    case OrderStatus.PartiallyFilled:
+                                        proxy.Status += $"; Placed order #{rule.Order.OrderId}";
+                                        break;
+                                }
                             }
                         }
                         rule.IsActive = false;
@@ -1395,15 +1403,15 @@ namespace Exchange.Net
             //SetTickersSubscription(true);
 
             LoadRules();
-            LoadTradeTasks();
+            //LoadTradeTasks();
 
-            Observable
-                .Interval(TimeSpan.FromSeconds(1))
-                .SelectMany(x => TradeTasksList)
-                .Where(x => x.IsEnabled)
-                .Select(x => x.Model)
-                .InvokeCommand(TradeTaskLifecycle)
-                .DisposeWith(disposables);
+            //Observable
+            //    .Interval(TimeSpan.FromSeconds(1))
+            //    .SelectMany(x => TradeTasksList)
+            //    .Where(x => x.IsEnabled)
+            //    .Select(x => x.Model)
+            //    .InvokeCommand(TradeTaskLifecycle)
+            //    .DisposeWith(disposables);
 
             Observable
                 .Timer(TimeSpan.Zero, TimeSpan.FromSeconds(6))
@@ -1763,7 +1771,7 @@ namespace Exchange.Net
             var rule = isTTP ?
                 JsonConvert.DeserializeObject<TrailingTakeProfit>(json) :
                 JsonConvert.DeserializeObject<TradingRule>(json);
-            rule.Id = Path.ChangeExtension(path, null);
+            rule.Id = Path.ChangeExtension(Path.GetFileName(path), null);
             rule.Initialize();
             return rule;
         }

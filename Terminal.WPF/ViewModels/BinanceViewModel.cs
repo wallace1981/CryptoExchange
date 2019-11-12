@@ -18,7 +18,6 @@ namespace Exchange.Net
 {
     public partial class BinanceViewModel : ExchangeViewModel
     {
-        protected string ServerStatus;
         protected string ClientStatus => $"Weight is {client.Weight}, expiration in {client.WeightReset.TotalSeconds:F0} secs.";
 
         public override string ExchangeName => "Binance";
@@ -34,7 +33,7 @@ namespace Exchange.Net
         protected override bool HasTradesPush => false;
         protected override bool HasOrderBookPush => false;
         [Reactive] public DateTime ServerTime { get; set; }
-        //public ICommand GetServerTimeCommand => getServerTimeCommand;
+        [Reactive] public string ServerTimeZone { get; set; }
         [Reactive] public string CurrentInterval { get; set; } = "1d";
         private ReactiveCommand<Unit, Unit> GetServerTime { get; }
         private ReactiveCommand<string, Unit> KeepAliveUserDataStream { get; }
@@ -50,6 +49,10 @@ namespace Exchange.Net
                 return intervals;
             }
         }
+
+        [Reactive] public int PriceChangesPerMinute { get; set; }
+        private int PriceChanges;
+        private DateTime PriceChangesTrackingStartTime;
 
         public BinanceViewModel()
         {
@@ -81,11 +84,11 @@ namespace Exchange.Net
             Disposables.Add(klineSubscriptions);
 
             StatusItems = new ReadOnlyCollection<StatusItem>(new StatusItem[] {
-                new StatusItem(),
-                new StatusItem(),
-                new StatusItem(),
-                new StatusItem(),
-                new StatusItem()
+                new StatusItem(), // Server time
+                new StatusItem(), // # of trading pairs
+                new StatusItem(), // client state
+                new StatusItem(), // price ticker
+                new StatusItem()  // book ticker
             });
         }
 
@@ -104,22 +107,58 @@ namespace Exchange.Net
             var result = await client.StartUserDataStream();
             if (result.Success)
             {
-                var listenKey = result.Data.listenKey;
-                client.ObserveUserDataStream(listenKey)
-                    .Subscribe(
-                    x =>
-                    {
-                        // TODO: run corresponding handlers!
-                        Console.WriteLine(x.eventType);
-                    })
+                var listenKey = new DisposableValue<string>(result.Data.listenKey, x => DeleteUserDataStream(x))
+                    .DisposeWith(Disposables);
+                client.ObserveUserDataStream(listenKey.value)
+                    .Subscribe(OnUserDataStreamEvent)
                     .DisposeWith(Disposables);
                 // keep-alive "listen key" routine
                 Observable
                     .Interval(TimeSpan.FromMinutes(30))
-                    .Select(x => listenKey)
+                    .Select(x => listenKey.value)
                     .InvokeCommand(KeepAliveUserDataStream)
                     .DisposeWith(Disposables);
             }
+        }
+
+        private async void DeleteUserDataStream(string listenKey)
+        {
+            await client.DeleteUserDataStream(listenKey);
+        }
+
+        private async void OnUserDataStreamEvent(Binance.WsBaseResponse e)
+        {
+            switch (e.eventType)
+            {
+                case "balanceUpdate":
+                    // This event occurs when funds are deposited or withdrawn from your account.
+                    return;
+                case "executionReport":
+                    var order = e as Binance.WsOrderUpdate;
+                    var msg = $"[{ExchangeName}] {order.symbol} {order.side}";
+                    if (order.status == Binance.OrderStatus.PARTIALLY_FILLED)
+                        msg = $"{msg} p:{order.lastExecutedPrice} q:{order.lastExecutedQuantity} {order.status}";
+                    else if (order.status == Binance.OrderStatus.FILLED)
+                        msg = $"{msg} p:{order.price} q:{order.cumulativeFilledQuantity} {order.status}";
+                    else
+                        msg = $"{msg} p:{order.price} q:{order.quantity} {order.status}";
+                    await TelegramNotifier.Notify(msg);
+                    break;
+                case "outboundAccountInfo":
+                    break;
+                case "outboundAccountPosition":
+                    break;
+            }
+        }
+
+        private void OnBookTicker(BookTicker x)
+        {
+            BookTickers[x.Symbol].OnNext(x);
+        }
+
+        private void OnBookTickerError(Exception ex)
+        {
+            Debug.Print(ex.ToString());
         }
 
         protected override Task ProcessTradingRuleOnPriceTicker(TradingRuleProxy proxy, PriceTicker ticker)
@@ -137,6 +176,23 @@ namespace Exchange.Net
             return ProcessTradingRule(proxy, new PriceTicker { Symbol = proxy.Symbol, LastPrice = price });
         }
 
+        private void OnCandleHandler(Binance.WsCandlestick x)
+        {
+            if (x.kline.interval == "1m")
+            {
+                PriceChanges += 1;
+                var mins = (int)(DateTime.Now - PriceChangesTrackingStartTime).TotalSeconds;
+                PriceChangesPerMinute = PriceChanges / (1 + mins);
+                UpdateStatus($"{x.symbol}: {x.kline.closePrice}; {PriceChangesPerMinute}/sec", 3);
+            }
+            else if (x.kline.interval == "1h" && x.kline.isFinal > 0)
+            {
+                PriceChanges = 0;
+                PriceChangesPerMinute = 0;
+                PriceChangesTrackingStartTime = DateTime.Now;
+            }
+        }
+
         protected override void SetTickersSubscriptionWebSocket(bool isEnabled)
         {
             base.SetTickersSubscriptionWebSocket(isEnabled);
@@ -150,15 +206,18 @@ namespace Exchange.Net
                 {
                     var kline = client.SubscribeKlinesAsync(pairs, i);
                     kline.ObserveOnDispatcher()
-                        .Do(x => { if (x.kline.interval == "1m") UpdateStatus($"{x.symbol}: {x.kline.closePrice}", 3); })
+                        .Do(OnCandleHandler)
                         .Select(Convert)
                         .Subscribe(OnKline)
                         .DisposeWith(collector);
                 }
+                PriceChanges = 0;
+                PriceChangesPerMinute = 0;
+                PriceChangesTrackingStartTime = DateTime.Now;
                 client.ObserveOrderBookTickers()
                     .Select(Convert)
                     .Do(x => UpdateStatus(x.ToString(), 4))
-                    .Subscribe(x => BookTickers[x.Symbol].OnNext(x))
+                    .Subscribe(OnBookTicker, OnBookTickerError)
                     .DisposeWith(collector);
             }
             else
@@ -183,7 +242,8 @@ namespace Exchange.Net
             }
             else
                 ServerTime = DateTime.UtcNow;
-            UpdateStatus($"Server Time: {ServerTime}", 0);
+            UpdateStatus($"Server Time: {ServerTime} {ServerTimeZone}", 0);
+            UpdateStatus(ClientStatus, 2);
         }
 
         private async Task KeepAliveUserDataStreamImpl(string listenKey)
@@ -232,8 +292,9 @@ namespace Exchange.Net
                 currentExchangeInfo = resultExchangeInfo.Data;
                 var symbols = resultExchangeInfo.Data.symbols.Select(CreateSymbolInformation);
                 ProcessExchangeInfo(symbols);
-                var serverTime = resultExchangeInfo.Data.serverTime.FromUnixTimestamp();
-                UpdateStatus($"Server Time: {serverTime}", 0);
+                ServerTime = resultExchangeInfo.Data.serverTime.FromUnixTimestamp();
+                ServerTimeZone = resultExchangeInfo.Data.timezone;
+                UpdateStatus($"Server Time: {ServerTime} {ServerTimeZone}", 0);
                 UpdateStatus($"# of trading pairs: {symbols.Count()}", 1);
                 UpdateStatus(ClientStatus, 2);
             }
@@ -501,6 +562,7 @@ namespace Exchange.Net
         protected override IObservable<PriceTicker> ObserveTickers123()
         {
             return client.SubscribeMarketSummaries(null).Select(Convert).Where(x => x != null);
+            //return client.Subscribe24hrMiniPriceTicker(null).Select(Convert).Where(x => x != null);
         }
 
         protected override IObservable<PublicTrade> ObserveTrades(string market)
@@ -910,6 +972,8 @@ namespace Exchange.Net
                     return TransferStatus.Pending;
                 case 1:
                     return TransferStatus.Completed;
+                case 6:
+                    return TransferStatus.CreditedButCannotWithdraw;
             }
             return TransferStatus.Undefined;
         }
@@ -1022,5 +1086,52 @@ namespace Exchange.Net
         public DateTime OpenDate { get; set; }
         public decimal QuoteVolume { get; set; }
         public decimal QuoteBuyVolume { get; set; }
+    }
+
+    public class DisposableValue<T> : IDisposable
+    {
+        public T value;
+        public Action<T> doDispose;
+
+
+        public DisposableValue(T val, Action<T> disposer)
+        {
+            value = val;
+            doDispose = disposer;
+        }
+
+        #region IDisposable Support
+        private bool disposedValue = false; // To detect redundant calls
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposedValue)
+            {
+                if (disposing)
+                {
+                    // TODO: dispose managed state (managed objects).
+                }
+
+                doDispose(value);
+                disposedValue = true;
+            }
+        }
+
+        // TODO: override a finalizer only if Dispose(bool disposing) above has code to free unmanaged resources.
+         ~DisposableValue()
+        {
+            // Do not change this code. Put cleanup code in Dispose(bool disposing) above.
+            Dispose(false);
+        }
+
+        // This code added to correctly implement the disposable pattern.
+        public void Dispose()
+        {
+            // Do not change this code. Put cleanup code in Dispose(bool disposing) above.
+            Dispose(true);
+            // TODO: uncomment the following line if the finalizer is overridden above.
+            GC.SuppressFinalize(this);
+        }
+        #endregion
     }
 }

@@ -8,7 +8,7 @@
     xmlns:local="clr-namespace:Terminal.WPF"
     xmlns:xceed="http://schemas.xceed.com/wpf/xaml/toolkit"
     mc:Ignorable="d" 
-    d:DesignHeight="450" d:DesignWidth="1250">
+    d:DesignHeight="450" d:DesignWidth="1920">
 
     <UserControl.Resources>
         <CollectionViewSource
@@ -169,6 +169,10 @@
                                 >
                                 <TextBlock Text="Delete"/>
                             </Button>
+                            <CheckBox
+                                Content="Enabled"
+                                IsChecked="{Binding Path=IsTradingRulesEnabled}"
+                                />
                         </ToolBar>
                         <!--<telerik:RadTileList ItemsSource="{Binding Path=TradingRuleProxies, Mode=OneWay}">
                         <telerik:RadTileList.ItemTemplate>
@@ -477,8 +481,11 @@
         <StatusBar Grid.Row="3" Grid.ColumnSpan="3" ItemsSource="{Binding Path=StatusItems, Mode=OneWay}">
             <StatusBar.ItemTemplate>
                 <DataTemplate>
-                    <StatusBarItem Background="Yellow" Foreground="Blue">
-                        <TextBlock MinWidth="100" Padding="3 1" Text="{Binding Path=Text, Mode=OneWay}"/>
+                    <StatusBarItem Background="Yellow" Foreground="Blue" Padding="0">
+                        <TextBlock MinWidth="100"
+                                   Padding="3 0"
+                                   Text="{Binding Path=Text, Mode=OneWay}"
+                                   VerticalAlignment="Center"/>
                     </StatusBarItem>
                 </DataTemplate>
             </StatusBar.ItemTemplate>

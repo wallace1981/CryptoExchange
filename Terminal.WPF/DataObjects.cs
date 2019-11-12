@@ -557,6 +557,7 @@ namespace Exchange.Net
         Processing,
         Failed,
         Completed,
+        CreditedButCannotWithdraw, // WTF?!
         Undefined
     }
 

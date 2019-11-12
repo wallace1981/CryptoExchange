@@ -244,11 +244,16 @@ namespace Exchange.Net
         /// </summary>
         public double ElapsedMilliseconds { get; }
 
-        public ApiResult(T data, ApiError error, double elapsed = 0)
+        public string RawResponse { get; }
+        public string RawRequest { get; }
+
+        public ApiResult(T data, ApiError error, double elapsed = 0, string rawResponse = null, string rawRequest = null)
         {
             Data = data;
             Error = error;
             ElapsedMilliseconds = elapsed;
+            RawResponse = rawResponse;
+            RawRequest = rawRequest;
         }
     }
 
