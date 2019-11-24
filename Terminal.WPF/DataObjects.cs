@@ -487,6 +487,7 @@ namespace Exchange.Net
         [Reactive] public Candle Candle15m { get; set; }
         [Reactive] public Candle Candle30m { get; set; }
         [Reactive] public Candle Candle1h { get; set; }
+        [Reactive] public Candle Candle4h { get; set; }
         [Reactive] public Candle Candle6h { get; set; }
         [Reactive] public Candle Candle12h { get; set; }
         [Reactive] public Candle Candle1d { get; set; }

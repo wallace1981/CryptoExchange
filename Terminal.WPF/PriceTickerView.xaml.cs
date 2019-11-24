@@ -128,7 +128,7 @@ namespace Terminal.WPF
             decimal filterValue = decimal.Zero;
             if (!decimal.TryParse(filter.Replace(oper, string.Empty), out filterValue))
                 return true;
-            var value = (decimal) ticker.GetType().GetProperty(property).GetValue(ticker);
+            var value = GetPropertyValue<decimal>(ticker, property);
             switch (oper)
             {
                 case ">=":
@@ -144,6 +144,16 @@ namespace Terminal.WPF
                 default:
                     return true;
             }
+        }
+
+        private T GetPropertyValue<T>(object obj, string property)
+        {
+            var props = property.Split('.');
+            foreach(var p in props.Take(props.Length-1))
+            {
+                obj = obj.GetType().GetProperty(p).GetValue(obj);
+            }
+            return (T) obj.GetType().GetProperty(props.Last()).GetValue(obj);
         }
 
         private ICollectionView MarketSummaries => (Resources["csvMarketSummaries"] as CollectionViewSource).View;

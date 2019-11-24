@@ -144,6 +144,7 @@ namespace Exchange.Net
         public Binance.OrderType type { get; set; }
         public Binance.TimeInForce? timeInForce { get; set; }
         public decimal quantity { get; set; }
+        public decimal? quoteOrderQty { get; set; }
         public decimal? price { get; set; }
         public string newClientOrderId { get; set; } // A unique id for the order. Automatically generated if not sent.
         public decimal? stopPrice { get; set; }      // Used with STOP_LOSS, STOP_LOSS_LIMIT, TAKE_PROFIT, and TAKE_PROFIT_LIMIT orders.
@@ -278,6 +279,7 @@ namespace Exchange.Net
         const int GetBookTickerWeight = 2;
         const string GetAvgPriceEndpoint = "/api/v3/avgPrice";
         const int GetAvgPriceWeight = 1;
+        const string GetSystemStatusEndpoint = "/wapi/v3/systemStatus.html";
 
         public Task<ApiResult<Binance.ServerTime>> GetServerTimeAsync()
         {
@@ -394,6 +396,12 @@ namespace Exchange.Net
             var requestParams = new Dictionary<string, object>() { { "symbol", symbol } };
             var requestMessage = CreateRequestMessage(requestParams, GetAvgPriceEndpoint, HttpMethod.Get);
             return ExecuteRequestAsync<Binance.AvgPrice>(requestMessage, GetAvgPriceWeight, contentPath: $"avgPrice-{symbol}");
+        }
+
+        public Task<ApiResult<Binance.SystemStatus>> GetSystemStatus()
+        {
+            var requestMessage = CreateRequestMessage(new BlankPublicRequest(), GetSystemStatusEndpoint, HttpMethod.Get);
+            return ExecuteRequestAsync<Binance.SystemStatus>(requestMessage, 0, contentPath: $"systemStatus");
         }
 
         #endregion
@@ -839,20 +847,38 @@ namespace Exchange.Net
             return requestMessage;
         }
 
+        protected string GetUrl(HttpRequestMessage requestMessage)
+        {
+            if (requestMessage.Method == HttpMethod.Post)
+            {
+                return requestMessage.RequestUri.ToString() + requestMessage.Properties.GetValue("QUERY", string.Empty);
+            }
+            else
+            {
+                var uri = requestMessage.RequestUri;
+                var url = uri.ToString();
+                return uri.Query.Any() ? url.Replace(uri.Query, requestMessage.Properties.GetValue("QUERY", string.Empty)) : url;
+            }
+        }
+
         protected const int RateLimitStatusCode = 429;
         protected const int BannedStatusCode = 418;
 
         protected async Task<ApiResult<T>> ExecuteRequestAsync<T>(HttpRequestMessage requestMessage, int endpointWeight, string contentPath = null, bool logCall = true)
         {
             ApiResult<T> result = null;
+            string url = null;
             try
             {
                 var sw = Stopwatch.StartNew();
                 var responseMessage = await httpClient.SendAsync(requestMessage).ConfigureAwait(false);
                 var content = await responseMessage.Content.ReadAsStringAsync().ConfigureAwait(false);
+                url = GetUrl(responseMessage.RequestMessage);
                 sw.Stop();
 
-                var uri = responseMessage.RequestMessage.RequestUri.ToString();
+                var logMsg = $"{requestMessage.Method} {url} - {sw.ElapsedMilliseconds}ms : {responseMessage.ReasonPhrase} ({(int)responseMessage.StatusCode}).";
+                if (logCall)
+                    Log.Debug(logMsg);
                 //Debug.Print($"{requestMessage.Method} {uri} : {responseMessage.StatusCode}");
 
                 DumpJson(contentPath, content);
@@ -860,10 +886,8 @@ namespace Exchange.Net
                 if (responseMessage.IsSuccessStatusCode)
                 {
                     UpdateWeight(endpointWeight);
-                    if (logCall)
-                        Log.DebugFormat("{0} {1} - {2}ms : {3} ({4}).", requestMessage.Method, uri, sw.ElapsedMilliseconds, responseMessage.ReasonPhrase, (int)responseMessage.StatusCode);
                     DumpJson(contentPath, content);
-                    result = new ApiResult<T>(JsonConvert.DeserializeObject<T>(content.Replace(",[]", string.Empty)), null, sw.ElapsedMilliseconds, content, requestMessage.RequestUri.ToString());
+                    result = new ApiResult<T>(JsonConvert.DeserializeObject<T>(content.Replace(",[]", string.Empty)), null, sw.ElapsedMilliseconds, content, url);
                 }
                 else if ((int)responseMessage.StatusCode == RateLimitStatusCode)
                 {
@@ -878,16 +902,13 @@ namespace Exchange.Net
                     // HTTP 4XX return codes are used for for malformed requests; the issue is on the sender's side.
                     var err = JsonConvert.DeserializeObject<Binance.Error>(content);
                     if (logCall)
-                    {
-                        Log.ErrorFormat("{0} {1} - {2}ms : {3} ({4}).", requestMessage.Method, uri, sw.ElapsedMilliseconds, responseMessage.ReasonPhrase, (int)responseMessage.StatusCode);
-                        Log.ErrorFormat(err.ToString());
-                    }
-                    result = new ApiResult<T>(default(T), new ApiError(err.code, err.msg), sw.ElapsedMilliseconds, content, requestMessage.RequestUri.ToString());
+                        Log.Error(err.ToString());
+                    result = new ApiResult<T>(default(T), new ApiError(err.code, err.msg), sw.ElapsedMilliseconds, content, url);
                 }
                 else
                 {
                     Debug.Print($"{content}");
-                    result = new ApiResult<T>(default(T), new ApiError((int)responseMessage.StatusCode, responseMessage.ReasonPhrase), sw.ElapsedMilliseconds, content, requestMessage.RequestUri.ToString());
+                    result = new ApiResult<T>(default(T), new ApiError((int)responseMessage.StatusCode, responseMessage.ReasonPhrase), sw.ElapsedMilliseconds, content, url);
                 }
 
                 responseMessage.Content.Dispose();
@@ -902,18 +923,18 @@ namespace Exchange.Net
                     {
                         // An existing connection was forcibly closed by the remote host (10054)
                         // because of Keep-Alive=true. Retry.
-                        result = new ApiResult<T>(default(T), new ApiError(socketEx.ErrorCode, socketEx.Message), 0, null, requestMessage.RequestUri.ToString());
+                        result = new ApiResult<T>(default(T), new ApiError(socketEx.ErrorCode, socketEx.Message), 0, null, url);
                         break;
                     }
                 }
                 if (result == null)
                 {
-                    result = new ApiResult<T>(default(T), new ApiError(ex.HResult, ex.Message), 0, null, requestMessage.RequestUri.ToString());
+                    result = new ApiResult<T>(default(T), new ApiError(ex.HResult, ex.Message), 0, null, url);
                 }
             }
             catch (Exception ex)
             {
-                result = new ApiResult<T>(default(T), new ApiError(ex.HResult, ex.Message), 0, null, requestMessage.RequestUri.ToString());
+                result = new ApiResult<T>(default(T), new ApiError(ex.HResult, ex.Message), 0, null, url);
             }
             finally
             {
@@ -962,6 +983,12 @@ namespace Binance
         {
             return $"{code}: {msg}";
         }
+    }
+
+    public class SystemStatus
+    {
+        public int status { get; set; } // 0: normal，1：system maintenance
+        public string msg { get; set; }
     }
 
     public class ServerTime

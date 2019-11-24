@@ -150,7 +150,7 @@
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
 
-                <DataGridTemplateColumn Header="Volume 1m" Width="Auto" SortMemberPath="Candle1m.QuoteVolume"
+                <DataGridTemplateColumn Header="Vol. 1m" Width="Auto" SortMemberPath="Candle1m.QuoteVolume" x:Name="clCandle1m"
                                         HeaderStyle="{StaticResource DataGridColumnHeaderRightAlign}">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
@@ -166,7 +166,7 @@
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
                 
-                <DataGridTemplateColumn Header="Volume 5m" Width="Auto" SortMemberPath="Candle5m.QuoteVolume"
+                <DataGridTemplateColumn Header="Vol. 5m" Width="Auto" SortMemberPath="Candle5m.QuoteVolume"
                                         HeaderStyle="{StaticResource DataGridColumnHeaderRightAlign}">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
@@ -182,8 +182,8 @@
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
 
-                <DataGridTemplateColumn Header="Volume 15m" Width="Auto" SortMemberPath="Candle15m.QuoteVolume"
-                                        HeaderStyle="{StaticResource DataGridColumnHeaderRightAlign}">
+                <DataGridTemplateColumn Header="Vol. 15m" Width="Auto" SortMemberPath="Candle15m.QuoteVolume"
+                                        HeaderStyle="{StaticResource DataGridColumnHeaderRightAlign}" Visibility="Collapsed">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                             <TextBlock DockPanel.Dock="Right"
@@ -198,8 +198,8 @@
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
 
-                <DataGridTemplateColumn Header="Volume 30m" Width="Auto" SortMemberPath="Candle30m.QuoteVolume"
-                                        HeaderStyle="{StaticResource DataGridColumnHeaderRightAlign}">
+                <DataGridTemplateColumn Header="Vol. 30m" Width="Auto" SortMemberPath="Candle30m.QuoteVolume"
+                                        HeaderStyle="{StaticResource DataGridColumnHeaderRightAlign}" Visibility="Collapsed">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                             <TextBlock DockPanel.Dock="Right"
@@ -214,7 +214,7 @@
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
 
-                <DataGridTemplateColumn Header="Volume 1h" Width="Auto" SortMemberPath="Candle1h.QuoteVolume"
+                <DataGridTemplateColumn Header="Vol. 1h" Width="Auto" SortMemberPath="Candle1h.QuoteVolume"
                                         HeaderStyle="{StaticResource DataGridColumnHeaderRightAlign}">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
@@ -230,19 +230,37 @@
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
 
-                <DataGridTemplateColumn Header="Volume 4h" Width="Auto" SortMemberPath="Candle4h.QuoteVolume" Visibility="Collapsed"
+                <DataGridTemplateColumn Header="Vol. 4h" Width="Auto" SortMemberPath="Candle4h.QuoteVolume" Visibility="Visible"
                                         HeaderStyle="{StaticResource DataGridColumnHeaderRightAlign}">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <TextBlock DockPanel.Dock="Right" HorizontalAlignment="Right" FontFamily="{StaticResource RobotoCondensed}" FontSize="{StaticResource FontSizeList}">
-                                <Run Text="{Binding Path=Candle4h.QuoteVolume, Mode=OneWay, TargetNullValue='- -', StringFormat='N2'}"/>
-                                <Run Text="/"/>
-                                <Run Text="{Binding Path=Candle4h.BuyQuoteVolume, Mode=OneWay, TargetNullValue='- -', StringFormat='N2'}"/>
+                            <TextBlock DockPanel.Dock="Right"
+                                       Foreground="{Binding Path=Candle4h.VolumePercentage, Mode=OneWay, Converter={StaticResource convPercentToGradientEx}}"
+                                       Text="{Binding Path=Candle4h.QuoteVolume, Mode=OneWay, TargetNullValue='- -', StringFormat='N2'}"
+                                       Style="{StaticResource TextBlockRightAlignStyle}">
+                                <TextBlock.ToolTip>
+                                    <TextBlock Text="{Binding Path=Candle4h.BuyQuoteVolume, Mode=OneWay, TargetNullValue='- -', StringFormat='N2'}"/>
+                                </TextBlock.ToolTip>
                             </TextBlock>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
 
+                <DataGridTemplateColumn Header="Vol. 1d" Width="Auto" SortMemberPath="Candle1d.QuoteVolume" Visibility="Visible"
+                                        HeaderStyle="{StaticResource DataGridColumnHeaderRightAlign}">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <TextBlock DockPanel.Dock="Right"
+                                       Foreground="{Binding Path=Candle1d.VolumePercentage, Mode=OneWay, Converter={StaticResource convPercentToGradientEx}}"
+                                       Text="{Binding Path=Candle1d.QuoteVolume, Mode=OneWay, TargetNullValue='- -', StringFormat='N2'}"
+                                       Style="{StaticResource TextBlockRightAlignStyle}">
+                                <TextBlock.ToolTip>
+                                    <TextBlock Text="{Binding Path=Candle1d.BuyQuoteVolume, Mode=OneWay, TargetNullValue='- -', StringFormat='N2'}"/>
+                                </TextBlock.ToolTip>
+                            </TextBlock>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
             </DataGrid.Columns>
         </DataGrid>
 

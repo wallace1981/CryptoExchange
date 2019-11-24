@@ -88,6 +88,7 @@ namespace Exchange.Net
         [ObservableAsProperty] public bool IsGetOpenOrdersExecuting { get; }
 
         [Reactive] public bool HasSignedAccount { get; set; }
+        [Reactive] public OrderTrade SelectedOrderTrade { get; set; }
 
         protected abstract string DefaultMarket { get; }
         protected List<string> UsdAssets = new List<string>();
@@ -137,6 +138,10 @@ namespace Exchange.Net
 
         public ExchangeViewModel()
         {
+            if (!EventLog.SourceExists("Terminal.WPF", "."))
+                EventLog.CreateEventSource(new EventSourceCreationData("Terminal.WPF", "Application"));
+            Log = new EventLog("Application", ".", "Terminal.WPF");
+
             Accounts = new SourceCache<ExchangeAccount, string>(x => x.Name);
 
             CurrentMarket = DefaultMarket;
@@ -204,7 +209,9 @@ namespace Exchange.Net
                 GetTradesStatistics = ReactiveCommand.CreateFromTask(GetTradesStatisticsImpl, symbolDependableCommandCanExecute).DisposeWith(disposables);
                 GetDeposits = ReactiveCommand.CreateFromTask(GetDepositsImpl, signedDependableCommandCanExecute).DisposeWith(disposables);
                 GetWithdrawals = ReactiveCommand.CreateFromTask(GetWithdrawalsImpl, signedDependableCommandCanExecute).DisposeWith(disposables);
-                GetBalance = ReactiveCommand.CreateFromTask(GetBalanceImpl, signedDependableCommandCanExecute).DisposeWith(disposables);
+                GetBalance = ReactiveCommand.CreateFromTask(GetBalanceImpl, signedDependableCommandCanExecute);
+                GetBalance.ThrownExceptions.Subscribe(OnCommandException).DisposeWith(disposables);
+                GetBalance.DisposeWith(disposables);
                 CancelOrderCommand = ReactiveCommand.CreateFromTask<Order>(CancelOrderImpl).DisposeWith(disposables);
                 SubmitOrderCommand = ReactiveCommand.CreateFromTask<NewOrder>(SubmitOrderImpl).DisposeWith(disposables);
 
@@ -233,6 +240,10 @@ namespace Exchange.Net
                 this.WhenAnyValue(vm => vm.CurrentAccount).Subscribe(x => CurrentAccountViewModel = AccountsViewModels.FirstOrDefault(y => y.Account == x)).DisposeWith(disposables);
                 this.WhenAnyValue(vm => vm.CurrentSymbolTickerPrice).Where(x => x != null).Select(x => x.Symbol).InvokeCommand(SetCurrentSymbolCommand).DisposeWith(disposables);
 
+                getTickersSubscription.DisposeWith(disposables);
+                getDepthSubscription.DisposeWith(disposables);
+                getTradesSubscription.DisposeWith(disposables);
+                getPrivateDataSubscription.DisposeWith(disposables);
                 this.ObservableForProperty(x => x.TickersSubscribed).Subscribe(x => SetTickersSubscription(x.Value)).DisposeWith(disposables);
                 this.ObservableForProperty(x => x.TradesSubscribed).Subscribe(x => SetTradesSubscription(x.Value)).DisposeWith(disposables);
                 this.ObservableForProperty(x => x.DepthSubscribed).Subscribe(x => SetDepthSubscription(x.Value)).DisposeWith(disposables);
@@ -242,16 +253,16 @@ namespace Exchange.Net
             });
         }
 
-        private async void OnCommandException(Exception ex)
+        private void OnCommandException(Exception ex)
         {
-            await ShowException.Handle(ex);
+            //await ShowException.Handle(ex);
+            Log.WriteEntry(ex.ToString(), EventLogEntryType.Error);
         }
 
         bool isActive = false;
         public void Activate(CompositeDisposable disposables)
         {
             disposablesHandle.DisposeWith(disposables);
-            getTickersSubscription.DisposeWith(disposables);
             Initialize(disposables);
             //if (isActive)
             //    DoDispose();
@@ -857,7 +868,7 @@ namespace Exchange.Net
                 {
                     foreach (var mngr in Accounts.Items.Select(x => x.BalanceManager))
                     {
-                        mngr.UpdateWithLastPrice(market.ProperSymbol, ticker.Bid.GetValueOrDefault());
+                        mngr.UpdateWithLastPrice(market.ProperSymbol, (ticker.Bid ?? ticker.LastPrice).GetValueOrDefault());
                     }
                     UpdateWithTicker(ticker);
                     await ProcessTradingRules(ticker);
@@ -916,6 +927,9 @@ namespace Exchange.Net
                         ticker.Candle1h = candle;
                         AnalyzeCandle(ticker.Candle1h, 1.12m, "1h");
                         break;
+                    case "4h":
+                        ticker.Candle4h = candle;
+                        break;
                     case "6h":
                         ticker.Candle6h = candle;
                         break;
@@ -936,7 +950,7 @@ namespace Exchange.Net
         }
 
         private Dictionary<string, long> candleCache = new Dictionary<string, long>();
-        private async void AnalyzeCandle(Candle candle, decimal changePercent, string interval)
+        private void AnalyzeCandle(Candle candle, decimal changePercent, string interval)
         {
             if (candle.Close == decimal.Zero || candle.Open == decimal.Zero)
                 return;
@@ -954,12 +968,12 @@ namespace Exchange.Net
             {
                 candleCache[key] = candle.OpenTime.Ticks;
                 //await Alert.Handle($"{candle.Symbol}: price raised {delta-1m:p2}");
-                await TelegramNotifier.Notify($"[{ExchangeName}] {key} price +{positiveDelta - 1m:p2}");
+                TelegramNotifier.Notify($"[{ExchangeName}] {key} price +{positiveDelta - 1m:p2}");
             }
             else if (negativeDelta >= changePercent)
             {
                 candleCache[key] = candle.OpenTime.Ticks;
-                await TelegramNotifier.Notify($"[{ExchangeName}] {key} price -{negativeDelta - 1m:p2}");
+                TelegramNotifier.Notify($"[{ExchangeName}] {key} price -{negativeDelta - 1m:p2}");
             }
         }
 
@@ -1025,7 +1039,6 @@ namespace Exchange.Net
             return Task.CompletedTask;
         }
 
-
         protected async Task ProcessTradingRule(TradingRuleProxy proxy, PriceTicker ticker)
         {
             //const int MAX_CONFIRMS = 5;
@@ -1054,7 +1067,7 @@ namespace Exchange.Net
                         }
                         else
                         {
-                            Debug.Print("{4} Placing {0} {3} {1} by {2}.", rule.OrderSide, ticker.Symbol, rule.OrderRate, rule.OrderVolume, DateTime.Now);
+                            TelegramNotifier.Notify($"Rule {rule.Id}: placing {rule.OrderSide} {rule.OrderVolume} {ticker.Symbol} by {rule.OrderRate}.");
                             rule.Order = await PlaceOrder(rule).ConfigureAwait(false);
                             if (rule.Order != null)
                             {
@@ -1099,10 +1112,10 @@ namespace Exchange.Net
             }
         }
 
-        protected async void Notify(TradingRuleProxy proxy)
+        protected void Notify(TradingRuleProxy proxy)
         {
             string msg = $"[{ExchangeName}] {proxy.Symbol} {proxy.Rule.Operator} {proxy.Rule.ThresholdRate}";
-            await TelegramNotifier.Notify(msg);
+            TelegramNotifier.Notify(msg);
         }
 
         protected virtual Task<Order> PlaceOrder(TradingRule rule)
@@ -1181,6 +1194,7 @@ namespace Exchange.Net
         {
             if (proxy != null)
             {
+                proxy.Rule.IsActive = false;
                 TradingRuleProxies.Remove(proxy);
                 proxy.Rule.Delete(RulesPath);
             }
@@ -1363,7 +1377,6 @@ namespace Exchange.Net
             return 0;
         }
 
-
         private ConcurrentDictionary<string, SymbolInformation> marketsMapping = new ConcurrentDictionary<string, SymbolInformation>();
         private ConcurrentDictionary<string, int> tickersMapping = new ConcurrentDictionary<string, int>(); // maps SYMBOL to index of ticker in Tickers.
 
@@ -1377,8 +1390,6 @@ namespace Exchange.Net
             }
         }
 
-        protected SerialDisposable TradesHandle { get; } = new SerialDisposable();
-        protected SerialDisposable DepthHandle { get; } = new SerialDisposable();
         SerialDisposable disposablesHandle = new SerialDisposable();
 
         protected static List<CoinMarketCap.PublicAPI.Listing> cmc_listing { get; } = CoinMarketCapApiClient.GetListings();
@@ -1517,15 +1528,35 @@ namespace Exchange.Net
         }
         protected virtual async Task GetTradesStatisticsImpl()
         {
-            var totalBuy = CurrentAccountViewModel.TradesHistory.Where(x => x.Side == TradeSide.Buy).Sum(x => x.Total);
-            var totalSell = CurrentAccountViewModel.TradesHistory.Where(x => x.Side == TradeSide.Sell).Sum(x => x.Total);
+            var trades = CurrentAccountViewModel.TradesHistory.AsEnumerable();
+            if (SelectedOrderTrade != null)
+                trades = trades.Where(x => x.Timestamp >= SelectedOrderTrade.Timestamp);
+            var totalBuy = trades.Where(x => x.Side == TradeSide.Buy).Sum(x => x.Total);
+            var totalSell = trades.Where(x => x.Side == TradeSide.Sell).Sum(x => x.Total);
+            var commissions = trades.GroupBy(x => x.ComissionAsset);
+            var profit = totalSell - totalBuy;
+
             if (totalBuy > decimal.Zero)
             {
                 var si = await GetFullSymbolInformation();
-                totalSell += si.BaseAssetBalance.Total * si.PriceTicker.Bid.GetValueOrDefault();
-                var diff = totalSell - totalBuy;
-                var diffPercent = (totalSell / totalBuy);
-                await Alert.Handle($"Profit: {diff:N4} BTC, {diffPercent:p2}");
+                var potential = si.BaseAssetBalance.Total * si.PriceTicker.Bid.GetValueOrDefault();
+                var diff = profit + potential;
+                var diffPercent = (double)((totalSell + potential) / totalBuy) - 1.0;
+                var comms = string.Join(
+                    Environment.NewLine,
+                    commissions.Select(x => x.Sum(y => y.Comission).ToString("N8") + " " + x.Key)
+                    );
+                var zeroPrice = (si.BaseAssetBalance.Total > 0m) ? Math.Abs(profit / si.BaseAssetBalance.Total) : 0m;
+                var msg = string.Join(
+                    Environment.NewLine,
+                    $"Profit: {diff:N8} {si.QuoteAsset}, {diffPercent:p2}",
+                    $"Total Buys:  {totalBuy:N8}  {si.QuoteAsset}",
+                    $"Total Sells: {totalSell:N8}  {si.QuoteAsset}",
+                    $"Zero-Profit Price: {zeroPrice:N8}  {si.QuoteAsset}",
+                    //$"Holdings: {holdingsQuote:N8}  {si.QuoteAsset}",
+                    $"Comission: {comms}"
+                );
+                await Alert.Handle(msg);
             }
             //return Task.CompletedTask;
         }
@@ -1560,8 +1591,7 @@ namespace Exchange.Net
         protected virtual void SetTickersSubscriptionWebSocket(bool isEnabled)
         {
             if (isEnabled)
-                getTickersSubscription.Disposable = ObserveTickers123()
-                                        .Subscribe(OnRefreshMarketSummary2);
+                getTickersSubscription.Disposable = ObserveTickers123().Subscribe(OnRefreshMarketSummary2);
             else if (getTickersSubscription.Disposable != null)
                 getTickersSubscription.Disposable = null;
         }
@@ -1569,10 +1599,10 @@ namespace Exchange.Net
         protected void SetTradesSubscriptionWebSocket(bool isEnabled)
         {
             if (isEnabled)
-                getTradesSubscription = ObserveTrades(CurrentSymbol)
+                getTradesSubscription.Disposable = ObserveTrades(CurrentSymbol)
                                         .Subscribe(OnPublicTrade);
-            else if (getTradesSubscription != null)
-                getTradesSubscription.Dispose();
+            else if (getTradesSubscription.Disposable != null)
+                getTradesSubscription.Disposable = null;
         }
 
         protected void OnPublicTrade(PublicTrade x)
@@ -1589,37 +1619,37 @@ namespace Exchange.Net
             }
 
             if (isEnabled)
-                getTradesSubscription =
+                getTradesSubscription.Disposable =
                     Observable.Timer(TimeSpan.Zero, TimeSpan.FromSeconds(2))
                               .Select(x => Unit.Default)
                               .ObserveOnDispatcher()
                               .InvokeCommand(GetTradesCommand);
-            else if (getTradesSubscription != null)
-                getTradesSubscription.Dispose();
+            else if (getTradesSubscription.Disposable != null)
+                getTradesSubscription.Disposable = null;
         }
 
         protected void SetDepthSubscription(bool isEnabled)
         {
             if (isEnabled)
-                getDepthSubscription =
+                getDepthSubscription.Disposable =
                     Observable.Timer(TimeSpan.Zero, TimeSpan.FromSeconds(2))
                               .Select(x => Unit.Default)
                               .ObserveOnDispatcher()
                               .InvokeCommand(GetDepthCommand);
-            else if (getDepthSubscription != null)
-                getDepthSubscription.Dispose();
+            else if (getDepthSubscription.Disposable != null)
+                getDepthSubscription.Disposable = null;
         }
 
         protected void SetPrivateDataSubscription(bool isEnabled)
         {
             if (isEnabled)
-                getPrivateDataSubscription =
+                getPrivateDataSubscription.Disposable =
                     Observable.Timer(TimeSpan.Zero, TimeSpan.FromSeconds(6))
                               .Select(x => Unit.Default)
                               .ObserveOnDispatcher()
                               .InvokeCommand(RefreshPrivateDataCommand);
-            else if (getPrivateDataSubscription != null)
-                getPrivateDataSubscription.Dispose();
+            else if (getPrivateDataSubscription.Disposable != null)
+                getPrivateDataSubscription.Disposable = null;
         }
 
         protected virtual Task<Balance> GetAssetBalance(string asset)
@@ -1673,12 +1703,13 @@ namespace Exchange.Net
         protected IEnumerable<SymbolInformation> ValidPairs => marketsMapping.Values.Where(IsValidMarket);
 
         SerialDisposable getTickersSubscription = new SerialDisposable();
-        IDisposable getTradesSubscription;
-        IDisposable getDepthSubscription;
-        IDisposable getPrivateDataSubscription;
+        SerialDisposable getTradesSubscription = new SerialDisposable();
+        SerialDisposable getDepthSubscription = new SerialDisposable();
+        SerialDisposable getPrivateDataSubscription = new SerialDisposable();
 
 #if !GTK
         public ViewModelActivator Activator => viewModelActivator;
+        protected EventLog Log { get; }
 #endif
     }
 

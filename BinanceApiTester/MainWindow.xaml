@@ -3,9 +3,15 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:dragablz="clr-namespace:Dragablz;assembly=Dragablz"
         xmlns:local="clr-namespace:BinanceApiTester"
         mc:Ignorable="d"
-        Title="Binance API Client" Height="450" Width="800">
+        Title="Binance API Client" Height="450" Width="800"
+        TextElement.Foreground="{DynamicResource MaterialDesignBody}"
+        Background="{DynamicResource MaterialDesignPaper}"
+        TextElement.FontWeight="Medium"
+        TextElement.FontSize="14"
+        FontFamily="pack://application:,,,/MaterialDesignThemes.Wpf;component/Resources/Roboto/#Roboto"        >
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -13,7 +19,10 @@
             <RowDefinition/>
         </Grid.RowDefinitions>
 
-        <TabControl>
+        <dragablz:TabablzControl>
+            <dragablz:TabablzControl.InterTabController>
+                <dragablz:InterTabController />
+            </dragablz:TabablzControl.InterTabController>
             <TabItem Header="Dividends">
                 <Button
                     HorizontalAlignment="Center"
@@ -21,7 +30,12 @@
                     VerticalAlignment="Center"
                     Click="Button_Click">Run</Button>
             </TabItem>
-        </TabControl>
+            <TabItem Header="TICKER">
+            </TabItem>
+            <TabItem Header="DESIGN">
+                <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center">Looks Quite Nice</TextBlock>
+            </TabItem>
+        </dragablz:TabablzControl>
 
         <TextBox
             Grid.Row="1"

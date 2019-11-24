@@ -36,7 +36,7 @@ namespace Exchange.Net
                 ParseAndRun.ForEach(action => action(e.Message.Text));
         }
 
-        public static async Task Notify(string message)
+        public static async void Notify(string message)
         {
             int[] chats = { 542344060 };
             foreach (var id in chats)

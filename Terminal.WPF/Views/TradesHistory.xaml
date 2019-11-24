@@ -7,6 +7,7 @@
              d:DesignHeight="450" d:DesignWidth="800">
     <DataGrid
         ItemsSource="{Binding Path=CurrentAccountViewModel.TradesHistory}"
+        SelectedItem="{Binding Path=SelectedOrderTrade, Mode=OneWayToSource}"
         >
         <DataGrid.ColumnHeaderStyle>
             <Style TargetType="DataGridColumnHeader">

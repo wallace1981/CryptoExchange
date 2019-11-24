@@ -36,6 +36,7 @@ namespace Exchange.Net
         [Reactive] public string ServerTimeZone { get; set; }
         [Reactive] public string CurrentInterval { get; set; } = "1d";
         private ReactiveCommand<Unit, Unit> GetServerTime { get; }
+        private ReactiveCommand<Unit, Unit> GetSystemStatus { get; }
         private ReactiveCommand<string, Unit> KeepAliveUserDataStream { get; }
 
         public IList<string> KlineIntervals
@@ -62,10 +63,11 @@ namespace Exchange.Net
 
             //getServerTimeCommand = ReactiveCommand.CreateFromTask<long, DateTime>(x => GetServerTimeAsync());
             GetServerTime = ReactiveCommand.CreateFromTask(GetServerTimeImpl);
+            GetSystemStatus = ReactiveCommand.CreateFromTask(GetSystemStatusImpl);
             KeepAliveUserDataStream = ReactiveCommand.CreateFromTask<string>(KeepAliveUserDataStreamImpl);
 
-            FetchKlines = ReactiveCommand.CreateFromTask<int>(FetchKlinesImpl);
-            ConvertKlines = ReactiveCommand.Create(ConvertKlinesImpl);
+            FetchKlines = ReactiveCommand.CreateFromTask<int>(FetchKlinesImpl).DisposeWith(Disposables);
+            ConvertKlines = ReactiveCommand.Create(ConvertKlinesImpl).DisposeWith(Disposables);
 
             //this.WhenActivated(disposables =>
             //{
@@ -88,7 +90,8 @@ namespace Exchange.Net
                 new StatusItem(), // # of trading pairs
                 new StatusItem(), // client state
                 new StatusItem(), // price ticker
-                new StatusItem()  // book ticker
+                new StatusItem(), // book ticker
+                new StatusItem()  // system status
             });
         }
 
@@ -99,6 +102,14 @@ namespace Exchange.Net
                 .Select(x => Unit.Default)
                 .InvokeCommand(GetServerTime)
                 .DisposeWith(Disposables);
+            Observable
+                .Interval(TimeSpan.FromSeconds(10))
+                .Select(x => Unit.Default)
+                .InvokeCommand(GetSystemStatus)
+                .DisposeWith(Disposables);
+            GetServerTime.DisposeWith(Disposables);
+            GetSystemStatus.DisposeWith(Disposables);
+            KeepAliveUserDataStream.DisposeWith(Disposables);
             SubscribeUserDataStream();
         }
 
@@ -126,7 +137,7 @@ namespace Exchange.Net
             await client.DeleteUserDataStream(listenKey);
         }
 
-        private async void OnUserDataStreamEvent(Binance.WsBaseResponse e)
+        private void OnUserDataStreamEvent(Binance.WsBaseResponse e)
         {
             switch (e.eventType)
             {
@@ -142,7 +153,7 @@ namespace Exchange.Net
                         msg = $"{msg} p:{order.price} q:{order.cumulativeFilledQuantity} {order.status}";
                     else
                         msg = $"{msg} p:{order.price} q:{order.quantity} {order.status}";
-                    await TelegramNotifier.Notify(msg);
+                    TelegramNotifier.Notify(msg);
                     break;
                 case "outboundAccountInfo":
                     break;
@@ -153,7 +164,10 @@ namespace Exchange.Net
 
         private void OnBookTicker(BookTicker x)
         {
-            BookTickers[x.Symbol].OnNext(x);
+            if (BookTickers.ContainsKey(x.Symbol))
+                BookTickers[x.Symbol].OnNext(x);
+            else
+                TelegramNotifier.Notify($"[{ExchangeName}] BookTicker: ${x.Symbol} not found.");
         }
 
         private void OnBookTickerError(Exception ex)
@@ -200,16 +214,22 @@ namespace Exchange.Net
             {
                 var collector = new CompositeDisposable();
                 klineSubscriptions.Disposable = collector;
-                var pairs = Markets.Where(x => x.QuoteAsset == "BTC" || x.QuoteAsset == "USDT").Select(x => x.Symbol);
-                string[] intervals = { "1m", "5m", "15m", "30m", "1h" };
+                string[] intervals = { "1m", "5m", "1h", "4h", "1d" };
+                string[] quotes = { "BTC", "ETH", "BNB", "PAX", "USDT" };
+                var pairs = Markets
+                    .Where(x => quotes.Contains(x.QuoteAsset))
+                    .GroupBy(x => x.QuoteAsset).Select(x => x.Select(y => y.Symbol));
                 foreach (var i in intervals)
                 {
-                    var kline = client.SubscribeKlinesAsync(pairs, i);
-                    kline.ObserveOnDispatcher()
-                        .Do(OnCandleHandler)
-                        .Select(Convert)
-                        .Subscribe(OnKline)
-                        .DisposeWith(collector);
+                    foreach (var group in pairs)
+                    {
+                        var kline = client.SubscribeKlinesAsync(group, i);
+                        kline.ObserveOnDispatcher()
+                            .Do(OnCandleHandler)
+                            .Select(Convert)
+                            .Subscribe(OnKline)
+                            .DisposeWith(collector);
+                    }
                 }
                 PriceChanges = 0;
                 PriceChangesPerMinute = 0;
@@ -244,6 +264,20 @@ namespace Exchange.Net
                 ServerTime = DateTime.UtcNow;
             UpdateStatus($"Server Time: {ServerTime} {ServerTimeZone}", 0);
             UpdateStatus(ClientStatus, 2);
+        }
+
+        private async Task GetSystemStatusImpl()
+        {
+            var result = await client.GetSystemStatus().ConfigureAwait(false);
+            if (result.Success)
+            {
+                var ss = result.Data;
+                UpdateStatus($"{ss.msg} ({ss.status})", 5);
+            }
+            else
+            {
+                UpdateStatus($"System status failed {result.Error.ToString()}", 5);
+            }
         }
 
         private async Task KeepAliveUserDataStreamImpl(string listenKey)
@@ -446,7 +480,7 @@ namespace Exchange.Net
                 mngr.AddUpdateBalance(b);
             }
             foreach (var ticker in MarketSummaries)
-                mngr.UpdateWithLastPrice(ticker.Symbol, ticker.Bid.GetValueOrDefault());
+                mngr.UpdateWithLastPrice(ticker.Symbol, (ticker.Bid ?? ticker.LastPrice).GetValueOrDefault());
         }
 
         protected override async Task GetOpenOrdersImpl()
